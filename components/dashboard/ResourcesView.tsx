@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Button } from '@/components/ui/Button';
@@ -33,6 +33,7 @@ const getFileCategory = (fileName: string): string => {
 };
 
 export const ResourcesView: React.FC = () => {
+  const supabase = createClient();
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [isFileModalOpen, setIsFileModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ResourceTab>('all');

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/Button';
 import {
@@ -30,6 +30,7 @@ import { formatDate } from '@/lib/utils';
 import type { ProjectFormData, InviteFormData, Project } from '@/models';
 
 export const ProjectsView: React.FC = () => {
+  const supabase = createClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [selectedProjectForInvite, setSelectedProjectForInvite] =

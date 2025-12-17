@@ -3,9 +3,10 @@
 import React, { useState } from 'react';
 import { useProjectStore } from '@/store/projectStore';
 import { Settings, Trash2, Save, AlertCircle } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 export function ProjectSettings() {
+  const supabase = createClient();
   const { currentProject } = useProjectStore();
   const [projectName, setProjectName] = useState(currentProject?.name || '');
   const [projectDescription, setProjectDescription] = useState(

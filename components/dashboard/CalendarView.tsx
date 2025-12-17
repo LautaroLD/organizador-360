@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Button } from '@/components/ui/Button';
@@ -44,6 +44,7 @@ interface Event {
 }
 
 export const CalendarView: React.FC = () => {
+  const supabase = createClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showRecurrenceOptions, setShowRecurrenceOptions] = useState(false);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);

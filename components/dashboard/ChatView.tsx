@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Button } from '@/components/ui/Button';
@@ -28,6 +28,7 @@ interface ChannelFormData {
 }
 
 export const ChatView: React.FC = () => {
+  const supabase = createClient();
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);

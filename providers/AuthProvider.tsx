@@ -1,28 +1,25 @@
 'use client';
 
 import { useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useRealtimeUserMessages } from '@/hooks/useRealtimeUserMessages';
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode; }) {
+  const supabase = createClient();
   const { user, setUser, setIsLoading } = useAuthStore();
 
-  // Subscribe to realtime messages for all user's projects
-  // This persists across all views and projects
   useRealtimeUserMessages({
     userId: user?.id,
     enabled: !!user?.id,
   });
 
   useEffect(() => {
-    // Obtener sesión inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
     });
 
-    // Escuchar cambios en la autenticación
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {

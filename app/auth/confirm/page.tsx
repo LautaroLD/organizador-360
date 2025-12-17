@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Mail, CheckCircle, ArrowLeft } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'react-toastify';
 
 export default function ConfirmPage() {
+  const supabase = createClient();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isResending, setIsResending] = useState(false);

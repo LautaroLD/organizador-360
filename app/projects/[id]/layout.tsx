@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Sidebar } from '@/components/project/ProjectSidebar';
@@ -13,6 +13,7 @@ export default function ProjectLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = createClient();
   const params = useParams();
   const router = useRouter();
   const { user } = useAuthStore();

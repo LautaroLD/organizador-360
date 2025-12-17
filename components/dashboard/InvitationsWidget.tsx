@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -27,6 +27,7 @@ interface PendingInvitation {
 }
 
 export const InvitationsWidget: React.FC = () => {
+  const supabase = createClient();
   const { user } = useAuthStore();
   const router = useRouter();
 

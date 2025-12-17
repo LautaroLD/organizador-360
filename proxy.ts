@@ -17,17 +17,17 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => {
-            request.cookies.set(name, value);
-          });
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           });
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
-          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
         },
       },
     }
@@ -38,33 +38,32 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+
+  if (pathname.startsWith('/api/webhooks') || pathname.startsWith('/api/stripe')) {
+    return response;
+  }
+
   const isAuthPage = pathname.startsWith('/auth');
-  
-  // Permitir rutas públicas de API sin autenticación
+
   const publicApiRoutes = [
     '/api/health',
     '/api/auth',
     '/api/google',
   ];
   const isPublicApiRoute = publicApiRoutes.some(route => pathname.startsWith(route));
-  // Rutas protegidas que requieren autenticación
+
   const protectedRoutes = [
     '/dashboard',
     '/projects',
     '/settings',
     '/invitations',
   ];
-  
-  const isProtectedRoute = protectedRoutes.some(route => 
-    pathname.startsWith(route)
-  );
+  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
-  // Permitir acceso a rutas públicas de API sin autenticación
   if (isPublicApiRoute) {
     return response;
   }
 
-  // Si el usuario no está autenticado y trata de acceder a una ruta protegida
   if (!user && isProtectedRoute) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/auth';
@@ -72,8 +71,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Si el usuario está autenticado y trata de acceder a /auth, redirigir a dashboard
-  if (user && isAuthPage && pathname === '/auth') {
+  if (user && isAuthPage) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/dashboard';
     return NextResponse.redirect(redirectUrl);
@@ -84,13 +82,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Coincide con todas las rutas excepto:
-     * - _next/static (archivos estáticos)
-     * - _next/image (optimización de imágenes)
-     * - favicon.ico (favicon)
-     * - public files (sw.js, manifest.json, icons)
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|json|js)$).*)',
   ],
 };

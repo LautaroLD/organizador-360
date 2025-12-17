@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { Header } from '@/components/ui/Header';
 import { SettingsView } from '@/components/dashboard/SettingsView';
 
 export default function SettingsPage() {
+  const supabase = createClient();
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { user, setUser } = useAuthStore();

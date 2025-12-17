@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { useNotifications } from '@/hooks/useNotifications';
 
@@ -17,6 +17,7 @@ interface UseRealtimeUserMessagesOptions {
  * Automatically updates React Query cache when new messages arrive
  */
 export function useRealtimeUserMessages({ userId, enabled = true }: UseRealtimeUserMessagesOptions) {
+    const supabase = createClient();
     const queryClient = useQueryClient();
     const channelsRef = useRef<RealtimeChannel[]>([]);
     const channelDataRef = useRef<Array<{ id: string; name: string; projectName: string; }>>([]);

@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
-import { supabase } from '@/lib/supabase';
+import {
+  createClient
+} from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -18,6 +20,7 @@ interface AuthFormData {
 }
 
 export default function AuthPage() {
+  const supabase = createClient();
   const searchParams = useSearchParams();
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -129,21 +132,22 @@ export default function AuthPage() {
           router.push(`/auth/confirm?email=${encodeURIComponent(data.email)}`);
         }
       }
-    } catch (error: any) {
-      console.error('Auth error:', error);
+    } catch (error) {
+      const authError = error instanceof Error ? error : new Error(String(error));
+      console.error('Auth error:', authError);
 
-      // Maneja errores específicos de Supabase
-      if (error?.message) {
-        if (error.message.includes('already registered') ||
-          error.message.includes('User already registered') ||
-          error.message.includes('already exists')) {
+      // Handle Supabase-specific errors
+      if (authError?.message) {
+        if (authError.message.includes('already registered') ||
+          authError.message.includes('User already registered') ||
+          authError.message.includes('already exists')) {
           toast.error('Este email ya está registrado. Por favor inicia sesión.');
-        } else if (error.message.includes('Invalid login credentials')) {
+        } else if (authError.message.includes('Invalid login credentials')) {
           toast.error('Credenciales inválidas. Verifica tu email y contraseña.');
-        } else if (error.message.includes('Email not confirmed')) {
+        } else if (authError.message.includes('Email not confirmed')) {
           toast.error('Por favor confirma tu email antes de iniciar sesión.');
         } else {
-          toast.error(error.message);
+          toast.error(authError.message);
         }
       } else {
         toast.error('Ocurrió un error. Por favor intenta de nuevo.');

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/Button';
@@ -17,6 +17,7 @@ import type { InviteFormData, TagFormData, Member, ProjectTag } from '@/models';
 import { PostgrestSingleResponse } from '@supabase/supabase-js';
 
 export const MembersView: React.FC = () => {
+  const supabase = createClient();
   const { currentProject } = useProjectStore();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();

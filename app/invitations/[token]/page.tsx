@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { Button } from '@/components/ui/Button';
@@ -31,6 +31,7 @@ interface Invitation {
 }
 
 export default function InvitationPage() {
+  const supabase = createClient();
   const params = useParams();
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuthStore();

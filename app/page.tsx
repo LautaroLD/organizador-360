@@ -4,10 +4,11 @@ import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { Code2, MessageSquare, FolderKanban, Calendar, Sparkles } from 'lucide-react';
 
 export default function HomePage() {
+  const supabase = createClient();
   const router = useRouter();
 
   useEffect(() => {
