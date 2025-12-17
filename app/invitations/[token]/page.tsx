@@ -77,22 +77,21 @@ export default function InvitationPage() {
       setIsLoading(true);
       setError(null);
 
-      // Fetch invitation with project and inviter details
       const { data, error } = await supabase
         .from('project_invitations')
         .select(`
-          *,
-          project:projects (
-            name,
-            description
-          ),
-          inviter:users!inviter_id (
-            name,
-            email
-          )
-        `)
+    *,
+    project:projects (
+      name,
+      description
+    ),
+    inviter:users (
+      name,
+      email
+    )
+  `)
         .eq('token', token)
-        .single();
+        .maybeSingle(); // <--- IMPORTANTE: No explota si no hay datos
 
       if (error || !data) {
         setError('Invitación no encontrada');
