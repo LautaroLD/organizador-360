@@ -1,0 +1,36 @@
+{
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/icons/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "categories": [
+        "productivity",
+        "business"
+    ],
+    "screenshots": [],
+    "shortcuts": [
+        {
+            "name": "Chat",
+            "short_name": "Chat",
+            "description": "Abrir chat del proyecto",
+            "url": "/projects?view=chat",
+            "icons": [
+                {
+                    "src": "/icons/icon-192x192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ]
+}

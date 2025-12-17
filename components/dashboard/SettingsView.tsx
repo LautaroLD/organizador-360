@@ -1,0 +1,105 @@
+'use client';
+
+import React from 'react';
+import { useAuthStore } from '@/store/authStore';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { User, Mail, Shield, Palette } from 'lucide-react';
+import { useThemeStore } from '@/store/themeStore';
+
+export const SettingsView: React.FC = () => {
+  const { user } = useAuthStore();
+  const { theme, toggleTheme } = useThemeStore();
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-[var(--text-primary)]">Configuración</h2>
+        <p className="text-[var(--text-secondary)]">
+          Administra tu cuenta y preferencias
+        </p>
+      </div>
+
+      <div className="space-y-6">
+        {/* User Profile */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <User className="h-5 w-5 mr-2" />
+              Perfil de Usuario
+            </CardTitle>
+            <CardDescription>
+              Información básica de tu cuenta
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                Email
+              </label>
+              <div className="flex items-center space-x-2">
+                <Mail className="h-4 w-4 text-[var(--text-secondary)]" />
+                <p className="text-[var(--text-primary)]">{user?.email}</p>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                ID de Usuario
+              </label>
+              <div className="flex items-center space-x-2">
+                <Shield className="h-4 w-4 text-[var(--text-secondary)]" />
+                <p className="text-[var(--text-primary)] text-xs font-mono">{user?.id}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Appearance */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Palette className="h-5 w-5 mr-2" />
+              Apariencia
+            </CardTitle>
+            <CardDescription>
+              Personaliza el tema de la aplicación
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[var(--text-primary)] font-medium">Tema Actual</p>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  {theme === 'light' ? 'Modo Claro' : 'Modo Oscuro'}
+                </p>
+              </div>
+              <Button onClick={toggleTheme}>
+                Cambiar a {theme === 'light' ? 'Oscuro' : 'Claro'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* About */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Acerca de DevCore</CardTitle>
+            <CardDescription>
+              Información sobre la aplicación
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+              <p><strong>Versión:</strong> 1.0.0</p>
+              <p><strong>Última actualización:</strong> Noviembre 2024</p>
+              <p className="pt-2 border-t border-[var(--text-secondary)]">
+                DevCore es una plataforma de colaboración todo-en-uno diseñada específicamente 
+                para equipos de desarrollo.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};

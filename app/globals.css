@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary    : #f3f3f3;
+  --bg-secondary  : #FFFFFF;
+  --text-primary  : #212529;
+  --text-secondary: #6C757D;
+  --accent-primary: #007BFF;
+  --accent-success: #28A745;
+}
+
+.dark {
+  --bg-primary    : #121212;
+  --bg-secondary  : #1F1F20;
+  --text-primary  : #E4E6EB;
+  --text-secondary: #8E8E8F;
+  --accent-primary: #8A42F5;
+  --accent-success: #20C997;
+}
+
+* {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color           : var(--text-primary);
+}
+
+/* Custom Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-secondary);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
+}
+
+/* Firefox Scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-secondary) var(--bg-primary);
+}
+
+/* Focus Visible for Accessibility */
+*:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
