@@ -17,6 +17,7 @@ import { Channel } from '@/models';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useNotificationStore } from '@/store/notificationStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 
 interface MessageFormData {
   content: string;
@@ -40,6 +41,12 @@ export const ChatView: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { permission, requestPermission, isSupported } = useNotifications();
   const { subscribe: subscribePush, unsubscribe: unsubscribePush, isSupported: isPushSupported } = usePushNotifications();
+
+  // Subscribe to realtime messages
+  useRealtimeMessages({
+    channelId: selectedChannel?.id,
+    enabled: !!selectedChannel?.id,
+  });
 
   const { register: registerMessage, handleSubmit: handleSubmitMessage, reset: resetMessage } =
     useForm<MessageFormData>();

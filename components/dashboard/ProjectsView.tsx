@@ -92,6 +92,38 @@ export const ProjectsView: React.FC = () => {
   // Create project mutation
   const createProjectMutation = useMutation({
     mutationFn: async (data: ProjectFormData) => {
+      // 1. OBTENER ESTADO DE SUSCRIPCIÓN Y CONTEO ACTUAL
+      // Consultamos los proyectos del usuario y su estado premium en paralelo
+      const [projectsCountRes, subscriptionRes] = await Promise.all([
+        supabase
+          .from('projects')
+          .select('*', { count: 'exact', head: true })
+          .eq('owner_id', user!.id),
+        supabase
+          .from('subscriptions')
+          .select('status')
+          .eq('user_id', user!.id)
+          .maybeSingle()
+      ]);
+
+      // Validar errores en las queries
+      if (projectsCountRes.error) {
+        throw new Error(`Error al verificar proyectos: ${projectsCountRes.error.message}`);
+      }
+      if (subscriptionRes.error && subscriptionRes.error.code !== 'PGRST116') {
+        // PGRST116 = no rows returned, es esperado para nuevos usuarios
+        throw new Error(`Error al verificar suscripción: ${subscriptionRes.error.message}`);
+      }
+
+      const isPremium = subscriptionRes.data?.status === 'active';
+      const currentProjects = projectsCountRes.count || 0;
+
+      // 2. LÓGICA DE NEGOCIO: Límite de 3 proyectos para usuarios gratuitos
+      if (!isPremium && currentProjects >= 3) {
+        throw new Error('Has alcanzado el límite de 3 proyectos. Actualiza a Pro para crear proyectos ilimitados.');
+      }
+
+      // 3. PROCESO DE CREACIÓN (Tu código anterior corregido)
       const { data: project, error: projectError } = await supabase
         .from('projects')
         .insert({
@@ -99,31 +131,28 @@ export const ProjectsView: React.FC = () => {
           description: data.description,
           owner_id: user!.id,
         })
-        .select()
+        .select('id')
         .single();
 
       if (projectError) throw projectError;
 
-      // Add owner as member
-      const { error: memberError } = await supabase
-        .from('project_members')
-        .insert({
+      // Inserciones en paralelo para optimizar tiempo
+      const [memberRes, channelRes] = await Promise.all([
+        supabase.from('project_members').insert({
           project_id: project.id,
           user_id: user!.id,
           role: 'Owner',
-        });
+        }),
+        supabase.from('channels').insert({
+          project_id: project.id,
+          name: 'general',
+          description: 'Canal general del proyecto',
+          created_by: user!.id,
+        })
+      ]);
 
-      if (memberError) throw memberError;
-
-      // Create default #general channel
-      const { error: channelError } = await supabase.from('channels').insert({
-        project_id: project.id,
-        name: 'general',
-        description: 'Canal general del proyecto',
-        created_by: user!.id,
-      });
-
-      if (channelError) throw channelError;
+      if (memberRes.error) throw memberRes.error;
+      if (channelRes.error) throw channelRes.error;
 
       return project;
     },
