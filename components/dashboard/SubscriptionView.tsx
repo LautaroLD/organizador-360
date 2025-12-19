@@ -120,7 +120,7 @@ export const SubscriptionView: React.FC = () => {
     {
       id: 'pro',
       name: 'Pro',
-      price: 9.99,
+      price: 2,
       billing: '/mes',
       description: 'Para equipos en crecimiento',
       icon: <Star className='h-8 w-8' />,

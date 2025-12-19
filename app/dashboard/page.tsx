@@ -97,7 +97,14 @@ export default async function DashboardPage({
         title="Mis Proyectos"
         subtitle={subtitleText}
       />
-
+      {!isPremium && (
+        <div className="m-6 p-2 bg-[var(--accent-warning)]/10 border border-[var(--accent-warning)] rounded-md">
+          <p className="text-[var(--accent-warning)] text-sm">
+            Estás limitado a 3 proyectos.
+            <a href="/settings/subscription" className="font-bold underline ml-1">¡Pásate a Pro!</a>
+          </p>
+        </div>
+      )}
       <main className="min-h-[calc(100vh-73px)]">
         {/* Sincroniza la suscripción al volver de Stripe con session_id */}
         <SubscriptionSync />
@@ -107,14 +114,7 @@ export default async function DashboardPage({
 
         <ProjectsView />
 
-        {!isPremium && (
-          <div className="m-6 p-4 bg-yellow-100 border border-yellow-400 rounded-md">
-            <p className="text-yellow-700">
-              Estás limitado a 3 proyectos.
-              <a href="/pricing" className="font-bold underline ml-1">¡Pásate a Pro!</a>
-            </p>
-          </div>
-        )}
+
       </main>
     </div>
   );

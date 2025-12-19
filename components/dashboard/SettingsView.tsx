@@ -9,8 +9,34 @@ import { User, Mail, Shield, Palette, Star, ArrowRight } from 'lucide-react';
 import { useThemeStore } from '@/store/themeStore';
 
 export const SettingsView: React.FC = () => {
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
+
+  const handleDeleteAccount = async () => {
+    if (!confirm('¿Estás seguro de que deseas eliminar tu cuenta? Esta acción no se puede deshacer.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/delete-account', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al eliminar la cuenta');
+      }
+
+      // Cerrar sesión y redirigir
+      logout();
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      alert('Hubo un error al intentar eliminar tu cuenta. Por favor, inténtalo de nuevo.');
+    }
+  };
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -104,7 +130,25 @@ export const SettingsView: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-
+        {/* Delete Account */}
+        <Card className='border-red-500'>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Shield className="h-5 w-5 mr-2 text-red-500" />
+              Eliminar Cuenta
+            </CardTitle>
+            <CardDescription>
+              Elimina tu cuenta permanentemente
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className='w-full flex'>
+              <Button variant="danger" className='ml-auto' onClick={handleDeleteAccount}>
+                Eliminar Cuenta
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
         {/* About */}
         <Card>
           <CardHeader>
@@ -125,6 +169,6 @@ export const SettingsView: React.FC = () => {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </div >
   );
 };

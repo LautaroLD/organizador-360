@@ -1,21 +1,25 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
-  --bg-primary    : #f3f3f3;
-  --bg-secondary  : #FFFFFF;
-  --text-primary  : #212529;
-  --text-secondary: #6C757D;
-  --accent-primary: #007BFF;
-  --accent-success: #28A745;
+  --bg-primary: #f3f3f3;
+  --bg-secondary: #ffffff;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --accent-primary: #007bff;
+  --accent-warning: #ffc107;
+  --accent-danger: #dc3545;
+  --accent-success: #28a745;
 }
 
 .dark {
-  --bg-primary    : #121212;
-  --bg-secondary  : #1F1F20;
-  --text-primary  : #E4E6EB;
-  --text-secondary: #8E8E8F;
-  --accent-primary: #8A42F5;
-  --accent-success: #20C997;
+  --bg-primary: #121212;
+  --bg-secondary: #1f1f20;
+  --text-primary: #e4e6eb;
+  --text-secondary: #8e8e8f;
+  --accent-primary: #8a42f5;
+  --accent-warning: #ffb700;
+  --accent-danger: #ff6b6b;
+  --accent-success: #20c997;
 }
 
 * {
@@ -24,7 +28,7 @@
 
 body {
   background-color: var(--bg-primary);
-  color           : var(--text-primary);
+  color: var(--text-primary);
 }
 
 /* Custom Scrollbar Styles */
