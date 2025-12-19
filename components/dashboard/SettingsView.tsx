@@ -1,10 +1,11 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { User, Mail, Shield, Palette } from 'lucide-react';
+import { User, Mail, Shield, Palette, Star, ArrowRight } from 'lucide-react';
 import { useThemeStore } from '@/store/themeStore';
 
 export const SettingsView: React.FC = () => {
@@ -21,6 +22,30 @@ export const SettingsView: React.FC = () => {
       </div>
 
       <div className="space-y-6">
+        {/* Subscription */}
+        <Card className="border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/5">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Star className="h-5 w-5 mr-2 text-[var(--accent-primary)]" />
+              Plan y Suscripción
+            </CardTitle>
+            <CardDescription>
+              Gestiona tu plan y acceso a funciones premium
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-[var(--text-secondary)] mb-4">
+              Actualiza a Pro para desbloquear proyectos ilimitados, miembros ilimitados y más.
+            </p>
+            <Link href="/settings/subscription">
+              <Button className="w-full">
+                Ver Planes
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
         {/* User Profile */}
         <Card>
           <CardHeader>
@@ -93,7 +118,7 @@ export const SettingsView: React.FC = () => {
               <p><strong>Versión:</strong> 1.0.0</p>
               <p><strong>Última actualización:</strong> Noviembre 2024</p>
               <p className="pt-2 border-t border-[var(--text-secondary)]">
-                DevCore es una plataforma de colaboración todo-en-uno diseñada específicamente 
+                DevCore es una plataforma de colaboración todo-en-uno diseñada específicamente
                 para equipos de desarrollo.
               </p>
             </div>

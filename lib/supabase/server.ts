@@ -6,7 +6,7 @@ export async function createClient() {
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON!, // Asegúrate que la variable se llame igual en tu .env
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, // Usa la clave ANON (publica) para SSR
     {
       cookies: {
         getAll() {

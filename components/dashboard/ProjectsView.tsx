@@ -101,7 +101,7 @@ export const ProjectsView: React.FC = () => {
           .eq('owner_id', user!.id),
         supabase
           .from('subscriptions')
-          .select('status')
+          .select('status,cancel_at_period_end,current_period_end,canceled_at')
           .eq('user_id', user!.id)
           .maybeSingle()
       ]);
@@ -115,7 +115,16 @@ export const ProjectsView: React.FC = () => {
         throw new Error(`Error al verificar suscripción: ${subscriptionRes.error.message}`);
       }
 
-      const isPremium = subscriptionRes.data?.status === 'active';
+      const sub = subscriptionRes.data;
+      const now = new Date();
+      const currentPeriodEnd = sub?.current_period_end ? new Date(sub.current_period_end) : null;
+      const isPremium = !!sub && (
+        (['active', 'trialing', 'past_due'].includes(sub.status ?? '') &&
+          (
+            sub.cancel_at_period_end !== true ||
+            (currentPeriodEnd && now < currentPeriodEnd)
+          ))
+      );
       const currentProjects = projectsCountRes.count || 0;
 
       // 2. LÓGICA DE NEGOCIO: Límite de 3 proyectos para usuarios gratuitos
