@@ -14,7 +14,7 @@ export default function SubscriptionSync() {
 
     async function sync() {
       try {
-        const res = await fetch(`/api/stripe/sync-session?session_id=${encodeURIComponent(sessionId)}`);
+        const res = await fetch(`/api/stripe/sync-session?session_id=${encodeURIComponent(sessionId as string)}`);
         // Ignorar respuesta; si falla, no bloquear UI
       } catch (e) {
         // noop
