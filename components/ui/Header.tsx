@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuthStore } from '@/store/authStore';
 import { createClient } from '@/lib/supabase/client';
 import { User, Settings, LogOut, ChevronDown, Home, Code2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import Link from 'next/link';
+import clsx from 'clsx';
 
 interface HeaderProps {
   title?: string;
@@ -20,6 +21,8 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuthStore();
   const router = useRouter();
+  const path = usePathname();
+  const location = { pathname: path };
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -61,7 +64,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
     <header className="border-b border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] sticky top-0 z-30">
 
       <div className="flex items-center justify-between border-b border-[var(--text-secondary)]/20 px-6 py-2">
-        <Link href='/dashboard' className='flex items-center space-x-2 hidden lg:flex'>
+        <Link href='/dashboard' className={clsx('flex items-center space-x-2', !location.pathname.includes('/projects') ? 'flex' : 'hidden')}>
           <Code2 className="h-8 w-8 text-[var(--accent-primary)]" />
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">DevCore</h1>
         </Link>
