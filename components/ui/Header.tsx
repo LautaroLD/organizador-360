@@ -59,6 +59,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   const getInitials = (email: string) => {
     return email.substring(0, 2).toUpperCase();
   };
+  console.log(user);
 
   return (
     <header className="border-b border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] sticky top-0 z-30">
@@ -88,10 +89,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
                 {/* Email (desktop only) */}
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-medium text-[var(--text-primary)] max-w-[150px] truncate">
-                    {user?.email?.split('@')[0] || 'Usuario'}
-                  </p>
-                  <p className="text-xs text-[var(--text-secondary)]">
-                    {user?.email?.split('@')[1] || ''}
+                    {user?.user_metadata.full_name ?? 'Usuario'}
                   </p>
                 </div>
               </div>
