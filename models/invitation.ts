@@ -16,4 +16,7 @@ export interface InviteMemberModalProps {
   onSubmit: (data: InviteFormData) => void;
   isLoading: boolean;
   projectName?: string;
+  currentMemberCount?: number;
+  memberLimit?: number;
+  isPremium?: boolean;
 }

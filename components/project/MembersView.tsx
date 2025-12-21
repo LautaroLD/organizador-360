@@ -7,7 +7,7 @@ import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/Button';
 import { toast } from 'react-toastify';
-import { Users, UserPlus, Settings } from 'lucide-react';
+import { Users, UserPlus, Settings, Crown } from 'lucide-react';
 import { MemberCard } from '@/components/members/MemberCard';
 import { InviteMemberModal } from '@/components/members/InviteMemberModal';
 import { ManageMemberModal } from '@/components/members/ManageMemberModal';
@@ -81,6 +81,26 @@ export const MembersView: React.FC = () => {
       return data as ProjectTag[];
     },
     enabled: !!currentProject?.id,
+  });
+
+  // Check subscription limits
+  const { data: subscriptionInfo } = useQuery({
+    queryKey: ['subscription-limits', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+
+      const { data, error } = await supabase.rpc('is_premium_user', {
+        p_user_id: user.id,
+      });
+
+      if (error) {
+        console.error('Error checking premium status:', error);
+        return { isPremium: false };
+      }
+
+      return { isPremium: data as boolean };
+    },
+    enabled: !!user?.id,
   });
 
   // Invite user mutation
@@ -297,6 +317,30 @@ export const MembersView: React.FC = () => {
   const canManageMembers =
     currentProject?.userRole === 'Owner' || currentProject?.userRole === 'Admin';
 
+  const handleInviteClick = async () => {
+    if (!currentProject?.id) return;
+
+    try {
+      const response = await fetch('/api/invitations/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: currentProject.id }),
+      });
+
+      const result = await response.json();
+
+      if (!result.canAdd) {
+        toast.error(result.reason || 'No se puede agregar más miembros');
+        return;
+      }
+
+      setIsInviteModalOpen(true);
+    } catch (error) {
+      console.error('Error validating invitation:', error);
+      toast.error('Error al validar invitación');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className='flex items-center justify-center h-full p-12'>
@@ -319,6 +363,16 @@ export const MembersView: React.FC = () => {
             </h2>
             <p className='text-sm md:text-base text-[var(--text-secondary)] mt-1'>
               {members?.length || 0} miembro(s) en el equipo
+              {!subscriptionInfo?.isPremium && (
+                <span className='ml-2 text-xs text-orange-500 font-medium'>
+                  (Plan FREE: máx. 10 miembros)
+                </span>
+              )}
+              {subscriptionInfo?.isPremium && (
+                <span className='ml-2 text-xs text-[var(--accent-primary)] font-medium inline-flex items-center gap-1'>
+                  <Crown className='h-3 w-3' /> PRO - Sin límites
+                </span>
+              )}
             </p>
           </div>
           {canManageMembers && (
@@ -332,7 +386,7 @@ export const MembersView: React.FC = () => {
                 Gestionar Tags
               </Button>
               <Button
-                onClick={() => setIsInviteModalOpen(true)}
+                onClick={handleInviteClick}
                 className='w-full sm:w-auto'
               >
                 <UserPlus className='h-4 w-4 mr-2' />
@@ -368,7 +422,7 @@ export const MembersView: React.FC = () => {
               Invita a colaboradores para comenzar a trabajar en equipo
             </p>
             {canManageMembers && (
-              <Button onClick={() => setIsInviteModalOpen(true)} size='lg'>
+              <Button onClick={handleInviteClick} size='lg'>
                 <UserPlus className='h-5 w-5 mr-2' />
                 Invitar primer miembro
               </Button>
@@ -384,6 +438,9 @@ export const MembersView: React.FC = () => {
         onSubmit={(data) => inviteUserMutation.mutate(data)}
         isLoading={inviteUserMutation.isPending}
         projectName={currentProject?.name}
+        currentMemberCount={members?.length}
+        memberLimit={!subscriptionInfo?.isPremium ? 10 : undefined}
+        isPremium={subscriptionInfo?.isPremium}
       />
 
       <ManageMemberModal
