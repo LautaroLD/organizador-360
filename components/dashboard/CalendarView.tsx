@@ -58,6 +58,7 @@ export const CalendarView: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { tokens, isConnected, userEmail, setTokens, disconnect, clearIfDifferentUser } = useGoogleCalendarStore();
+  const userTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', []);
 
   const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<EventFormData>({
     defaultValues: {
@@ -264,7 +265,7 @@ export const CalendarView: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ tokens, event, checkDuplicate }),
+        body: JSON.stringify({ tokens, event: { ...event, timeZone: userTimeZone }, checkDuplicate }),
       });
 
       if (!response.ok) {
@@ -281,7 +282,12 @@ export const CalendarView: React.FC = () => {
 
   // Eliminar evento de Google Calendar
   const deleteEventFromGoogle = async (event: any) => {
-    if (!tokens) {
+    const projectId = event.project_id || currentProject?.id;
+    const startDate = typeof event.start_date === 'string'
+      ? event.start_date.split('T')[0]
+      : '';
+
+    if (!projectId && !tokens) {
       return;
     }
 
@@ -293,8 +299,9 @@ export const CalendarView: React.FC = () => {
         },
         body: JSON.stringify({
           tokens,
+          projectId,
           eventTitle: event.title,
-          startDate: event.start_date.split('T')[0]
+          startDate: startDate || event.start_date,
         }),
       });
 
@@ -339,6 +346,7 @@ export const CalendarView: React.FC = () => {
             end_time: endParts[1].slice(0, 5),
             is_recurring: event.is_recurring || false,
             recurrence_rule: event.recurrence_rule,
+            timeZone: userTimeZone,
           }, true); // checkDuplicate = true
 
           if (result.skipped) {
@@ -418,19 +426,21 @@ export const CalendarView: React.FC = () => {
         const generatedEvents = generateRecurringEvents(variables);
         for (const event of generatedEvents) {
           // Separar fecha y hora de los strings completos
-          const startParts = event.start.split('T');
-          const endParts = event.end.split('T');
+          const [startDate, startTime] = event.start.split('T');
+          const [endDate, endTimeStr] = event.end.split('T');
+          const endTime = endTimeStr.split(':').slice(0, 2).join(':'); // HH:MM
 
           await syncEventToGoogle({
             title: variables.title,
             description: variables.description,
-            start_date: startParts[0],
-            start_time: startParts[1].slice(0, 5), // HH:MM
-            end_date: endParts[0],
-            end_time: endParts[1].slice(0, 5), // HH:MM
+            start_date: startDate,
+            start_time: startTime.slice(0, 5), // HH:MM
+            end_date: endDate,
+            end_time: endTime,
             is_recurring: variables.recurrence_type !== 'none',
             recurrence_rule: variables.recurrence_type,
             selected_days: variables.selected_days,
+            timeZone: userTimeZone,
           });
         }
       }
@@ -469,8 +479,8 @@ export const CalendarView: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       toast.success('Evento eliminado');
 
-      // Eliminar de Google Calendar si está conectado
-      if (isConnected && tokens && eventData) {
+      // Eliminar de Google Calendar para todas las cuentas conectadas
+      if (eventData) {
         await deleteEventFromGoogle(eventData);
       }
     },
@@ -498,8 +508,8 @@ export const CalendarView: React.FC = () => {
 
       if (error) throw error;
 
-      // Eliminar de Google Calendar si está conectado
-      if (isConnected && tokens && eventsData) {
+      // Eliminar de Google Calendar para todas las cuentas conectadas
+      if (eventsData) {
         for (const event of eventsData) {
           await deleteEventFromGoogle(event);
         }
@@ -519,7 +529,8 @@ export const CalendarView: React.FC = () => {
     if (!events) return {};
 
     return events.reduce((acc: Record<string, { events: Event[]; timestamp: number; }>, event: Event) => {
-      const eventDate = new Date(event.start_date);
+      const datePart = event.start_date.split('T')[0];
+      const eventDate = new Date(`${datePart}T00:00:00`);
       const dateKey = eventDate.toLocaleDateString('es-ES', {
         year: 'numeric',
         month: 'long',

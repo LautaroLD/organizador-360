@@ -23,6 +23,7 @@ export function formatEventForGoogle(appEvent: any): GoogleCalendarEvent {
   const startTime = appEvent.start_time || '00:00';
   const endDate = appEvent.end_date || appEvent.start_date;
   const endTime = appEvent.end_time || '23:59';
+  const eventTimeZone = appEvent.timeZone || appEvent.time_zone || 'UTC';
   
   // Asegurar formato correcto HH:MM
   const formattedStartTime = startTime.length === 5 ? startTime : `${startTime}:00`.slice(0, 5);
@@ -31,24 +32,24 @@ export function formatEventForGoogle(appEvent: any): GoogleCalendarEvent {
   const startDateTimeStr = `${startDate}T${formattedStartTime}:00`;
   const endDateTimeStr = `${endDate}T${formattedEndTime}:00`;
   
-  const startDateTime = new Date(startDateTimeStr);
-  const endDateTime = new Date(endDateTimeStr);
-
-  // Validar que las fechas sean válidas
-  if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
-    throw new Error(`Invalid time value: start=${startDateTimeStr}, end=${endDateTimeStr}`);
+  // Validar formato básico (sin conversión UTC)
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(startDateTimeStr)) {
+    throw new Error(`Invalid time format: start=${startDateTimeStr}`);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(endDateTimeStr)) {
+    throw new Error(`Invalid time format: end=${endDateTimeStr}`);
   }
 
   const googleEvent: GoogleCalendarEvent = {
     summary: appEvent.title,
     description: appEvent.description || '',
     start: {
-      dateTime: startDateTime.toISOString(),
-      timeZone: 'America/Mexico_City',
+      dateTime: startDateTimeStr,
+      timeZone: eventTimeZone,
     },
     end: {
-      dateTime: endDateTime.toISOString(),
-      timeZone: 'America/Mexico_City',
+      dateTime: endDateTimeStr,
+      timeZone: eventTimeZone,
     },
   };
 

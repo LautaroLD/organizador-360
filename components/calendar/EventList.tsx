@@ -24,6 +24,18 @@ interface EventListProps {
   onDeleteAllEventsFromDate?: (dateKey: string, eventIds: string[]) => void;
 }
 
+const getDateKey = (iso: string) => {
+  const datePart = iso.split('T')[0];
+  const dateObj = new Date(`${datePart}T00:00:00`);
+  return dateObj;
+};
+
+const formatTimeHM = (iso: string) => {
+  const timePart = (iso.split('T')[1] || '00:00:00').split('+')[0];
+  const [h, m] = timePart.split(':');
+  return `${h}:${m}`;
+};
+
 export const EventList: React.FC<EventListProps> = ({
   groupedEvents,
   sortedDates,
@@ -81,10 +93,7 @@ export const EventList: React.FC<EventListProps> = ({
                           <Clock className="h-4 w-4 text-[var(--accent-primary)] mb-1" />
                         )}
                         <span className="text-xs font-bold text-[var(--accent-primary)]">
-                          {new Date(event.start_date).toLocaleTimeString('es-ES', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {formatTimeHM(event.start_date)}
                         </span>
                       </div>
 
@@ -96,10 +105,7 @@ export const EventList: React.FC<EventListProps> = ({
                             </h4>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <span className="text-xs text-[var(--text-secondary)]">
-                                Hasta {new Date(event.end_date).toLocaleTimeString('es-ES', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
+                                Hasta {formatTimeHM(event.end_date)}
                               </span>
                               {event.is_recurring && (
                                 <span className="inline-block px-1.5 py-0.5 bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] text-xs rounded">
