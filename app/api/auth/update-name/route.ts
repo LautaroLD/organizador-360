@@ -37,7 +37,7 @@ export async function PUT(request: Request) {
 
     // Actualizar el nombre en user_metadata
     const { data, error } = await supabase.auth.updateUser({
-      data: { full_name: trimmedName }
+      data: { name: trimmedName }
     });
 
     if (error) {

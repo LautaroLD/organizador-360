@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useProjectStore } from '@/store/projectStore';
@@ -18,7 +19,8 @@ import { PostgrestSingleResponse } from '@supabase/supabase-js';
 
 export const MembersView: React.FC = () => {
   const supabase = createClient();
-  const { currentProject } = useProjectStore();
+  const router = useRouter();
+  const { currentProject, setCurrentProject } = useProjectStore();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
 
@@ -28,7 +30,7 @@ export const MembersView: React.FC = () => {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [selectedMemberForTags, setSelectedMemberForTags] = useState<Member | null>(null);
 
-  // Fetch members with tags
+  // Fetch members with tags directamente desde Supabase (RLS permite visibilidad a todos los miembros)
   const { data: members, isLoading } = useQuery({
     queryKey: ['project-members', currentProject?.id],
     queryFn: async () => {
@@ -317,6 +319,37 @@ export const MembersView: React.FC = () => {
   const canManageMembers =
     currentProject?.userRole === 'Owner' || currentProject?.userRole === 'Admin';
 
+  const leaveProjectMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentProject?.id || !user?.id) throw new Error('Proyecto o usuario no válidos');
+      const { error } = await supabase
+        .from('project_members')
+        .delete()
+        .match({ project_id: currentProject.id, user_id: user.id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Has abandonado el proyecto');
+      queryClient.invalidateQueries({ queryKey: ['project-members'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      setCurrentProject(null);
+      router.push('/dashboard');
+    },
+    onError: (error) => {
+      toast.error(error.message || 'No se pudo abandonar el proyecto');
+    },
+  });
+
+  const handleLeaveClick = () => {
+    if (currentProject?.userRole === 'Owner') {
+      toast.error('El Owner no puede abandonar el proyecto');
+      return;
+    }
+    if (confirm('¿Seguro que quieres abandonar este proyecto?')) {
+      leaveProjectMutation.mutate();
+    }
+  };
+
   const handleInviteClick = async () => {
     if (!currentProject?.id) return;
 
@@ -375,8 +408,8 @@ export const MembersView: React.FC = () => {
               )}
             </p>
           </div>
-          {canManageMembers && (
-            <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
+          <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
+            {canManageMembers && (
               <Button
                 variant='secondary'
                 onClick={() => setIsTagManagementOpen(true)}
@@ -385,6 +418,8 @@ export const MembersView: React.FC = () => {
                 <Settings className='h-4 w-4 mr-2' />
                 Gestionar Tags
               </Button>
+            )}
+            {canManageMembers && (
               <Button
                 onClick={handleInviteClick}
                 className='w-full sm:w-auto'
@@ -392,8 +427,18 @@ export const MembersView: React.FC = () => {
                 <UserPlus className='h-4 w-4 mr-2' />
                 Invitar Miembro
               </Button>
-            </div>
-          )}
+            )}
+            {currentProject?.userRole !== 'Owner' && (
+              <Button
+                variant='danger'
+                onClick={handleLeaveClick}
+                className='w-full sm:w-auto'
+              >
+                Abandonar Proyecto
+              </Button>
+            )}
+          </div>
+
         </div>
 
         {/* Members Grid */}

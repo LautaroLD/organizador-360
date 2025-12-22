@@ -18,7 +18,7 @@ export const SettingsView: React.FC = () => {
 
   // Estados para editar nombre
   const [isEditingName, setIsEditingName] = useState(false);
-  const [newName, setNewName] = useState(user?.user_metadata?.full_name || '');
+  const [newName, setNewName] = useState(user?.user_metadata?.name || '');
   const [isUpdatingName, setIsUpdatingName] = useState(false);
 
   // Estados para cambiar contraseña
@@ -250,7 +250,7 @@ export const SettingsView: React.FC = () => {
                   <div className="flex items-center space-x-2">
                     <User className="h-4 w-4 text-[var(--text-secondary)]" />
                     <p className="text-[var(--text-primary)]">
-                      {user?.user_metadata?.full_name || 'Sin nombre'}
+                      {user?.user_metadata?.name || 'Sin nombre'}
                     </p>
                   </div>
                   <Button

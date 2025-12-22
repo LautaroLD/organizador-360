@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuthStore } from '@/store/authStore';
 import { createClient } from '@/lib/supabase/client';
-import { User, Settings, LogOut, ChevronDown, Home, Code2 } from 'lucide-react';
+import { Settings, LogOut, ChevronDown, Home, Code2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import Link from 'next/link';
 import clsx from 'clsx';
@@ -56,11 +56,6 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
     setIsUserMenuOpen(false);
   };
 
-  const getInitials = (email: string) => {
-    return email.substring(0, 2).toUpperCase();
-  };
-  console.log(user);
-
   return (
     <header className="border-b border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] sticky top-0 z-30">
 
@@ -83,13 +78,11 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
               <div className="flex items-center space-x-2">
                 {/* Avatar */}
                 <div className="w-8 h-8 rounded-full bg-[var(--accent-primary)] flex items-center justify-center text-white text-sm font-semibold">
-                  {user?.email ? getInitials(user.email) : <User className="h-4 w-4" />}
+                  {user?.user_metadata.name[0]}
                 </div>
-
-                {/* Email (desktop only) */}
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-medium text-[var(--text-primary)] max-w-[150px] truncate">
-                    {user?.user_metadata.full_name ?? 'Usuario'}
+                    {user?.user_metadata.name ?? 'Usuario'}
                   </p>
                 </div>
               </div>
