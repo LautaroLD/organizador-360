@@ -116,6 +116,7 @@ export default function InvitationPage() {
       }
 
       setInvitation(data);
+      console.log(data);
 
       // Check if user needs to register
       if (!user) {
