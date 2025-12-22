@@ -211,12 +211,12 @@ export const SettingsView: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Nombre */}
-            <div>
+            <div className=''>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
                 Nombre
               </label>
               {isEditingName ? (
-                <div className="space-y-2">
+                <div className="space-y-2" >
                   <Input
                     type="text"
                     value={newName}
@@ -246,10 +246,10 @@ export const SettingsView: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
+                <div className="flex justify-between items-center max-w-full">
+                  <div className="flex items-center space-x-2 w-2/3">
                     <User className="h-4 w-4 text-[var(--text-secondary)]" />
-                    <p className="text-[var(--text-primary)]">
+                    <p className="text-[var(--text-primary)] max-w-2/3 truncate">
                       {user?.user_metadata?.name || 'Sin nombre'}
                     </p>
                   </div>
