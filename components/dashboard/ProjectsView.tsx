@@ -145,23 +145,14 @@ export const ProjectsView: React.FC = () => {
 
       if (projectError) throw projectError;
 
-      // Inserciones en paralelo para optimizar tiempo
-      const [memberRes, channelRes] = await Promise.all([
-        supabase.from('project_members').insert({
-          project_id: project.id,
-          user_id: user!.id,
-          role: 'Owner',
-        }),
-        supabase.from('channels').insert({
-          project_id: project.id,
-          name: 'general',
-          description: 'Canal general del proyecto',
-          created_by: user!.id,
-        })
-      ]);
+      // Insert member only - channel is created by trigger automatically
+      const memberRes = await supabase.from('project_members').insert({
+        project_id: project.id,
+        user_id: user!.id,
+        role: 'Owner',
+      });
 
       if (memberRes.error) throw memberRes.error;
-      if (channelRes.error) throw channelRes.error;
 
       return project;
     },
