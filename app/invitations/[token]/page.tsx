@@ -20,14 +20,14 @@ interface Invitation {
   status: string;
   created_at: string;
   expires_at: string;
-  project: {
-    name: string;
-    description: string;
-  };
-  inviter: {
-    name: string;
-    email: string;
-  };
+  project?: {
+    name?: string;
+    description?: string;
+  } | null;
+  inviter?: {
+    name?: string;
+    email?: string;
+  } | null;
 }
 
 export default function InvitationPage() {
@@ -321,7 +321,7 @@ export default function InvitationPage() {
             </div>
             <CardTitle className='text-center text-2xl text-[var(--text-primary)]'>¡Bienvenido!</CardTitle>
             <CardDescription className='text-center text-[var(--text-secondary)]'>
-              {invitation.inviter.name || invitation.inviter.email} te ha invitado a colaborar
+              {(invitation.inviter?.name ?? invitation.inviter?.email ?? 'Usuario desconocido')} te ha invitado a colaborar
             </CardDescription>
           </CardHeader>
 
@@ -334,10 +334,10 @@ export default function InvitationPage() {
                 </div>
                 <div className='flex-1 ml-4'>
                   <h3 className='font-semibold text-[var(--text-primary)] text-lg mb-2'>
-                    {invitation.project.name}
+                    {invitation.project?.name ?? 'Proyecto sin nombre'}
                   </h3>
                   <p className='text-sm text-[var(--text-secondary)] mb-3'>
-                    {invitation.project.description || 'Sin descripción'}
+                    {invitation.project?.description || 'Sin descripción'}
                   </p>
                   <div className='inline-flex items-center gap-2 bg-[var(--accent-primary)]/10 px-3 py-1.5 rounded-full'>
                     <span className='text-sm font-medium text-[var(--text-primary)]'>Rol:</span>
@@ -481,7 +481,7 @@ export default function InvitationPage() {
           </div>
           <CardTitle className='text-center text-2xl text-[var(--text-primary)]'>¡Has sido invitado!</CardTitle>
           <CardDescription className='text-center text-[var(--text-secondary)]'>
-            {invitation.inviter.name || invitation.inviter.email} te ha invitado a colaborar
+            {(invitation.inviter?.name ?? invitation.inviter?.email ?? 'Usuario desconocido')} te ha invitado a colaborar
           </CardDescription>
         </CardHeader>
 
@@ -494,10 +494,10 @@ export default function InvitationPage() {
               </div>
               <div className='flex-1 ml-4'>
                 <h3 className='font-semibold text-[var(--text-primary)] text-lg mb-2'>
-                  {invitation.project.name}
+                  {invitation.project?.name ?? 'Proyecto sin nombre'}
                 </h3>
                 <p className='text-sm text-[var(--text-secondary)]'>
-                  {invitation.project.description || 'Sin descripción'}
+                  {invitation.project?.description || 'Sin descripción'}
                 </p>
               </div>
             </div>

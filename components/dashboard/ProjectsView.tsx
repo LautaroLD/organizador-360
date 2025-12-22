@@ -291,7 +291,7 @@ export const ProjectsView: React.FC = () => {
                   </div>
                 </div>
                 <CardTitle className='mt-3 flex items-center justify-between'>
-                  {project.name}
+                  {project.name ?? 'Proyecto sin nombre'}
                   <ArrowRight className='h-5 w-5 text-[var(--text-secondary)] group-hover:text-[var(--accent-primary)] transition-colors group-hover:translate-x-1 transition-transform' />
                 </CardTitle>
                 <CardDescription className='line-clamp-2'>
@@ -302,7 +302,7 @@ export const ProjectsView: React.FC = () => {
                 <div className='flex items-center justify-between text-sm text-[var(--text-secondary)] mb-3'>
                   <div className='flex items-center'>
                     <Users className='h-4 w-4 mr-1' />
-                    {project.members.length} Colaboradores
+                    {(project.members?.length ?? 0)} Colaboradores
                   </div>
                 </div>
                 {(project.userRole === 'Owner' || project.userRole === 'Admin') && (

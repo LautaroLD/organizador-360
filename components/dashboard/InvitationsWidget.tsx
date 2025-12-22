@@ -16,14 +16,14 @@ interface PendingInvitation {
   token: string;
   created_at: string;
   expires_at: string;
-  project: {
-    name: string;
-    description: string;
-  };
-  inviter: {
-    name: string;
-    email: string;
-  };
+  project?: {
+    name?: string;
+    description?: string;
+  } | null;
+  inviter?: {
+    name?: string;
+    email?: string;
+  } | null;
 }
 
 export const InvitationsWidget: React.FC = () => {
@@ -118,12 +118,12 @@ export const InvitationsWidget: React.FC = () => {
                       <div className='flex items-center mb-2'>
                         <UserPlus className='h-4 w-4 text-[var(--accent-primary)] mr-2' />
                         <h4 className='font-semibold text-[var(--text-primary)]'>
-                          {invitation.project.name}
+                          {invitation.project?.name ?? 'Proyecto sin nombre'}
                         </h4>
                       </div>
 
                       <p className='text-sm text-[var(--text-secondary)] mb-2'>
-                        {invitation.inviter.name || invitation.inviter.email} te invitó como <strong>{invitation.role}</strong>
+                        {(invitation.inviter?.name ?? invitation.inviter?.email ?? 'Usuario desconocido')} te invitó como <strong>{invitation.role}</strong>
                       </p>
 
                       <div className='flex items-center gap-3 text-xs text-[var(--text-secondary)]'>
