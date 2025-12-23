@@ -1,6 +1,6 @@
 // Service Worker for PWA with Push Notifications
-const CACHE_NAME = 'organizador-v2'; // Updated version to force cache refresh
-const STATIC_CACHE = 'static-v2';
+const CACHE_NAME = 'organizador-v3'; // Updated version to force cache refresh
+const STATIC_CACHE = 'static-v3';
 
 // Assets to cache on install
 const STATIC_ASSETS = [
@@ -127,7 +127,7 @@ self.addEventListener('notificationclick', (event) => {
     console.log('[SW] Notification clicked:', event);
     event.notification.close();
 
-    const urlToOpen = event.notification.data?.url || '/';
+    const urlToOpen = (event.notification.data && event.notification.data.url) || '/';
 
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
@@ -157,3 +157,7 @@ async function syncMessages() {
     // Implement message sync logic here if needed
     console.log('[SW] Syncing messages...');
 }
+
+// End of Service Worker
+
+
