@@ -411,6 +411,8 @@ export const CalendarView: React.FC = () => {
             end_date: event.end,
             recurrence_rule: data.recurrence_type === 'none' ? null : data.recurrence_type,
             is_recurring: data.recurrence_type !== 'none',
+            recurrence_days: data.selected_days,
+            recurrence_end_date: data.recurrence_end_date,
             created_by: user!.id,
           });
 
@@ -424,8 +426,10 @@ export const CalendarView: React.FC = () => {
       // Sincronizar con Google Calendar si está conectado
       if (isConnected && tokens) {
         const generatedEvents = generateRecurringEvents(variables);
-        for (const event of generatedEvents) {
-          // Separar fecha y hora de los strings completos
+
+        if (variables.recurrence_type !== 'none' && generatedEvents.length > 0) {
+          // Si es recurrente, solo sincronizamos el primer evento como una serie recurrente
+          const event = generatedEvents[0];
           const [startDate, startTime] = event.start.split('T');
           const [endDate, endTimeStr] = event.end.split('T');
           const endTime = endTimeStr.split(':').slice(0, 2).join(':'); // HH:MM
@@ -434,14 +438,36 @@ export const CalendarView: React.FC = () => {
             title: variables.title,
             description: variables.description,
             start_date: startDate,
-            start_time: startTime.slice(0, 5), // HH:MM
+            start_time: startTime.slice(0, 5),
             end_date: endDate,
             end_time: endTime,
-            is_recurring: variables.recurrence_type !== 'none',
+            is_recurring: true,
             recurrence_rule: variables.recurrence_type,
             selected_days: variables.selected_days,
+            recurrence_end_date: variables.recurrence_end_date,
             timeZone: userTimeZone,
           });
+        } else {
+          // Si no es recurrente, sincronizamos individualmente
+          for (const event of generatedEvents) {
+            // Separar fecha y hora de los strings completos
+            const [startDate, startTime] = event.start.split('T');
+            const [endDate, endTimeStr] = event.end.split('T');
+            const endTime = endTimeStr.split(':').slice(0, 2).join(':'); // HH:MM
+
+            await syncEventToGoogle({
+              title: variables.title,
+              description: variables.description,
+              start_date: startDate,
+              start_time: startTime.slice(0, 5), // HH:MM
+              end_date: endDate,
+              end_time: endTime,
+              is_recurring: false,
+              recurrence_rule: 'none',
+              selected_days: [],
+              timeZone: userTimeZone,
+            });
+          }
         }
       }
 
@@ -524,6 +550,41 @@ export const CalendarView: React.FC = () => {
     }
   };
 
+  // Eliminar múltiples eventos seleccionados
+  const handleDeleteMultipleEvents = async (eventIds: string[]) => {
+    const loadingToast = toast.loading(`Eliminando ${eventIds.length} evento(s)...`);
+
+    try {
+      // Obtener datos de los eventos antes de eliminarlos (para Google Calendar)
+      const { data: eventsData } = await supabase
+        .from('events')
+        .select('*')
+        .in('id', eventIds);
+
+      // Eliminar todos los eventos de la base de datos
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .in('id', eventIds);
+
+      if (error) throw error;
+
+      // Eliminar de Google Calendar para todas las cuentas conectadas
+      if (eventsData) {
+        for (const event of eventsData) {
+          await deleteEventFromGoogle(event);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      toast.dismiss(loadingToast);
+      toast.success(`${eventIds.length} evento(s) eliminado(s)`);
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      toast.error(error.message || 'Error al eliminar eventos');
+    }
+  };
+
   // Memoizar eventos agrupados por fecha
   const groupedAndSortedEvents = useMemo(() => {
     if (!events) return {};
@@ -556,7 +617,7 @@ export const CalendarView: React.FC = () => {
   return (
     <>
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-[var(--bg-primary)] relative">
-        <div className="p-4 md:p-6 max-w-5xl mx-auto">
+        <div className="p-4 md:p-6 max-w-6xl mx-auto">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
             <div className="flex-1">
@@ -626,6 +687,7 @@ export const CalendarView: React.FC = () => {
               sortedDates={sortedDates}
               onDeleteEvent={(eventId) => deleteEventMutation.mutate(eventId)}
               onDeleteAllEventsFromDate={handleDeleteAllEventsFromDate}
+              onDeleteMultipleEvents={handleDeleteMultipleEvents}
             />
           ) : (
             <div className="flex flex-col items-center justify-center py-16 px-4">
