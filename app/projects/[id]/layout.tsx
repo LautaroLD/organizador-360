@@ -81,7 +81,7 @@ export default function ProjectLayout({
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col">
       <Sidebar />
-      <div className="lg:pl-64 grow flex flex-col max-h-screen overflow-hidden">
+      <div className="lg:pl-64 min-h-dvh flex flex-col max-h-dvh overflow-hidden">
         <Header />
         {children}
       </div>

@@ -30,7 +30,15 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
 }
-
+#done {
+  border: 1px solid var(--accent-success);
+}
+#in-progress {
+  border: 1px solid var(--accent-warning);
+}
+#todo {
+  border: 1px solid var(--accent-primary);
+}
 /* Custom Scrollbar Styles */
 ::-webkit-scrollbar {
   width: 8px;

@@ -44,3 +44,6 @@ export type {
 
 // Push Notification Logs Models
 export type { PushLog, PushLogEntry } from './pushLog';
+
+// Task Models
+export type { Task, TaskAssignment, CreateTaskDTO, UpdateTaskDTO } from './task';

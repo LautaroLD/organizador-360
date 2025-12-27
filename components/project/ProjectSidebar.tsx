@@ -17,6 +17,7 @@ import {
   Hash,
   Users,
   Code2,
+  Layout,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Project, User } from '@/models';
@@ -110,6 +111,12 @@ export const Sidebar: React.FC = () => {
       icon: <MessageSquare className="h-5 w-5" />,
       label: 'Chat',
       path: `/projects/${projectId}/chat`
+    },
+    {
+      id: 'kanban',
+      icon: <Layout className="h-5 w-5" />,
+      label: 'Tablero',
+      path: `/projects/${projectId}/kanban`
     },
     {
       id: 'members',
