@@ -461,7 +461,7 @@ export const ChatView: React.FC = () => {
                   <div
                     key={message.id}
                     className={clsx(
-                      "bg-[var(--bg-secondary)] py-2 md:py-3 px-3 md:px-6 rounded-xl w-fit max-w-[85%] md:max-w-[70%] flex gap-2 md:gap-3",
+                      "bg-[var(--bg-secondary)] border border-[var(--accent-primary)]/40 py-2 md:py-3 px-3 md:px-6 rounded-xl w-fit max-w-[85%] md:max-w-[70%] flex gap-2 md:gap-3",
                       message.user?.id === user?.id ? 'flex-row-reverse ml-auto' : 'flex-row'
                     )}
                   >
@@ -480,7 +480,7 @@ export const ChatView: React.FC = () => {
                           {formatTime(message.created_at)}
                         </span>
                       </div>
-                      <p className="text-sm text-[var(--text-primary)] break-words">
+                      <p className="text-sm text-[var(--text-primary)] break-words max-w-full">
                         {message.content}
                       </p>
                     </div>
