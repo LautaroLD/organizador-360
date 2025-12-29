@@ -18,7 +18,8 @@ export function useTasks(projectId: string) {
           assignments:task_assignments(
             user_id,
             user:users(id, name, email)
-          )
+          ),
+          checklist:task_checklist_items(*)
         `)
         .eq('project_id', projectId)
         .order('position');
@@ -112,12 +113,53 @@ export function useTasks(projectId: string) {
     },
   });
 
+  const addChecklistItem = useMutation({
+    mutationFn: async ({ taskId, content }: { taskId: string; content: string; }) => {
+      const { error } = await supabase
+        .from('task_checklist_items')
+        .insert([{ task_id: taskId, content, position: 0 }]); // Position 0 for now, can be improved
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    },
+  });
+
+  const updateChecklistItem = useMutation({
+    mutationFn: async ({ id, is_completed }: { id: string; is_completed: boolean; }) => {
+      const { error } = await supabase
+        .from('task_checklist_items')
+        .update({ is_completed })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    },
+  });
+
+  const deleteChecklistItem = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('task_checklist_items')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    },
+  });
+
   return {
     tasks,
     isLoading,
     error,
     createTask,
     updateTask,
-    deleteTask
+    deleteTask,
+    addChecklistItem,
+    updateChecklistItem,
+    deleteChecklistItem
   };
 }

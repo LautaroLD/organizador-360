@@ -9,6 +9,16 @@ export interface Task {
   created_at: string;
   updated_at: string;
   assignments?: TaskAssignment[];
+  checklist?: TaskChecklistItem[];
+}
+
+export interface TaskChecklistItem {
+  id: string;
+  task_id: string;
+  content: string;
+  is_completed: boolean;
+  position: number;
+  created_at: string;
 }
 
 export interface TaskAssignment {

@@ -27,10 +27,22 @@ interface KanbanBoardProps {
 }
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
-  const { tasks, updateTask, createTask, deleteTask } = useTasks(projectId);
+  const {
+    tasks,
+    updateTask,
+    createTask,
+    deleteTask,
+    addChecklistItem,
+    updateChecklistItem,
+    deleteChecklistItem
+  } = useTasks(projectId);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+
+  const editingTask = React.useMemo(() =>
+    tasks?.find(t => t.id === editingTaskId) || null
+    , [tasks, editingTaskId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -101,22 +113,22 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   const handleUpdateTask = (id: string, data: any) => {
     updateTask.mutate({ id, data });
     setIsModalOpen(false);
-    setEditingTask(null);
+    setEditingTaskId(null);
   };
 
   const handleDeleteTask = (id: string) => {
     if (confirm('¿Estás seguro de que quieres eliminar esta tarea?')) {
       deleteTask.mutate(id);
       setIsModalOpen(false);
-      setEditingTask(null);
+      setEditingTaskId(null);
     }
   };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="min-h-full flex flex-col overflow-hidden">
       <div className="flex-none flex justify-between items-center mb-4 p-4">
         <h2 className="text-2xl font-bold text-[var(--text-primary)]">Tablero Kanban</h2>
-        <Button onClick={() => { setEditingTask(null); setIsModalOpen(true); }}>
+        <Button onClick={() => { setEditingTaskId(null); setIsModalOpen(true); }}>
           <Plus className="w-4 h-4 mr-2" />
           Nueva Tarea
         </Button>
@@ -129,10 +141,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex-1 flex gap-4 overflow-x-auto overflow-y-hidden p-4 min-h-0 h-full">
-          <KanbanColumn id="todo" title="Por hacer" tasks={columns.todo} onEditTask={(task) => { setEditingTask(task); setIsModalOpen(true); }} />
-          <KanbanColumn id="in-progress" title="En progreso" tasks={columns['in-progress']} onEditTask={(task) => { setEditingTask(task); setIsModalOpen(true); }} />
-          <KanbanColumn id="done" title="Completado" tasks={columns.done} onEditTask={(task) => { setEditingTask(task); setIsModalOpen(true); }} />
+        <div className="flex-1 flex gap-5 overflow-x-auto overflow-y-hidden p-4 min-h-0 h-full">
+          <KanbanColumn id="todo" title="Por hacer" tasks={columns.todo} onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }} />
+          <KanbanColumn id="in-progress" title="En progreso" tasks={columns['in-progress']} onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }} />
+          <KanbanColumn id="done" title="Completado" tasks={columns.done} onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }} />
         </div>
 
         <DragOverlay>
@@ -145,11 +157,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
       {isModalOpen && (
         <TaskModal
           isOpen={isModalOpen}
-          onClose={() => { setIsModalOpen(false); setEditingTask(null); }}
+          onClose={() => { setIsModalOpen(false); setEditingTaskId(null); }}
           onSubmit={editingTask ? (data) => handleUpdateTask(editingTask.id, data) : handleCreateTask}
           onDelete={editingTask ? () => handleDeleteTask(editingTask.id) : undefined}
           initialData={editingTask}
           projectId={projectId}
+          onAddChecklistItem={addChecklistItem.mutate}
+          onUpdateChecklistItem={updateChecklistItem.mutate}
+          onDeleteChecklistItem={deleteChecklistItem.mutate}
         />
       )}
     </div>

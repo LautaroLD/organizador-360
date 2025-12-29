@@ -5,6 +5,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '@/models';
 import { Card } from '@/components/ui/Card';
+import { CheckSquare } from 'lucide-react';
 
 interface KanbanTaskProps {
   task: Task;
@@ -42,8 +43,17 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, onEdit }) => {
           </p>
         )}
 
-        <div className="flex justify-end items-center mt-2">
-          <div className="flex -space-x-2">
+        <div className="flex justify-between items-center mt-2">
+          {task.checklist && task.checklist.length > 0 && (
+            <div className="flex items-center text-xs text-[var(--text-secondary)] bg-[var(--bg-secondary)] px-2 py-1 rounded">
+              <CheckSquare className="w-3 h-3 mr-1" />
+              <span>
+                {task.checklist.filter(i => i.is_completed).length}/{task.checklist.length}
+              </span>
+            </div>
+          )}
+
+          <div className="flex -space-x-2 ml-auto">
             {task.assignments?.map((assignment) => (
               <div
                 key={assignment.user_id}

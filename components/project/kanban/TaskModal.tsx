@@ -9,6 +9,8 @@ import { Task, CreateTaskDTO, UpdateTaskDTO } from '@/models';
 import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 
+import { CheckSquare, Plus, Trash2 } from 'lucide-react';
+
 interface TaskModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -16,6 +18,9 @@ interface TaskModalProps {
   onDelete?: () => void;
   initialData?: Task | null;
   projectId: string;
+  onAddChecklistItem?: (data: { taskId: string; content: string; }) => void;
+  onUpdateChecklistItem?: (data: { id: string; is_completed: boolean; }) => void;
+  onDeleteChecklistItem?: (id: string) => void;
 }
 
 export const TaskModal: React.FC<TaskModalProps> = ({
@@ -25,7 +30,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   onDelete,
   initialData,
   projectId,
+  onAddChecklistItem,
+  onUpdateChecklistItem,
+  onDeleteChecklistItem,
 }) => {
+  const [newChecklistItem, setNewChecklistItem] = React.useState('');
   const { register, handleSubmit, reset, setValue, watch } = useForm<CreateTaskDTO>({
     defaultValues: {
       title: '',
@@ -86,6 +95,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     }
   };
 
+  const handleAddChecklistItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newChecklistItem.trim() && initialData && onAddChecklistItem) {
+      onAddChecklistItem({ taskId: initialData.id, content: newChecklistItem });
+      setNewChecklistItem('');
+    }
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={initialData ? 'Editar Tarea' : 'Nueva Tarea'}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -110,6 +127,64 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             className="w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] min-h-[100px]"
           />
         </div>
+
+        {initialData && (
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+              Checklist
+            </label>
+
+            <div className="space-y-2 mb-3">
+              {initialData.checklist?.sort((a, b) => a.created_at.localeCompare(b.created_at)).map((item) => (
+                <div key={item.id} className="flex items-center gap-2 group">
+                  <button
+                    type="button"
+                    onClick={() => onUpdateChecklistItem?.({ id: item.id, is_completed: !item.is_completed })}
+                    className={`flex-none w-5 h-5 rounded border flex items-center justify-center transition-colors ${item.is_completed
+                        ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white'
+                        : 'border-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
+                      }`}
+                  >
+                    {item.is_completed && <CheckSquare className="w-3 h-3" />}
+                  </button>
+                  <span className={`flex-1 text-sm ${item.is_completed ? 'text-[var(--text-secondary)] line-through' : 'text-[var(--text-primary)]'}`}>
+                    {item.content}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteChecklistItem?.(item.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                value={newChecklistItem}
+                onChange={(e) => setNewChecklistItem(e.target.value)}
+                placeholder="Añadir item..."
+                className="flex-1 h-9 text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddChecklistItem(e);
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleAddChecklistItem}
+                disabled={!newChecklistItem.trim()}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
