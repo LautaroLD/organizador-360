@@ -31,13 +31,16 @@ body {
   color: var(--text-primary);
 }
 #done {
-  border: 1px solid var(--accent-success);
+  border: 2px solid var(--accent-success);
+  background-color: color-mix(in srgb, var(--accent-success) 20%, transparent);
 }
 #in-progress {
-  border: 1px solid var(--accent-warning);
+  border: 2px solid var(--accent-warning);
+  background-color: color-mix(in srgb, var(--accent-warning) 20%, transparent);
 }
 #todo {
-  border: 1px solid var(--accent-primary);
+  border: 2px solid var(--accent-primary);
+  background-color: color-mix(in srgb, var(--accent-primary) 20%, transparent);
 }
 /* Custom Scrollbar Styles */
 ::-webkit-scrollbar {

@@ -1,3 +1,5 @@
+import type { ProjectTag } from './tag';
+
 export interface Task {
   id: string;
   project_id: string;
@@ -10,6 +12,13 @@ export interface Task {
   updated_at: string;
   assignments?: TaskAssignment[];
   checklist?: TaskChecklistItem[];
+  tags?: TaskTagAssociation[];
+}
+
+export interface TaskTagAssociation {
+  id: number;
+  tag_id: number;
+  tag: ProjectTag;
 }
 
 export interface TaskChecklistItem {
@@ -40,6 +49,7 @@ export interface CreateTaskDTO {
   status?: 'todo' | 'in-progress' | 'done';
   position?: number;
   assigned_to?: string[]; // Array of user IDs
+  tags?: number[]; // Array of tag IDs
 }
 
 export interface UpdateTaskDTO {
@@ -48,4 +58,5 @@ export interface UpdateTaskDTO {
   status?: 'todo' | 'in-progress' | 'done';
   position?: number;
   assigned_to?: string[]; // Array of user IDs to replace current assignments
+  tags?: number[]; // Array of tag IDs to replace current tags
 }

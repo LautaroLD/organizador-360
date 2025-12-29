@@ -19,7 +19,12 @@ export function useTasks(projectId: string) {
             user_id,
             user:users(id, name, email)
           ),
-          checklist:task_checklist_items(*)
+          checklist:task_checklist_items(*),
+          tags:task_tags(
+            id,
+            tag_id,
+            tag:project_tags(*)
+          )
         `)
         .eq('project_id', projectId)
         .order('position');
@@ -32,7 +37,7 @@ export function useTasks(projectId: string) {
 
   const createTask = useMutation({
     mutationFn: async (newTask: CreateTaskDTO) => {
-      const { assigned_to, ...taskData } = newTask;
+      const { assigned_to, tags, ...taskData } = newTask;
 
       // 1. Create task
       const { data: task, error: taskError } = await supabase
@@ -57,6 +62,20 @@ export function useTasks(projectId: string) {
         if (assignError) throw assignError;
       }
 
+      // 3. Create tags if any
+      if (tags && tags.length > 0) {
+        const taskTags = tags.map(tagId => ({
+          task_id: task.id,
+          tag_id: tagId
+        }));
+
+        const { error: tagError } = await supabase
+          .from('task_tags')
+          .insert(taskTags);
+
+        if (tagError) throw tagError;
+      }
+
       return task;
     },
     onSuccess: () => {
@@ -66,7 +85,7 @@ export function useTasks(projectId: string) {
 
   const updateTask = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: UpdateTaskDTO; }) => {
-      const { assigned_to, ...taskData } = data;
+      const { assigned_to, tags, ...taskData } = data;
 
       // 1. Update task fields
       if (Object.keys(taskData).length > 0) {
@@ -95,6 +114,26 @@ export function useTasks(projectId: string) {
             .insert(assignments);
 
           if (assignError) throw assignError;
+        }
+      }
+
+      // 3. Update tags if provided
+      if (tags !== undefined) {
+        // Delete existing
+        await supabase.from('task_tags').delete().eq('task_id', id);
+
+        // Insert new
+        if (tags.length > 0) {
+          const taskTags = tags.map(tagId => ({
+            task_id: id,
+            tag_id: tagId
+          }));
+
+          const { error: tagError } = await supabase
+            .from('task_tags')
+            .insert(taskTags);
+
+          if (tagError) throw tagError;
         }
       }
     },
@@ -151,6 +190,32 @@ export function useTasks(projectId: string) {
     },
   });
 
+  const assignTag = useMutation({
+    mutationFn: async ({ taskId, tagId }: { taskId: string; tagId: number; }) => {
+      const { error } = await supabase
+        .from('task_tags')
+        .insert({ task_id: taskId, tag_id: tagId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    },
+  });
+
+  const removeTag = useMutation({
+    mutationFn: async ({ taskId, tagId }: { taskId: string; tagId: number; }) => {
+      const { error } = await supabase
+        .from('task_tags')
+        .delete()
+        .eq('task_id', taskId)
+        .eq('tag_id', tagId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    },
+  });
+
   return {
     tasks,
     isLoading,
@@ -160,6 +225,8 @@ export function useTasks(projectId: string) {
     deleteTask,
     addChecklistItem,
     updateChecklistItem,
-    deleteChecklistItem
+    deleteChecklistItem,
+    assignTag,
+    removeTag
   };
 }

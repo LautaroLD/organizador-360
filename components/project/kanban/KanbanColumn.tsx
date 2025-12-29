@@ -19,7 +19,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({ id, title, tasks, on
   });
 
   return (
-    <div id={id} className="flex flex-col w-80 md:w-96 bg-[var(--bg-secondary)] rounded-lg p-2 min-h-full max-h-full flex-shrink-0 overflow-y-auto" >
+    <div id={id} className="flex flex-col w-80 md:w-96  rounded-lg p-2 min-h-full max-h-full flex-shrink-0 overflow-y-auto" >
       <h3 className="font-semibold text-[var(--text-primary)] mx-4 my-2 flex justify-between items-center flex-none">
         {title}
         <span className="bg-[var(--bg-primary)] text-[var(--text-secondary)] text-xs px-2 py-1 rounded-full">

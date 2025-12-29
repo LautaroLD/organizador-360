@@ -41,6 +41,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       description: '',
       status: 'todo',
       assigned_to: [],
+      tags: [],
     },
   });
 
@@ -68,18 +69,34 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     enabled: isOpen,
   });
 
+  // Fetch project tags
+  const { data: projectTags } = useQuery({
+    queryKey: ['project-tags', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('project_tags')
+        .select('*')
+        .eq('project_id', projectId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: isOpen,
+  });
+
   useEffect(() => {
     if (initialData) {
       setValue('title', initialData.title);
       setValue('description', initialData.description || '');
       setValue('status', initialData.status);
       setValue('assigned_to', initialData.assignments?.map(a => a.user_id) || []);
+      setValue('tags', initialData.tags?.map(t => t.tag_id) || []);
     } else {
       reset({
         title: '',
         description: '',
         status: 'todo',
         assigned_to: [],
+        tags: [],
       });
     }
   }, [initialData, isOpen, reset, setValue]);
@@ -199,6 +216,46 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <option value="in-progress">En progreso</option>
             <option value="done">Completado</option>
           </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+            Tags
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {projectTags?.map((tag) => {
+              const isSelected = (watch('tags') || []).includes(tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => {
+                    const current = watch('tags') || [];
+                    if (isSelected) {
+                      setValue('tags', current.filter(id => id !== tag.id));
+                    } else {
+                      setValue('tags', [...current, tag.id]);
+                    }
+                  }}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${isSelected
+                      ? 'border-transparent text-white shadow-sm'
+                      : 'bg-transparent border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
+                    }`}
+                  style={{
+                    backgroundColor: isSelected ? tag.color : 'transparent',
+                    borderColor: isSelected ? 'transparent' : undefined
+                  }}
+                >
+                  {tag.label}
+                </button>
+              );
+            })}
+            {(!projectTags || projectTags.length === 0) && (
+              <p className="text-xs text-[var(--text-secondary)]">
+                No hay tags disponibles en este proyecto.
+              </p>
+            )}
+          </div>
         </div>
 
         <div>

@@ -37,6 +37,21 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, onEdit }) => {
     >
       <Card className="p-3 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)] transition-colors border border-[var(--border-color)]">
         <h4 className="font-medium text-[var(--text-primary)] mb-2">{task.title}</h4>
+
+        {task.tags && task.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {task.tags.map((t) => (
+              <span
+                key={t.id}
+                className="px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
+                style={{ backgroundColor: t.tag.color }}
+              >
+                {t.tag.label}
+              </span>
+            ))}
+          </div>
+        )}
+
         {task.description && (
           <p className="text-sm text-[var(--text-secondary)] line-clamp-2 mb-3">
             {task.description}
