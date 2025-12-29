@@ -164,11 +164,9 @@ export const ChatView: React.FC = () => {
 
   // Toggle Pin Mutation
   const togglePinMutation = useMutation({
-    mutationFn: async ({ messageId, isPinned }: { messageId: string; isPinned: boolean; }) => {
+    mutationFn: async ({ messageId }: { messageId: string; }) => {
       const { error } = await supabase
-        .from('messages')
-        .update({ is_pinned: !isPinned })
-        .eq('id', messageId);
+        .rpc('toggle_message_pin', { message_id: messageId });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -623,8 +621,9 @@ export const ChatView: React.FC = () => {
                     {/* Actions Menu */}
                     {!editingMessageId && (
                       <div className={clsx(
-                        "opacity-0 group-hover:opacity-100 transition-opacity flex items-start pt-6",
-                        message.user?.id === user?.id ? 'flex-row-reverse' : 'flex-row'
+                        "flex items-start pt-6 transition-opacity",
+                        message.user?.id === user?.id ? 'flex-row-reverse' : 'flex-row',
+                        openMenuMessageId === message.id ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'
                       )}>
                         <div className="relative">
                           <button
@@ -640,7 +639,7 @@ export const ChatView: React.FC = () => {
                               message.user?.id === user?.id ? 'right-0' : 'left-0'
                             )}>
                               <button
-                                onClick={() => togglePinMutation.mutate({ messageId: message.id, isPinned: !!message.is_pinned })}
+                                onClick={() => togglePinMutation.mutate({ messageId: message.id })}
                                 className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] flex items-center gap-2"
                               >
                                 {message.is_pinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
