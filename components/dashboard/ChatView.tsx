@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
-import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2 } from 'lucide-react';
+import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
 import clsx from 'clsx';
 import { Channel } from '@/models';
@@ -41,6 +41,11 @@ export const ChatView: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { permission, requestPermission, isSupported } = useNotifications();
   const { subscribe: subscribePush, unsubscribe: unsubscribePush, isSupported: isPushSupported } = usePushNotifications();
+
+  const [activeTab, setActiveTab] = useState<'chat' | 'pinned'>('chat');
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const [openMenuMessageId, setOpenMenuMessageId] = useState<string | null>(null);
 
   // Subscribe to realtime messages
   useRealtimeMessages({
@@ -157,6 +162,62 @@ export const ChatView: React.FC = () => {
     },
   });
 
+  // Toggle Pin Mutation
+  const togglePinMutation = useMutation({
+    mutationFn: async ({ messageId, isPinned }: { messageId: string; isPinned: boolean; }) => {
+      const { error } = await supabase
+        .from('messages')
+        .update({ is_pinned: !isPinned })
+        .eq('id', messageId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      // Realtime will handle update
+      setOpenMenuMessageId(null);
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  // Delete Message Mutation
+  const deleteMessageMutation = useMutation({
+    mutationFn: async (messageId: string) => {
+      const { error } = await supabase
+        .from('messages')
+        .update({ is_deleted: true })
+        .eq('id', messageId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Mensaje eliminado');
+      setOpenMenuMessageId(null);
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  // Update Message Mutation
+  const updateMessageMutation = useMutation({
+    mutationFn: async ({ messageId, content }: { messageId: string; content: string; }) => {
+      const { error } = await supabase
+        .from('messages')
+        .update({ content, updated_at: new Date().toISOString() })
+        .eq('id', messageId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setEditingMessageId(null);
+      setEditContent('');
+      toast.success('Mensaje editado');
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  // Filter messages
+  const filteredMessages = messages?.filter(msg => {
+    if (msg.is_deleted) return false;
+    if (activeTab === 'pinned') return msg.is_pinned;
+    return true;
+  });
+
   // Auto-select first channel
   useEffect(() => {
     if (channels && channels.length > 0 && !selectedChannel) {
@@ -197,9 +258,13 @@ export const ChatView: React.FC = () => {
   }, [selectedChannel?.id, queryClient]);
 
   // Scroll to bottom on new messages
+  const lastMessageId = filteredMessages?.[filteredMessages.length - 1]?.id;
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (activeTab === 'chat') {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [lastMessageId, activeTab]);
 
   // Request notification permission when enabled
   useEffect(() => {
@@ -348,8 +413,8 @@ export const ChatView: React.FC = () => {
         {selectedChannel ? (
           <>
             {/* Channel Header */}
-            <header className="p-3 md:p-4 border-b border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex-shrink-0">
-              <div className="flex items-center gap-2">
+            <header className="flex flex-col border-b border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex-shrink-0">
+              <div className="p-3 md:p-4 flex items-center gap-2">
                 <button
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                   className={clsx(
@@ -448,6 +513,33 @@ export const ChatView: React.FC = () => {
                   </button>
                 )}
               </div>
+
+              {/* Tabs */}
+              <div className="flex px-4 gap-4">
+                <button
+                  onClick={() => setActiveTab('chat')}
+                  className={clsx(
+                    "pb-2 text-sm font-medium border-b-2 transition-colors",
+                    activeTab === 'chat'
+                      ? "border-[var(--accent-primary)] text-[var(--text-primary)]"
+                      : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  )}
+                >
+                  Chat
+                </button>
+                <button
+                  onClick={() => setActiveTab('pinned')}
+                  className={clsx(
+                    "pb-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1",
+                    activeTab === 'pinned'
+                      ? "border-[var(--accent-primary)] text-[var(--text-primary)]"
+                      : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  )}
+                >
+                  <Pin className="h-3 w-3" />
+                  Destacados
+                </button>
+              </div>
             </header>
 
             {/* Messages */}
@@ -456,18 +548,22 @@ export const ChatView: React.FC = () => {
                 <div className="flex items-center justify-center h-full">
                   <p className="text-sm text-[var(--text-secondary)]">Cargando mensajes...</p>
                 </div>
-              ) : messages && messages.length > 0 ? (
-                messages.map((message) => (
+              ) : filteredMessages && filteredMessages.length > 0 ? (
+                filteredMessages.map((message) => (
                   <div
                     key={message.id}
                     className={clsx(
-                      "bg-[var(--bg-secondary)] border border-[var(--accent-primary)]/40 py-2 md:py-3 px-3 md:px-6 rounded-xl w-fit max-w-[85%] md:max-w-[70%] flex gap-2 md:gap-3",
-                      message.user?.id === user?.id ? 'flex-row-reverse ml-auto' : 'flex-row'
+                      "group relative flex gap-2 md:gap-3 max-w-[85%] md:max-w-[70%]",
+                      message.user?.id === user?.id ? 'ml-auto flex-row-reverse' : 'flex-row'
                     )}
+                    onMouseLeave={() => setOpenMenuMessageId(null)}
                   >
+                    {/* Avatar */}
                     <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[var(--accent-primary)] flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
                       {message.user?.name?.[0]?.toUpperCase() || 'U'}
                     </div>
+
+                    {/* Message Content */}
                     <div className={clsx(
                       "flex-1 flex flex-col min-w-0",
                       message.user?.id === user?.id ? 'items-end' : 'items-start'
@@ -479,18 +575,122 @@ export const ChatView: React.FC = () => {
                         <span className="text-xs text-[var(--text-secondary)] flex-shrink-0">
                           {formatTime(message.created_at)}
                         </span>
+                        {message.is_pinned && (
+                          <Pin className="h-3 w-3 text-[var(--accent-primary)]" />
+                        )}
                       </div>
-                      <p className="text-sm text-[var(--text-primary)] break-words max-w-full">
-                        {message.content}
-                      </p>
+
+                      <div className={clsx(
+                        "relative py-2 md:py-3 px-3 md:px-6 rounded-xl w-full",
+                        "bg-[var(--bg-secondary)] border border-[var(--accent-primary)]/40"
+                      )}>
+                        {editingMessageId === message.id ? (
+                          <div className="flex flex-col gap-2">
+                            <textarea
+                              value={editContent}
+                              onChange={(e) => setEditContent(e.target.value)}
+                              className="w-full bg-[var(--bg-primary)] border border-[var(--text-secondary)]/30 rounded p-2 text-sm resize-none focus:outline-none focus:border-[var(--accent-primary)]"
+                              rows={2}
+                              autoFocus
+                            />
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => setEditingMessageId(null)}
+                                className="p-1 hover:bg-[var(--bg-primary)] rounded text-[var(--text-secondary)]"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (editContent.trim()) {
+                                    updateMessageMutation.mutate({ messageId: message.id, content: editContent });
+                                  }
+                                }}
+                                className="p-1 hover:bg-[var(--bg-primary)] rounded text-[var(--accent-primary)]"
+                              >
+                                <Check className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-[var(--text-primary)] break-words whitespace-pre-wrap">
+                            {message.content}
+                          </p>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Actions Menu */}
+                    {!editingMessageId && (
+                      <div className={clsx(
+                        "opacity-0 group-hover:opacity-100 transition-opacity flex items-start pt-6",
+                        message.user?.id === user?.id ? 'flex-row-reverse' : 'flex-row'
+                      )}>
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenMenuMessageId(openMenuMessageId === message.id ? null : message.id)}
+                            className="p-1 hover:bg-[var(--bg-secondary)] rounded text-[var(--text-secondary)]"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+
+                          {openMenuMessageId === message.id && (
+                            <div className={clsx(
+                              "absolute top-full mt-1 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg z-50 min-w-[120px] py-1",
+                              message.user?.id === user?.id ? 'right-0' : 'left-0'
+                            )}>
+                              <button
+                                onClick={() => togglePinMutation.mutate({ messageId: message.id, isPinned: !!message.is_pinned })}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] flex items-center gap-2"
+                              >
+                                {message.is_pinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
+                                {message.is_pinned ? 'Desfijar' : 'Fijar'}
+                              </button>
+
+                              {message.user?.id === user?.id && (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      setEditingMessageId(message.id);
+                                      setEditContent(message.content);
+                                      setOpenMenuMessageId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] flex items-center gap-2"
+                                  >
+                                    <Edit2 className="h-3 w-3" />
+                                    Editar
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (confirm('¿Eliminar mensaje?')) {
+                                        deleteMessageMutation.mutate(message.id);
+                                      }
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] text-red-500 flex items-center gap-2"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                    Eliminar
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center px-4">
                   <MessageSquare className="h-12 w-12 md:h-16 md:w-16 text-[var(--text-secondary)]/50 mb-3" />
-                  <p className="text-sm md:text-base text-[var(--text-secondary)] mb-2">No hay mensajes aún</p>
-                  <p className="text-xs md:text-sm text-[var(--text-secondary)]">Sé el primero en enviar un mensaje en #{selectedChannel.name}</p>
+                  <p className="text-sm md:text-base text-[var(--text-secondary)] mb-2">
+                    {activeTab === 'pinned' ? 'No hay mensajes destacados' : 'No hay mensajes aún'}
+                  </p>
+                  <p className="text-xs md:text-sm text-[var(--text-secondary)]">
+                    {activeTab === 'pinned'
+                      ? 'Destaca mensajes importantes para verlos aquí'
+                      : `Sé el primero en enviar un mensaje en #${selectedChannel.name}`}
+                  </p>
                 </div>
               )}
               <div ref={messagesEndRef} />

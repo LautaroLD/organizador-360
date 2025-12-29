@@ -37,4 +37,12 @@ export interface Message {
   user_id: string
   content: string
   created_at: string
+  updated_at?: string
+  is_pinned?: boolean
+  is_deleted?: boolean
+  user?: {
+    name: string
+    email: string
+    id: string
+  }
 }

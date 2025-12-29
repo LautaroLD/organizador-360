@@ -35,39 +35,58 @@ export function useRealtimeMessages({ channelId, enabled = true }: UseRealtimeMe
         // Create a unique channel name for this subscription
         const realtimeChannelName = `messages:${channelId}`;
 
-        // Subscribe to INSERT events on the messages table
+        // Subscribe to ALL events on the messages table
         const channel = supabase
             .channel(realtimeChannelName)
             .on(
                 'postgres_changes',
                 {
-                    event: 'INSERT',
+                    event: '*',
                     schema: 'public',
                     table: 'messages',
                     filter: `channel_id=eq.${channelId}`,
                 },
                 async (payload) => {
-                    const { data: newMessage, error } = await supabase
-                        .from('messages')
-                        .select(`
-              *,
-              user:users(name, email, id)
-            `)
-                        .eq('id', payload.new.id)
-                        .single();
+                    // Handle INSERT
+                    if (payload.eventType === 'INSERT') {
+                        const { data: newMessage, error } = await supabase
+                            .from('messages')
+                            .select(`
+                                *,
+                                user:users(name, email, id)
+                            `)
+                            .eq('id', payload.new.id)
+                            .single();
 
-                    if (error) {
-                        return;
+                        if (!error && newMessage) {
+                            queryClient.setQueryData(['messages', channelId], (oldData: any) => {
+                                const currentMessages = Array.isArray(oldData) ? oldData : [];
+                                const exists = currentMessages.some((msg: any) => msg.id === newMessage.id);
+                                if (exists) return currentMessages;
+                                return [...currentMessages, newMessage];
+                            });
+                        }
                     }
-
-                    if (newMessage) {
+                    // Handle UPDATE
+                    else if (payload.eventType === 'UPDATE') {
                         queryClient.setQueryData(['messages', channelId], (oldData: any) => {
                             const currentMessages = Array.isArray(oldData) ? oldData : [];
-                            const exists = currentMessages.some((msg: any) => msg.id === newMessage.id);
-                            if (exists) {
-                                return currentMessages;
-                            }
-                            return [...currentMessages, newMessage];
+                            return currentMessages.map((msg: any) => {
+                                if (msg.id === payload.new.id) {
+                                    // Merge the new data with existing data (preserving user relation if not returned in payload)
+                                    // Note: payload.new only contains the columns, not the relations.
+                                    // We keep the existing 'user' object from the old message.
+                                    return { ...msg, ...payload.new };
+                                }
+                                return msg;
+                            });
+                        });
+                    }
+                    // Handle DELETE
+                    else if (payload.eventType === 'DELETE') {
+                        queryClient.setQueryData(['messages', channelId], (oldData: any) => {
+                            const currentMessages = Array.isArray(oldData) ? oldData : [];
+                            return currentMessages.filter((msg: any) => msg.id !== payload.old.id);
                         });
                     }
                 }
