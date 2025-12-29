@@ -141,8 +141,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                     type="button"
                     onClick={() => onUpdateChecklistItem?.({ id: item.id, is_completed: !item.is_completed })}
                     className={`flex-none w-5 h-5 rounded border flex items-center justify-center transition-colors ${item.is_completed
-                        ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white'
-                        : 'border-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
+                      ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white'
+                      : 'border-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
                       }`}
                   >
                     {item.is_completed && <CheckSquare className="w-3 h-3" />}
@@ -150,13 +150,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   <span className={`flex-1 text-sm ${item.is_completed ? 'text-[var(--text-secondary)] line-through' : 'text-[var(--text-primary)]'}`}>
                     {item.content}
                   </span>
-                  <button
-                    type="button"
+                  <Button
+                    type='button'
+                    variant='danger'
+                    size='sm'
                     onClick={() => onDeleteChecklistItem?.(item.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded transition-all"
                   >
                     <Trash2 className="w-4 h-4" />
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
