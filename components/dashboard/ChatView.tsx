@@ -551,7 +551,7 @@ export const ChatView: React.FC = () => {
                   <div
                     key={message.id}
                     className={clsx(
-                      "group relative flex gap-2 md:gap-3 max-w-[85%] md:max-w-[70%]",
+                      "group relative flex gap-2 md:gap-3 max-w-[85%] md:max-w-[70%] w-fit",
                       message.user?.id === user?.id ? 'ml-auto flex-row-reverse' : 'flex-row'
                     )}
                     onMouseLeave={() => setOpenMenuMessageId(null)}
@@ -579,7 +579,7 @@ export const ChatView: React.FC = () => {
                       </div>
 
                       <div className={clsx(
-                        "relative py-2 md:py-3 px-3 md:px-6 rounded-xl w-full",
+                        "relative py-2 md:py-3 px-2 md:px-3 rounded-xl w-full",
                         "bg-[var(--bg-secondary)] border border-[var(--accent-primary)]/40"
                       )}>
                         {editingMessageId === message.id ? (
@@ -635,7 +635,7 @@ export const ChatView: React.FC = () => {
 
                           {openMenuMessageId === message.id && (
                             <div className={clsx(
-                              "absolute top-full mt-1 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg z-50 min-w-[120px] py-1",
+                              "absolute top-0 mt-1 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg z-50 min-w-[120px] min-h-auto py-1",
                               message.user?.id === user?.id ? 'right-0' : 'left-0'
                             )}>
                               <button

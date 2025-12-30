@@ -1,6 +1,6 @@
 // Service Worker for PWA with Push Notifications
-const CACHE_NAME = 'organizador-v3'; // Updated version to force cache refresh
-const STATIC_CACHE = 'static-v3';
+const CACHE_NAME = 'organizador-v4'; // Updated version to force cache refresh
+const STATIC_CACHE = 'static-v4';
 
 // Assets to cache on install
 const STATIC_ASSETS = [
@@ -48,17 +48,45 @@ self.addEventListener('fetch', (event) => {
     // Skip chrome extensions and other non-http(s) requests
     if (!event.request.url.startsWith('http')) return;
 
-    // IMPORTANT: Never cache Supabase API calls - always fetch fresh data
     const url = new URL(event.request.url);
-    const isSupabaseRequest = url.hostname.includes('supabase.co') ||
-        url.hostname.includes('supabase.in');
 
-    if (isSupabaseRequest) {
-        // Always fetch from network for Supabase requests
+    // STRATEGY 1: Network Only (Never Cache)
+    // - Supabase API
+    // - Local API routes (/api/*)
+    // - Next.js Data JSON (_next/data/*)
+    const isSupabaseRequest = url.hostname.includes('supabase.co') || url.hostname.includes('supabase.in');
+    const isApiRequest = url.pathname.startsWith('/api/');
+    const isNextData = url.pathname.includes('/_next/data/');
+
+    if (isSupabaseRequest || isApiRequest || isNextData) {
         event.respondWith(fetch(event.request));
         return;
     }
 
+    // STRATEGY 2: Network First, Fallback to Cache (For HTML/Navigation)
+    // Ensures user always gets latest version if online
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    // Cache the latest version
+                    const responseToCache = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, responseToCache);
+                    });
+                    return response;
+                })
+                .catch(() => {
+                    // Fallback to cache if offline
+                    return caches.match(event.request);
+                })
+        );
+        return;
+    }
+
+    // STRATEGY 3: Cache First, Fallback to Network (For Static Assets)
+    // - Images, CSS, JS, Fonts
+    // - _next/static/*
     event.respondWith(
         caches.match(event.request).then((response) => {
             if (response) {
