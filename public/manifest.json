@@ -3,8 +3,9 @@
   "short_name": "Organizador",
   "description": "Gestiona tus proyectos, tareas y equipo de forma eficiente.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#f3f3f3",
   "theme_color": "#000000",
   "orientation": "portrait-primary",
   "icons": [
