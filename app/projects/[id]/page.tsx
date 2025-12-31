@@ -16,7 +16,7 @@ export default function ProjectPage() {
   }, [projectId, router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">
+    <div className="min-h-dvh flex items-center justify-center bg-[var(--bg-primary)]">
       <p className="text-[var(--text-secondary)]">Cargando...</p>
     </div>
   );

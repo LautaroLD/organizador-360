@@ -65,7 +65,7 @@ export default function ProjectLayout({
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">
+      <div className="min-h-dvh flex items-center justify-center bg-[var(--bg-primary)]">
         <div className='text-center'>
           <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent-primary)] mx-auto mb-4'></div>
           <p className='text-[var(--text-secondary)]'>Cargando proyecto...</p>
@@ -79,7 +79,7 @@ export default function ProjectLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col">
+    <div className="min-h-dvh bg-[var(--bg-primary)] flex flex-col">
       <Sidebar />
       <div className="lg:pl-64 min-h-dvh flex flex-col max-h-dvh overflow-hidden">
         <Header />

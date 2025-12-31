@@ -50,7 +50,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       {/* Header */}
       <header className="border-b border-[var(--text-secondary)]">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">

@@ -92,7 +92,7 @@ export default async function DashboardPage({
     : 'Plan Gratuito';
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)]">
+    <div className="min-h-dvh bg-[var(--bg-primary)]">
       <Header
         title="Mis Proyectos"
         subtitle={subtitleText}

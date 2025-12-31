@@ -219,7 +219,7 @@ export default function InvitationPage() {
 
   if (isLoading || authLoading) {
     return (
-      <div className='min-h-screen flex items-center justify-center bg-[var(--bg-primary)]'>
+      <div className='min-h-dvh flex items-center justify-center bg-[var(--bg-primary)]'>
         {/* Theme Toggle - Floating */}
         <button
           onClick={toggleTheme}
@@ -243,7 +243,7 @@ export default function InvitationPage() {
 
   if (error) {
     return (
-      <div className='min-h-screen flex items-center justify-center bg-[var(--bg-primary)] p-4'>
+      <div className='min-h-dvh flex items-center justify-center bg-[var(--bg-primary)] p-4'>
         {/* Theme Toggle - Floating */}
         <button
           onClick={toggleTheme}
@@ -299,7 +299,7 @@ export default function InvitationPage() {
   // Show registration prompt if user is not logged in
   if (needsRegistration) {
     return (
-      <div className='min-h-screen flex items-center justify-center bg-[var(--bg-primary)] p-4'>
+      <div className='min-h-dvh flex items-center justify-center bg-[var(--bg-primary)] p-4'>
         {/* Theme Toggle - Floating */}
         <button
           onClick={toggleTheme}
@@ -459,7 +459,7 @@ export default function InvitationPage() {
 
   // Show acceptance interface if user is logged in with correct email
   return (
-    <div className='min-h-screen flex items-center justify-center bg-[var(--bg-primary)] p-4'>
+    <div className='min-h-dvh flex items-center justify-center bg-[var(--bg-primary)] p-4'>
       {/* Theme Toggle - Floating */}
       <button
         onClick={toggleTheme}

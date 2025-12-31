@@ -163,7 +163,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--bg-primary)]">
+    <div className="min-h-dvh flex items-center justify-center p-4 bg-[var(--bg-primary)]">
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>

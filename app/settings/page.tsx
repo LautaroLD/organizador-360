@@ -37,7 +37,7 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">
+      <div className="min-h-dvh flex items-center justify-center bg-[var(--bg-primary)]">
         <p className="text-[var(--text-secondary)]">Cargando...</p>
       </div>
     );
@@ -48,7 +48,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)]">
+    <div className="min-h-dvh bg-[var(--bg-primary)]">
       <Header
         title="Configuración"
         subtitle="Personaliza tu experiencia y preferencias"
