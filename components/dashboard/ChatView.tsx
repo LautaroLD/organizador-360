@@ -636,7 +636,7 @@ export const ChatView: React.FC = () => {
                           {openMenuMessageId === message.id && (
                             <div className={clsx(
                               "absolute top-0 mt-1 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg z-50 min-w-[120px] min-h-auto py-1",
-                              message.user?.id === user?.id ? 'right-0' : 'left-0'
+                              message.user?.id === user?.id ? '-right-10' : '-left-10'
                             )}>
                               <button
                                 onClick={() => togglePinMutation.mutate({ messageId: message.id })}
