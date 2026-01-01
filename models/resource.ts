@@ -17,11 +17,15 @@ export interface Resource {
   uploaded_by?: string;
   created_at: string;
   uploader?: ResourceUploader;
+  size?: number;
 }
 
 export interface ResourceCardProps {
   resource: Resource;
   onDelete: (resource: Resource) => void;
+  selected?: boolean;
+  onSelect?: (resource: Resource, selected: boolean) => void;
+  selectionMode?: boolean;
 }
 
 export interface LinkFormData {

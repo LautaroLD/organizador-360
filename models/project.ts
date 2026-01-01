@@ -10,7 +10,9 @@ export interface Project {
   owner_id: string;
   created_at: string;
   updated_at: string;
+  is_premium?: boolean;
   userRole?: string;
+  storage_used?: number;
 }
 
 export interface ProjectFormData {

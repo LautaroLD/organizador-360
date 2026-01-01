@@ -28,6 +28,8 @@ import {
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import type { ProjectFormData, InviteFormData, Project } from '@/models';
+import { StorageIndicator } from './StorageIndicator';
+import { SUBSCRIPTION_LIMITS } from '@/lib/subscriptionUtils';
 
 export const ProjectsView: React.FC = () => {
   const supabase = createClient();
@@ -299,6 +301,12 @@ export const ProjectsView: React.FC = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                <div className='mb-4'>
+                  <StorageIndicator
+                    used={project.storage_used || 0}
+                    limit={project.is_premium ? SUBSCRIPTION_LIMITS.PRO.MAX_STORAGE_BYTES : SUBSCRIPTION_LIMITS.FREE.MAX_STORAGE_BYTES}
+                  />
+                </div>
                 <div className='flex items-center justify-between text-sm text-[var(--text-secondary)] mb-3'>
                   <div className='flex items-center'>
                     <Users className='h-4 w-4 mr-1' />

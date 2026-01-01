@@ -8,11 +8,25 @@ import { SupabaseClient } from '@supabase/supabase-js';
 export const SUBSCRIPTION_LIMITS = {
   FREE: {
     MAX_MEMBERS_PER_PROJECT: 10,
+    MAX_STORAGE_BYTES: 100 * 1024 * 1024, // 100 MB
   },
   PRO: {
     MAX_MEMBERS_PER_PROJECT: Infinity,
+    MAX_STORAGE_BYTES: 10 * 1024 * 1024 * 1024, // 10 GB
   },
 } as const;
+
+export function formatBytes(bytes: number, decimals = 2) {
+  if (!+bytes) return '0 Bytes';
+
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
 
 /**
  * Verifica si un usuario es premium
@@ -120,6 +134,49 @@ export async function canAddMemberToProject(
       canAdd: false,
       reason: 'Error al verificar límites de miembros',
     };
+  }
+}
+
+/**
+ * Verifica si se puede agregar almacenamiento al proyecto
+ */
+export async function checkStorageLimit(
+  supabase: SupabaseClient,
+  projectId: string,
+  newBytes: number
+): Promise<{ canAdd: boolean; reason?: string; currentUsed?: number; limit?: number }> {
+  try {
+    // Obtener proyecto para ver si es premium y uso actual
+    const { data: project, error } = await supabase
+      .from('projects')
+      .select('is_premium, storage_used')
+      .eq('id', projectId)
+      .single();
+
+    if (error || !project) {
+      console.error('Error fetching project for storage check:', error);
+      return { canAdd: false, reason: 'Error al verificar proyecto' };
+    }
+
+    const isPremium = project.is_premium;
+    const currentUsed = project.storage_used || 0;
+    const limit = isPremium 
+      ? SUBSCRIPTION_LIMITS.PRO.MAX_STORAGE_BYTES 
+      : SUBSCRIPTION_LIMITS.FREE.MAX_STORAGE_BYTES;
+
+    if (currentUsed + newBytes > limit) {
+      return {
+        canAdd: false,
+        reason: `No hay suficiente espacio. Límite: ${formatBytes(limit)}, Usado: ${formatBytes(currentUsed)}, Intentando agregar: ${formatBytes(newBytes)}`,
+        currentUsed,
+        limit
+      };
+    }
+
+    return { canAdd: true, currentUsed, limit };
+  } catch (error) {
+    console.error('Error checking storage limit:', error);
+    return { canAdd: false, reason: 'Error interno al verificar almacenamiento' };
   }
 }
 

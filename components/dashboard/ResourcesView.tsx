@@ -7,12 +7,14 @@ import { useAuthStore } from '@/store/authStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Button } from '@/components/ui/Button';
 import { toast } from 'react-toastify';
-import { Link2, Upload, FolderOpen, FileText, ImageIcon, Video, FileArchive, Plus } from 'lucide-react';
+import { Link2, Upload, FolderOpen, FileText, ImageIcon, Video, FileArchive, Plus, Trash2, CheckSquare, XSquare } from 'lucide-react';
 import { ResourceCard } from '@/components/resources/ResourceCard';
 import { ResourceTabs } from '@/components/resources/ResourceTabs';
 import { AddLinkModal } from '@/components/resources/AddLinkModal';
 import { UploadFileModal } from '@/components/resources/UploadFileModal';
 import type { LinkFormData, ResourceTab, Resource } from '@/models';
+import { checkStorageLimit, SUBSCRIPTION_LIMITS } from '@/lib/subscriptionUtils';
+import { StorageIndicator } from './StorageIndicator';
 
 const getFileCategory = (fileName: string): string => {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
@@ -37,8 +39,10 @@ export const ResourcesView: React.FC = () => {
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [isFileModalOpen, setIsFileModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ResourceTab>('all');
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedResources, setSelectedResources] = useState<Set<string>>(new Set());
   const { user } = useAuthStore();
-  const { currentProject } = useProjectStore();
+  const { currentProject, setCurrentProject } = useProjectStore();
   const queryClient = useQueryClient();
 
   // Fetch resources
@@ -114,6 +118,12 @@ export const ResourcesView: React.FC = () => {
   // Upload file mutation
   const uploadFileMutation = useMutation({
     mutationFn: async (file: File) => {
+      // Check storage limit
+      const { canAdd, reason } = await checkStorageLimit(supabase, currentProject!.id, file.size);
+      if (!canAdd) {
+        throw new Error(reason || 'No hay suficiente espacio de almacenamiento');
+      }
+
       function sanitizeFileName(fileName: string): string {
         return fileName
           .normalize("NFD")                     // elimina acentos
@@ -140,12 +150,30 @@ export const ResourcesView: React.FC = () => {
         type: 'file',
         url: publicUrl,
         uploaded_by: user!.id,
+        size: file.size,
       });
 
       if (insertError) throw insertError;
+
+      // Increment storage used
+      await supabase.rpc('increment_project_storage', {
+        p_project_id: currentProject!.id,
+        p_bytes: file.size
+      });
+
+      return file.size;
     },
-    onSuccess: () => {
+    onSuccess: (fileSize) => {
       queryClient.invalidateQueries({ queryKey: ['resources'] });
+
+      // Update local state for immediate feedback
+      if (currentProject) {
+        setCurrentProject({
+          ...currentProject,
+          storage_used: (currentProject.storage_used || 0) + fileSize
+        });
+      }
+
       toast.success('Archivo subido exitosamente');
       setIsFileModalOpen(false);
     },
@@ -157,25 +185,155 @@ export const ResourcesView: React.FC = () => {
   // Delete resource mutation
   const deleteResourceMutation = useMutation({
     mutationFn: async (resource: Resource) => {
+      let fileSize = resource.size || 0;
+
       if (resource.type === 'file') {
         const urlParts = resource.url.split('/');
         const fileName = urlParts[urlParts.length - 1];
         const projectId = urlParts[urlParts.length - 2];
+
+        // If size is not stored (legacy files), try to fetch metadata
+        if (fileSize === 0) {
+          try {
+            // Decode filename in case it's URL encoded
+            const decodedFileName = decodeURIComponent(fileName);
+            // List files in the project folder
+            const { data: fileList } = await supabase.storage.from('resources').list(projectId);
+
+            if (fileList) {
+              const foundFile = fileList.find(f => f.name === decodedFileName || f.name === fileName);
+              if (foundFile) {
+                fileSize = foundFile.metadata?.size || 0;
+              }
+            }
+          } catch (err) {
+            console.error("Error fetching file metadata for deletion:", err);
+          }
+        }
+
         await supabase.storage.from('resources').remove([`${projectId}/${fileName}`]);
       }
 
       const { error } = await supabase.from('resources').delete().eq('id', resource.id);
 
       if (error) throw error;
+
+      if (fileSize > 0) {
+        await supabase.rpc('decrement_project_storage', {
+          p_project_id: currentProject!.id,
+          p_bytes: fileSize
+        });
+      }
+
+      return fileSize;
     },
-    onSuccess: () => {
+    onSuccess: (fileSize) => {
       queryClient.invalidateQueries({ queryKey: ['resources'] });
+
+      if (currentProject && fileSize > 0) {
+        setCurrentProject({
+          ...currentProject,
+          storage_used: Math.max(0, (currentProject.storage_used || 0) - fileSize)
+        });
+      }
+
       toast.success('Recurso eliminado');
     },
     onError: (error) => {
       toast.error(error.message || 'Error al eliminar recurso');
     },
   });
+
+  // Bulk delete mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (resourcesToDelete: Resource[]) => {
+      let totalSize = 0;
+      const filePathsToDelete: string[] = [];
+      const idsToDelete: string[] = [];
+
+      for (const resource of resourcesToDelete) {
+        idsToDelete.push(resource.id);
+
+        if (resource.type === 'file') {
+          let fileSize = resource.size || 0;
+          const urlParts = resource.url.split('/');
+          const fileName = urlParts[urlParts.length - 1];
+          const projectId = urlParts[urlParts.length - 2];
+
+          filePathsToDelete.push(`${projectId}/${fileName}`);
+
+          // If size is not stored, try to fetch (best effort)
+          if (fileSize === 0) {
+            try {
+              const decodedFileName = decodeURIComponent(fileName);
+              const { data: fileList } = await supabase.storage.from('resources').list(projectId);
+              if (fileList) {
+                const foundFile = fileList.find(f => f.name === decodedFileName || f.name === fileName);
+                if (foundFile) {
+                  fileSize = foundFile.metadata?.size || 0;
+                }
+              }
+            } catch (e) { console.error(e); }
+          }
+          totalSize += fileSize;
+        }
+      }
+
+      // Delete files from storage
+      if (filePathsToDelete.length > 0) {
+        await supabase.storage.from('resources').remove(filePathsToDelete);
+      }
+
+      // Delete records from DB
+      const { error } = await supabase.from('resources').delete().in('id', idsToDelete);
+      if (error) throw error;
+
+      // Decrement storage
+      if (totalSize > 0) {
+        await supabase.rpc('decrement_project_storage', {
+          p_project_id: currentProject!.id,
+          p_bytes: totalSize
+        });
+      }
+
+      return totalSize;
+    },
+    onSuccess: (totalSize) => {
+      queryClient.invalidateQueries({ queryKey: ['resources'] });
+      setSelectedResources(new Set());
+      setSelectionMode(false);
+
+      if (currentProject && totalSize > 0) {
+        setCurrentProject({
+          ...currentProject,
+          storage_used: Math.max(0, (currentProject.storage_used || 0) - totalSize)
+        });
+      }
+
+      toast.success('Recursos eliminados');
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Error al eliminar recursos');
+    }
+  });
+
+  const toggleSelection = (resource: Resource, selected: boolean) => {
+    const newSelected = new Set(selectedResources);
+    if (selected) {
+      newSelected.add(resource.id);
+    } else {
+      newSelected.delete(resource.id);
+    }
+    setSelectedResources(newSelected);
+  };
+
+  const handleBulkDelete = () => {
+    if (!resources) return;
+    const resourcesToDelete = resources.filter(r => selectedResources.has(r.id));
+    if (confirm(`¿Estás seguro de eliminar ${resourcesToDelete.length} recursos?`)) {
+      bulkDeleteMutation.mutate(resourcesToDelete);
+    }
+  };
 
   const getEmptyStateIcon = () => {
     const iconClass = 'h-12 w-12 text-[var(--accent-primary)]';
@@ -233,26 +391,68 @@ export const ResourcesView: React.FC = () => {
         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6'>
           <div>
             <h2 className='text-xl md:text-2xl font-bold text-[var(--text-primary)]'>Recursos del Proyecto</h2>
-            <p className='text-sm md:text-base text-[var(--text-secondary)]'>
+            <p className='text-sm md:text-base text-[var(--text-secondary)] mb-2'>
               {resources?.length || 0} recurso(s) disponible(s)
             </p>
+            <div className="max-w-xs">
+              <StorageIndicator
+                used={currentProject.storage_used || 0}
+                limit={currentProject.is_premium ? SUBSCRIPTION_LIMITS.PRO.MAX_STORAGE_BYTES : SUBSCRIPTION_LIMITS.FREE.MAX_STORAGE_BYTES}
+              />
+            </div>
           </div>
           <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
-            <Button
-              onClick={() => setIsLinkModalOpen(true)}
-              className='w-full sm:w-auto'
-            >
-              <Link2 className='h-4 w-4 mr-2' />
-              Agregar Link
-            </Button>
-            <Button
-              onClick={() => setIsFileModalOpen(true)}
-              variant='secondary'
-              className='w-full sm:w-auto'
-            >
-              <Upload className='h-4 w-4 mr-2' />
-              Subir Archivo
-            </Button>
+            {selectionMode ? (
+              <>
+                <Button
+                  onClick={handleBulkDelete}
+                  variant='danger'
+                  className='w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white'
+                  disabled={selectedResources.size === 0 || bulkDeleteMutation.isPending}
+                >
+                  <Trash2 className='h-4 w-4 mr-2' />
+                  Eliminar ({selectedResources.size})
+                </Button>
+                <Button
+                  onClick={() => {
+                    setSelectionMode(false);
+                    setSelectedResources(new Set());
+                  }}
+                  variant='secondary'
+                  className='w-full sm:w-auto'
+                >
+                  <XSquare className='h-4 w-4 mr-2' />
+                  Cancelar
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  onClick={() => setSelectionMode(true)}
+                  variant='secondary'
+                  className='w-full sm:w-auto'
+                  disabled={!resources || resources.length === 0}
+                >
+                  <CheckSquare className='h-4 w-4 mr-2' />
+                  Seleccionar
+                </Button>
+                <Button
+                  onClick={() => setIsLinkModalOpen(true)}
+                  className='w-full sm:w-auto'
+                >
+                  <Link2 className='h-4 w-4 mr-2' />
+                  Agregar Link
+                </Button>
+                <Button
+                  onClick={() => setIsFileModalOpen(true)}
+                  variant='secondary'
+                  className='w-full sm:w-auto'
+                >
+                  <Upload className='h-4 w-4 mr-2' />
+                  Subir Archivo
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -265,6 +465,9 @@ export const ResourcesView: React.FC = () => {
                 key={resource.id}
                 resource={resource}
                 onDelete={(resource) => deleteResourceMutation.mutate(resource)}
+                selectionMode={selectionMode}
+                selected={selectedResources.has(resource.id)}
+                onSelect={toggleSelection}
               />
             ))}
           </div>
