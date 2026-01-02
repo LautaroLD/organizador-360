@@ -83,6 +83,27 @@ export function useRealtimeProjectMessages({ projectId, enabled = true }: UseRea
                             }
 
                             if (newMessage) {
+                                // Fetch replied message if exists
+                                let repliedMessage = null;
+                                if (newMessage.reply_to) {
+                                    const { data: repliedMsg } = await supabase
+                                        .from('messages')
+                                        .select(`
+                                            id,
+                                            content,
+                                            channel_id,
+                                            user:users(name)
+                                        `)
+                                        .eq('id', newMessage.reply_to)
+                                        .single();
+                                    repliedMessage = repliedMsg || null;
+                                }
+
+                                const messageWithReply = {
+                                    ...newMessage,
+                                    replied_message: repliedMessage
+                                };
+
                                 // Update the messages cache for this specific channel
                                 queryClient.setQueryData(['messages', channel.id], (oldData: unknown) => {
                                     // Ensure oldData is always treated as an array
@@ -90,13 +111,13 @@ export function useRealtimeProjectMessages({ projectId, enabled = true }: UseRea
 
                                     // Check if message already exists to avoid duplicates
                                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                    const exists = currentMessages.some((msg: any) => msg.id === newMessage.id);
+                                    const exists = currentMessages.some((msg: any) => msg.id === messageWithReply.id);
                                     if (exists) {
                                         return currentMessages;
                                     }
 
                                     // Create new array with message appended
-                                    const updatedMessages = [...currentMessages, newMessage];
+                                    const updatedMessages = [...currentMessages, messageWithReply];
                                     return updatedMessages;
                                 });
                             }

@@ -223,6 +223,9 @@ export type Database = {
           content: string
           created_at: string | null
           id: string
+          is_deleted: boolean | null
+          is_pinned: boolean | null
+          reply_to: string | null
           updated_at: string | null
           user_id: string
         }
@@ -231,6 +234,9 @@ export type Database = {
           content: string
           created_at?: string | null
           id?: string
+          is_deleted?: boolean | null
+          is_pinned?: boolean | null
+          reply_to?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -239,6 +245,9 @@ export type Database = {
           content?: string
           created_at?: string | null
           id?: string
+          is_deleted?: boolean | null
+          is_pinned?: boolean | null
+          reply_to?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -248,6 +257,13 @@ export type Database = {
             columns: ["channel_id"]
             isOneToOne: false
             referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_reply_to_fkey"
+            columns: ["reply_to"]
+            isOneToOne: false
+            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
           {

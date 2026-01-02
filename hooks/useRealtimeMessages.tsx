@@ -59,11 +59,32 @@ export function useRealtimeMessages({ channelId, enabled = true }: UseRealtimeMe
                             .single();
 
                         if (!error && newMessage) {
+                            // Fetch replied message if exists
+                            let repliedMessage = null;
+                            if (newMessage.reply_to) {
+                                const { data: repliedMsg } = await supabase
+                                    .from('messages')
+                                    .select(`
+                                        id,
+                                        content,
+                                        channel_id,
+                                        user:users(name)
+                                    `)
+                                    .eq('id', newMessage.reply_to)
+                                    .single();
+                                repliedMessage = repliedMsg || null;
+                            }
+
+                            const messageWithReply = {
+                                ...newMessage,
+                                replied_message: repliedMessage
+                            };
+
                             queryClient.setQueryData(['messages', channelId], (oldData: any) => {
                                 const currentMessages = Array.isArray(oldData) ? oldData : [];
-                                const exists = currentMessages.some((msg: any) => msg.id === newMessage.id);
+                                const exists = currentMessages.some((msg: any) => msg.id === messageWithReply.id);
                                 if (exists) return currentMessages;
-                                return [...currentMessages, newMessage];
+                                return [...currentMessages, messageWithReply];
                             });
                         }
                     }

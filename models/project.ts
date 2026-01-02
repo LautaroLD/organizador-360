@@ -42,9 +42,18 @@ export interface Message {
   updated_at?: string
   is_pinned?: boolean
   is_deleted?: boolean
+  reply_to?: string | null
   user?: {
     name: string
     email: string
     id: string
   }
+  replied_message?: {
+    id: string
+    content: string
+    channel_id: string
+    user?: {
+      name: string
+    }
+  } | null
 }

@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
-import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check } from 'lucide-react';
+import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check, Reply } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
 import clsx from 'clsx';
 import { Channel } from '@/models';
@@ -46,6 +46,8 @@ export const ChatView: React.FC = () => {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [openMenuMessageId, setOpenMenuMessageId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<any | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null); const [pendingScrollMessageId, setPendingScrollMessageId] = useState<string | null>(null); const messageRefs = useRef<{ [key: string]: HTMLDivElement | null; }>({});
 
   // Subscribe to realtime messages
   useRealtimeMessages({
@@ -76,7 +78,7 @@ export const ChatView: React.FC = () => {
   const { data: messages, isLoading: messagesLoading } = useQuery({
     queryKey: ['messages', selectedChannel?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('messages')
         .select(`
           *,
@@ -85,7 +87,43 @@ export const ChatView: React.FC = () => {
         .eq('channel_id', selectedChannel!.id)
         .order('created_at', { ascending: true });
 
-      return data || [];
+      if (error) {
+        console.error('Error fetching messages:', error);
+        return [];
+      }
+
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      // Fetch replied messages separately for messages that have reply_to
+      const messagesWithReplies = await Promise.all(
+        data.map(async (msg) => {
+          if (msg.reply_to) {
+            const { data: repliedMsg } = await supabase
+              .from('messages')
+              .select(`
+                id,
+                content,
+                channel_id,
+                user:users(name)
+              `)
+              .eq('id', msg.reply_to)
+              .single();
+
+            return {
+              ...msg,
+              replied_message: repliedMsg || null
+            };
+          }
+          return {
+            ...msg,
+            replied_message: null
+          };
+        })
+      );
+
+      return messagesWithReplies;
     },
     enabled: !!selectedChannel?.id,
     refetchOnWindowFocus: false,
@@ -127,12 +165,14 @@ export const ChatView: React.FC = () => {
           channel_id: selectedChannel!.id,
           user_id: user?.id,
           content,
+          reply_to: replyingTo?.id || null,
         });
       if (error) throw error;
     },
     onSuccess: () => {
       // Don't invalidate queries here - the realtime subscription will handle cache updates
       resetMessage();
+      setReplyingTo(null);
     },
     onError: (error) => {
       toast.error(error.message || 'Error al enviar mensaje');
@@ -264,6 +304,22 @@ export const ChatView: React.FC = () => {
     }
   }, [lastMessageId, activeTab]);
 
+  // Handle pending scroll after channel change
+  useEffect(() => {
+    if (pendingScrollMessageId && messages && !messagesLoading) {
+      // Wait a bit for the DOM to update
+      setTimeout(() => {
+        const messageElement = messageRefs.current[pendingScrollMessageId];
+        if (messageElement) {
+          messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setHighlightedMessageId(pendingScrollMessageId);
+          setTimeout(() => setHighlightedMessageId(null), 2000);
+        }
+        setPendingScrollMessageId(null);
+      }, 100);
+    }
+  }, [pendingScrollMessageId, messages, messagesLoading]);
+
   // Request notification permission when enabled
   useEffect(() => {
     if (notificationsEnabled && permission === 'default') {
@@ -306,6 +362,39 @@ export const ChatView: React.FC = () => {
 
   const onSubmitChannel = (data: ChannelFormData) => {
     createChannelMutation.mutate(data);
+  };
+
+  const scrollToMessage = async (repliedMessage: any) => {
+    if (!repliedMessage) return;
+
+    const messageId = repliedMessage.id;
+    const messageChannelId = repliedMessage.channel_id;
+
+    // Check if the message is in a different channel
+    if (messageChannelId && messageChannelId !== selectedChannel?.id) {
+      // Find the channel
+      const targetChannel = channels?.find(ch => ch.id === messageChannelId);
+      if (targetChannel) {
+        setActiveTab('chat');
+        // Switch to that channel
+        setSelectedChannel(targetChannel);
+        // Set pending scroll to execute after messages load
+        setPendingScrollMessageId(messageId);
+        // Close sidebar on mobile
+        if (window.innerWidth < 768) {
+          setIsSidebarOpen(false);
+        }
+        return;
+      }
+    }
+
+    // Message is in current channel, scroll immediately
+    const messageElement = messageRefs.current[messageId];
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedMessageId(messageId);
+      setTimeout(() => setHighlightedMessageId(null), 2000);
+    }
   };
 
   const handleChannelSelect = (channel: Channel) => {
@@ -550,9 +639,13 @@ export const ChatView: React.FC = () => {
                 filteredMessages.map((message) => (
                   <div
                     key={message.id}
+                    ref={(el) => {
+                      messageRefs.current[message.id] = el;
+                    }}
                     className={clsx(
-                      "group relative flex gap-2 md:gap-3 max-w-[85%] md:max-w-[70%] w-fit",
-                      message.user?.id === user?.id ? 'ml-auto flex-row-reverse' : 'flex-row'
+                      "group relative flex gap-2 md:gap-3 max-w-[85%] md:max-w-[70%] w-fit transition-colors duration-300",
+                      message.user?.id === user?.id ? 'ml-auto flex-row-reverse' : 'flex-row',
+                      highlightedMessageId === message.id && 'bg-[var(--accent-primary)]/10 rounded-lg'
                     )}
                     onMouseLeave={() => setOpenMenuMessageId(null)}
                   >
@@ -582,6 +675,20 @@ export const ChatView: React.FC = () => {
                         "relative py-2 md:py-3 px-2 md:px-3 rounded-xl w-full",
                         "bg-[var(--bg-secondary)] border border-[var(--accent-primary)]/40"
                       )}>
+                        {message.replied_message && (
+                          <button
+                            onClick={() => scrollToMessage(message.replied_message)}
+                            className="mb-2 border-l-2 border-[var(--accent-primary)] p-2 bg-[var(--bg-primary)]/50 rounded hover:bg-[var(--bg-primary)]/70 transition-colors w-full text-left cursor-pointer"
+                          >
+                            <div className="flex items-center gap-1 text-xs text-[var(--text-secondary)] mb-1">
+                              <Reply className="h-3 w-3" />
+                              <span className="font-semibold">{message.replied_message.user?.name}</span>
+                            </div>
+                            <p className="text-xs text-[var(--text-secondary)] line-clamp-2">
+                              {message.replied_message.content}
+                            </p>
+                          </button>
+                        )}
                         {editingMessageId === message.id ? (
                           <div className="flex flex-col gap-2">
                             <textarea
@@ -638,6 +745,16 @@ export const ChatView: React.FC = () => {
                               "absolute top-0 mt-1 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg z-50 min-w-[120px] min-h-auto py-1",
                               message.user?.id === user?.id ? '-right-10' : '-left-10'
                             )}>
+                              <button
+                                onClick={() => {
+                                  setReplyingTo(message);
+                                  setOpenMenuMessageId(null);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] flex items-center gap-2"
+                              >
+                                <Reply className="h-3 w-3" />
+                                Responder
+                              </button>
                               <button
                                 onClick={() => togglePinMutation.mutate({ messageId: message.id })}
                                 className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] flex items-center gap-2"
@@ -697,6 +814,24 @@ export const ChatView: React.FC = () => {
 
             {/* Message Input */}
             <div className="p-3 md:p-4 border-t border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex-shrink-0">
+              {replyingTo && (
+                <div className="mb-2 p-2 bg-[var(--bg-primary)] rounded-lg border border-[var(--accent-primary)]/40 flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1 text-xs text-[var(--text-secondary)] mb-1">
+                      <Reply className="h-3 w-3" />
+                      <span className="font-semibold">Respondiendo a {replyingTo.user?.name}</span>
+                    </div>
+                    <p className="text-xs text-[var(--text-secondary)] truncate">{replyingTo.content}</p>
+                  </div>
+                  <button
+                    onClick={() => setReplyingTo(null)}
+                    className="ml-2 p-1 hover:bg-[var(--bg-secondary)] rounded text-[var(--text-secondary)]"
+                    aria-label="Cancelar respuesta"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               <form onSubmit={handleSubmitMessage(onSubmitMessage)} className="flex space-x-2">
                 <input
                   {...registerMessage('content')}
