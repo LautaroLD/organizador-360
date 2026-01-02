@@ -37,7 +37,7 @@ export function useTasks(projectId: string) {
 
   const createTask = useMutation({
     mutationFn: async (newTask: CreateTaskDTO) => {
-      const { assigned_to, tags, ...taskData } = newTask;
+      const { assigned_to, tags, checklist, ...taskData } = newTask;
 
       // 1. Create task
       const { data: task, error: taskError } = await supabase
@@ -74,6 +74,22 @@ export function useTasks(projectId: string) {
           .insert(taskTags);
 
         if (tagError) throw tagError;
+      }
+
+      // 4. Create checklist items if any
+      if (checklist && checklist.length > 0) {
+        const checklistItems = checklist.map((item, index) => ({
+          task_id: task.id,
+          content: item.content,
+          is_completed: item.is_completed,
+          position: index
+        }));
+
+        const { error: checklistError } = await supabase
+          .from('task_checklist_items')
+          .insert(checklistItems);
+
+        if (checklistError) throw checklistError;
       }
 
       return task;

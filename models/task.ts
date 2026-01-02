@@ -50,6 +50,7 @@ export interface CreateTaskDTO {
   position?: number;
   assigned_to?: string[]; // Array of user IDs
   tags?: number[]; // Array of tag IDs
+  checklist?: Array<{ content: string; is_completed: boolean; }>;
 }
 
 export interface UpdateTaskDTO {

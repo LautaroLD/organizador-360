@@ -35,6 +35,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   onDeleteChecklistItem,
 }) => {
   const [newChecklistItem, setNewChecklistItem] = React.useState('');
+  const [localChecklist, setLocalChecklist] = React.useState<Array<{ content: string; is_completed: boolean; tempId: string; }>>([]);
+
   const { register, handleSubmit, reset, setValue, watch } = useForm<CreateTaskDTO>({
     defaultValues: {
       title: '',
@@ -90,6 +92,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setValue('status', initialData.status);
       setValue('assigned_to', initialData.assignments?.map(a => a.user_id) || []);
       setValue('tags', initialData.tags?.map(t => t.tag_id) || []);
+      setLocalChecklist([]);
     } else {
       reset({
         title: '',
@@ -98,7 +101,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         assigned_to: [],
         tags: [],
       });
+      setLocalChecklist([]);
     }
+    setNewChecklistItem('');
   }, [initialData, isOpen, reset, setValue]);
 
   const assignedTo = watch('assigned_to') || [];
@@ -114,15 +119,44 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
   const handleAddChecklistItem = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newChecklistItem.trim() && initialData && onAddChecklistItem) {
-      onAddChecklistItem({ taskId: initialData.id, content: newChecklistItem });
+    if (newChecklistItem.trim()) {
+      if (initialData && onAddChecklistItem) {
+        // Si estamos editando, agregar directamente a la DB
+        onAddChecklistItem({ taskId: initialData.id, content: newChecklistItem });
+      } else {
+        // Si estamos creando, agregar al estado local
+        setLocalChecklist([...localChecklist, {
+          content: newChecklistItem,
+          is_completed: false,
+          tempId: Date.now().toString()
+        }]);
+      }
       setNewChecklistItem('');
+    }
+  };
+
+  const handleToggleLocalChecklistItem = (tempId: string) => {
+    setLocalChecklist(localChecklist.map(item =>
+      item.tempId === tempId ? { ...item, is_completed: !item.is_completed } : item
+    ));
+  };
+
+  const handleDeleteLocalChecklistItem = (tempId: string) => {
+    setLocalChecklist(localChecklist.filter(item => item.tempId !== tempId));
+  };
+
+  const handleFormSubmit = (data: CreateTaskDTO | UpdateTaskDTO) => {
+    if (!initialData && localChecklist.length > 0) {
+      // Si estamos creando y hay checklist local, agregarla al data
+      onSubmit({ ...data, checklist: localChecklist.map(({ content, is_completed }) => ({ content, is_completed })) } as CreateTaskDTO);
+    } else {
+      onSubmit(data);
     }
   };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={initialData ? 'Editar Tarea' : 'Nueva Tarea'}>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
             Título
@@ -145,14 +179,15 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           />
         </div>
 
-        {initialData && (
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-              Checklist
-            </label>
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+            Checklist
+          </label>
 
-            <div className="space-y-2 mb-3">
-              {initialData.checklist?.sort((a, b) => a.created_at.localeCompare(b.created_at)).map((item) => (
+          <div className="space-y-2 mb-3">
+            {initialData ? (
+              // Mostrar checklist de la DB si estamos editando
+              initialData.checklist?.sort((a, b) => a.created_at.localeCompare(b.created_at)).map((item) => (
                 <div key={item.id} className="flex items-center gap-2 group">
                   <button
                     type="button"
@@ -176,33 +211,60 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
-              ))}
-            </div>
-
-            <div className="flex gap-2">
-              <Input
-                value={newChecklistItem}
-                onChange={(e) => setNewChecklistItem(e.target.value)}
-                placeholder="Añadir item..."
-                className="flex-1 h-9 text-sm"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddChecklistItem(e);
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleAddChecklistItem}
-                disabled={!newChecklistItem.trim()}
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
+              ))
+            ) : (
+              // Mostrar checklist local si estamos creando
+              localChecklist.map((item) => (
+                <div key={item.tempId} className="flex items-center gap-2 group">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleLocalChecklistItem(item.tempId)}
+                    className={`flex-none w-5 h-5 rounded border flex items-center justify-center transition-colors ${item.is_completed
+                      ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white'
+                      : 'border-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
+                      }`}
+                  >
+                    {item.is_completed && <CheckSquare className="w-3 h-3" />}
+                  </button>
+                  <span className={`flex-1 text-sm ${item.is_completed ? 'text-[var(--text-secondary)] line-through' : 'text-[var(--text-primary)]'}`}>
+                    {item.content}
+                  </span>
+                  <Button
+                    type='button'
+                    variant='danger'
+                    size='sm'
+                    onClick={() => handleDeleteLocalChecklistItem(item.tempId)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))
+            )}
           </div>
-        )}
+
+          <div className="flex gap-2">
+            <Input
+              value={newChecklistItem}
+              onChange={(e) => setNewChecklistItem(e.target.value)}
+              placeholder="Añadir item..."
+              className="flex-1 h-9 text-sm"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddChecklistItem(e);
+                }
+              }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleAddChecklistItem}
+              disabled={!newChecklistItem.trim()}
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
 
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
@@ -238,8 +300,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                     }
                   }}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${isSelected
-                      ? 'border-transparent text-white shadow-sm'
-                      : 'bg-transparent border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
+                    ? 'border-transparent text-white shadow-sm'
+                    : 'bg-transparent border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
                     }`}
                   style={{
                     backgroundColor: isSelected ? tag.color : 'transparent',
