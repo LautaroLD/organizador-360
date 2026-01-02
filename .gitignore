@@ -12,6 +12,10 @@
 
 # testing
 /coverage
+/test-results
+/playwright-report
+/.playwright
+__tests__/coverage
 
 # next.js
 /.next/
@@ -46,3 +50,18 @@ next-env.d.ts
 supabase
 schema.sql
 /migrations
+
+# Playwright auth
+playwright/.auth/
+e2e/.auth/
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea
+*.swp
+*.swo
+*~
