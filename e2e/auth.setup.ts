@@ -36,7 +36,7 @@ setup('authenticate', async ({ page }) => {
   // - Redirección a /dashboard
   // - Aparecer un elemento específico después del login
   // - Cambio en el localStorage/sessionStorage
-  await page.waitForURL(/\/dashboard/, { timeout: 10000 });
+  await page.waitForURL(/\/dashboard/, { timeout: 30000 });
   
   // O alternativamente, espera por un elemento que solo aparece cuando estás autenticado:
   // await expect(page.getByText(/bienvenido|dashboard/i)).toBeVisible({ timeout: 10000 });

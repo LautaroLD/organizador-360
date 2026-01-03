@@ -117,9 +117,9 @@ export default defineConfig({
   // npm run dev
   // Luego en otra terminal: npm run test:e2e
   webServer: {
-    command: 'npm run dev',
+    command: process.env.CI ? 'npm run start' : 'npm run dev',
     url: 'http://localhost:3000',
-    reuseExistingServer: true, // Usa el servidor que ya está corriendo
+    reuseExistingServer: !process.env.CI, // En CI, siempre inicia un nuevo servidor
     timeout: 120 * 1000,
   },
 });
