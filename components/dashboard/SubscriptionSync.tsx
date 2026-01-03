@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 export default function SubscriptionSync() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const syncedRef = useRef(false);
 
   useEffect(() => {
@@ -14,9 +13,9 @@ export default function SubscriptionSync() {
 
     async function sync() {
       try {
-        const res = await fetch(`/api/stripe/sync-session?session_id=${encodeURIComponent(sessionId as string)}`);
+        await fetch(`/api/stripe/sync-session?session_id=${encodeURIComponent(sessionId as string)}`);
         // Ignorar respuesta; si falla, no bloquear UI
-      } catch (e) {
+      } catch {
         // noop
       } finally {
         syncedRef.current = true;

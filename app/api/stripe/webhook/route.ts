@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
               id: price.id,
               product_id: productId ?? null,
               active: price.active ?? true,
-              description: (price as any).nickname ?? null,
+              description: price.nickname ?? null,
               unit_amount: price.unit_amount ?? null,
               currency: price.currency,
               type: price.type,

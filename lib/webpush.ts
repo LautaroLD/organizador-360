@@ -216,7 +216,7 @@ export async function getPushSubscription(
         )) {
             try {
                 await subscription.unsubscribe().catch(() => {});
-            } catch (e) {
+            } catch {
                 // Ignore cleanup errors
             }
             return null;
@@ -271,7 +271,7 @@ export async function savePushSubscription(
             throw new Error(`Backend returned ${response.status}: ${errorText}`);
         }
 
-        const responseData = await response.json();
+        await response.json();
         return true;
     } catch (error) {
         console.error('❌ Failed to save push subscription:', error);

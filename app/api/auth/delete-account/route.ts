@@ -11,7 +11,7 @@ const { session } = data;
   if (!session || !session.user) {
     return new Response(JSON.stringify({ error: 'No authenticated user found' }), { status: 401 });
   }
-  const { data: users, error: fetchError } = await supabaseAdmin.auth.admin.deleteUser(session.user.id);
+  const { error: fetchError } = await supabaseAdmin.auth.admin.deleteUser(session.user.id);
   if (fetchError) {
     return new Response(JSON.stringify({ error: fetchError.message }), { status: 500 });
   }

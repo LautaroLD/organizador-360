@@ -6,7 +6,8 @@ import { NextRequest, NextResponse } from 'next/server';
  * POST /api/stripe/checkout
  * Crea una sesión de checkout en Stripe
  */
-export async function POST(request: NextRequest) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function POST(_request: NextRequest) {
   try {
     const priceId = process.env.STRIPE_PRO_PLAN_PRICE_ID;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     // Verificar si el usuario ya tiene un customer ID en Stripe
     let customerId: string;
-    const { data: stripeData, error: stripeError } = await supabase
+    const { data: stripeData } = await supabase
       .from('users')
       .select('stripe_customer_id')
       .eq('id', user.id)

@@ -1,13 +1,14 @@
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { stripe } from '@/lib/stripe';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import Stripe from 'stripe';
 
 /**
  * POST /api/stripe/cancel-subscription
  * Cancela la suscripción del usuario
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const supabase = await createClient();
     const {
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Asegurar existencia de product/price para FK
-    let price: any = stripeSub.items?.data?.[0]?.price;
+    let price: Stripe.Price | undefined = stripeSub.items?.data?.[0]?.price as Stripe.Price | undefined;
     if (typeof price === 'string') {
       try {
         price = await stripe.prices.retrieve(price, { expand: ['product'] });
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     let productId: string | null = null;
-    let productObj: any = null;
+    let productObj: Stripe.Product | null = null;
     const productRef = price?.product;
     if (typeof productRef === 'string') {
       try {

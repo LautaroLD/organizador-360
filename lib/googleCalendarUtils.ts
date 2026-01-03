@@ -16,8 +16,23 @@ export interface GoogleCalendarEvent {
   recurrence?: string[];
 }
 
+export interface AppEvent {
+  title: string;
+  description?: string;
+  start_date: string;
+  start_time?: string;
+  end_date?: string;
+  end_time?: string;
+  timeZone?: string;
+  time_zone?: string;
+  is_recurring?: boolean;
+  recurrence_rule?: string;
+  selected_days?: string[];
+  recurrence_end_date?: string;
+}
+
 // Formatear evento de la app para Google Calendar
-export function formatEventForGoogle(appEvent: any): GoogleCalendarEvent {
+export function formatEventForGoogle(appEvent: AppEvent): GoogleCalendarEvent {
   // Validar y formatear las fechas
   const startDate = appEvent.start_date;
   const startTime = appEvent.start_time || '00:00';

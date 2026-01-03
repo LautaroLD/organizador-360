@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Plus, Trash2, Edit2 } from 'lucide-react';
+import { Trash2, Edit2 } from 'lucide-react';
 import type { TagFormData, ProjectTag, ProjectTagsModalProps } from '@/models';
 
 const PRESET_COLORS = [
@@ -45,6 +45,7 @@ export const ProjectTagsModal: React.FC<ProjectTagsModalProps> = ({
     },
   });
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const selectedColor = watch('color');
 
   const handleCreateOrUpdate = (data: TagFormData) => {
@@ -94,11 +95,10 @@ export const ProjectTagsModal: React.FC<ProjectTagsModalProps> = ({
                     key={color.value}
                     type='button'
                     onClick={() => setValue('color', color.value)}
-                    className={`w-8 h-8 rounded-full transition-transform ${
-                      selectedColor === color.value
+                    className={`w-8 h-8 rounded-full transition-transform ${selectedColor === color.value
                         ? 'ring-2 ring-[var(--accent-primary)] ring-offset-2 ring-offset-[var(--bg-primary)] scale-110'
                         : ''
-                    }`}
+                      }`}
                     style={{ backgroundColor: color.value }}
                     title={color.name}
                   />

@@ -6,6 +6,7 @@ import { InvitationsWidget } from '@/components/dashboard/InvitationsWidget';
 import SubscriptionSync from '@/components/dashboard/SubscriptionSync';
 import { stripe } from '@/lib/stripe';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import Stripe from 'stripe';
 
 type SearchParams = { [key: string]: string | string[] | undefined; };
 
@@ -30,7 +31,7 @@ export default async function DashboardPage({
       const session = await stripe.checkout.sessions.retrieve(sessionId, {
         expand: ['subscription'],
       });
-      let sub: any = session.subscription;
+      let sub: Stripe.Subscription | null = session.subscription as Stripe.Subscription | null;
       // Fallback: si viene como ID, recupera la suscripción completa
       if (typeof sub === 'string') {
         try {
@@ -40,7 +41,6 @@ export default async function DashboardPage({
         }
       }
       if (sub) {
-        const status: string = sub.status;
         const { error: upsertError } = await supabaseAdmin
           .from('subscriptions')
           .upsert(

@@ -4,6 +4,8 @@ import { GoogleCalendarService } from '@/lib/googleCalendar';
 import { formatEventForGoogle } from '@/lib/googleCalendarUtils';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
+import { calendar_v3 } from 'googleapis';
+
 type GoogleTokenRow = {
   user_id?: string | null;
   access_token: string;
@@ -13,7 +15,15 @@ type GoogleTokenRow = {
   expires_at?: string | null;
 };
 
-const toGoogleTokens = (row: GoogleTokenRow) => ({
+interface GoogleTokens {
+  access_token: string;
+  refresh_token?: string;
+  scope?: string;
+  token_type?: string;
+  expiry_date?: number;
+}
+
+const toGoogleTokens = (row: GoogleTokenRow): GoogleTokens => ({
   access_token: row.access_token,
   refresh_token: row.refresh_token,
   scope: row.scope || 'https://www.googleapis.com/auth/calendar',
@@ -22,13 +32,13 @@ const toGoogleTokens = (row: GoogleTokenRow) => ({
 });
 
 const deleteMatchingEvents = async (
-  tokens: any,
+  tokens: GoogleTokens,
   eventTitle: string,
   startDate: string,
 ) => {
   const calendarService = new GoogleCalendarService(tokens);
   const events = await calendarService.getEvents();
-  const matchingEvents = events.filter((event: any) =>
+  const matchingEvents = events.filter((event: calendar_v3.Schema$Event) =>
     event.summary === eventTitle &&
     event.start?.dateTime?.startsWith(startDate)
   );
@@ -98,7 +108,7 @@ export async function POST(request: NextRequest) {
       const startDate = event.start_date;
       
       // Buscar eventos duplicados por título y fecha
-      const isDuplicate = existingEvents.some((e: any) => 
+      const isDuplicate = existingEvents.some((e: calendar_v3.Schema$Event) => 
         e.summary === event.title && 
         e.start?.dateTime?.startsWith(startDate)
       );
@@ -116,10 +126,11 @@ export async function POST(request: NextRequest) {
     const result = await calendarService.createEvent(googleEvent);
 
     return NextResponse.json({ success: true, data: result });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error al sincronizar evento:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Error al sincronizar evento';
     return NextResponse.json(
-      { error: error.message || 'Error al sincronizar evento' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
@@ -143,10 +154,11 @@ export async function GET(request: NextRequest) {
     const events = await calendarService.getEvents();
 
     return NextResponse.json({ success: true, data: events });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error al obtener eventos:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Error al obtener eventos';
     return NextResponse.json(
-      { error: error.message || 'Error al obtener eventos' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
@@ -166,7 +178,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Recolectar todos los tokens relevantes (miembros + dueño + usuario activo)
-    const tokenSources: any[] = [];
+    const tokenSources: GoogleTokens[] = [];
     const dedup = new Set<string>();
 
     if (projectId) {
@@ -209,10 +221,11 @@ export async function DELETE(request: NextRequest) {
       success: true, 
       deleted: totalDeleted,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error al eliminar evento:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Error al eliminar evento';
     return NextResponse.json(
-      { error: error.message || 'Error al eliminar evento' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

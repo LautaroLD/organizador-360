@@ -2,11 +2,17 @@
 
 import { create } from 'zustand';
 
+interface GoogleTokens {
+  access_token: string;
+  refresh_token?: string;
+  expires_at?: number;
+}
+
 interface GoogleCalendarState {
-  tokens: any | null;
+  tokens: GoogleTokens | null;
   isConnected: boolean;
   userEmail: string | null; // Email del usuario de Google conectado
-  setTokens: (tokens: any, userEmail?: string) => void;
+  setTokens: (tokens: GoogleTokens, userEmail?: string) => void;
   disconnect: () => void;
   clearIfDifferentUser: (currentEmail: string) => boolean;
 }

@@ -19,6 +19,7 @@ export default function HomePage() {
       }
     };
     checkUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   const features = [

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
@@ -17,7 +17,6 @@ import {
   Check,
   Star,
   Zap,
-  Infinity,
   Users,
   HardDrive,
   Calendar,
@@ -39,7 +38,6 @@ interface PricingPlan {
 export const SubscriptionView: React.FC = () => {
   const supabase = createClient();
   const { user } = useAuthStore();
-  const [isLoading, setIsLoading] = useState(false);
 
   // Fetch subscription data
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({

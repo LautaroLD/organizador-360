@@ -1,10 +1,18 @@
-import { google } from 'googleapis';
+import { google, Auth, calendar_v3 } from 'googleapis';
 import { GoogleCalendarEvent } from './googleCalendarUtils';
 
-export class GoogleCalendarService {
-  private oauth2Client: any;
+interface GoogleTokens {
+  access_token: string;
+  refresh_token?: string;
+  expiry_date?: number;
+  token_type?: string;
+  scope?: string;
+}
 
-  constructor(tokens: any) {
+export class GoogleCalendarService {
+  private oauth2Client: Auth.OAuth2Client;
+
+  constructor(tokens: GoogleTokens) {
     this.oauth2Client = new google.auth.OAuth2(
       process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
@@ -14,7 +22,7 @@ export class GoogleCalendarService {
   }
 
   // Crear evento en Google Calendar
-  async createEvent(event: GoogleCalendarEvent): Promise<any> {
+  async createEvent(event: GoogleCalendarEvent): Promise<calendar_v3.Schema$Event> {
     const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
 
     try {
@@ -30,7 +38,7 @@ export class GoogleCalendarService {
   }
 
   // Obtener eventos de Google Calendar
-  async getEvents(timeMin?: string, timeMax?: string): Promise<any[]> {
+  async getEvents(timeMin?: string, timeMax?: string): Promise<calendar_v3.Schema$Event[]> {
     const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
 
     try {
@@ -50,7 +58,7 @@ export class GoogleCalendarService {
   }
 
   // Actualizar evento en Google Calendar
-  async updateEvent(eventId: string, event: GoogleCalendarEvent): Promise<any> {
+  async updateEvent(eventId: string, event: GoogleCalendarEvent): Promise<calendar_v3.Schema$Event> {
     const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
 
     try {
@@ -87,7 +95,7 @@ export class GoogleCalendarService {
       const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
       await calendar.calendarList.list({ maxResults: 1 });
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

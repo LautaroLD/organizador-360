@@ -156,5 +156,6 @@ export function useRealtimeUserMessages({ userId, enabled = true }: UseRealtimeU
             channelsRef.current = [];
             channelDataRef.current = [];
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId, enabled, queryClient, notify]);
 }

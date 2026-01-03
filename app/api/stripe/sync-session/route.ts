@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import Stripe from 'stripe';
 
 // GET /api/stripe/sync-session?session_id=cs_...
 export async function GET(request: NextRequest) {
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Sesión sin suscripción' }, { status: 400 });
     }
 
-    let subscription: any = session.subscription as any;
+    let subscription: Stripe.Subscription | null = session.subscription as Stripe.Subscription | null;
     // Fallback si es ID string
     if (typeof subscription === 'string') {
       try {
@@ -34,7 +35,6 @@ export async function GET(request: NextRequest) {
         console.error('Failed to retrieve subscription by ID (sync-session):', e);
       }
     }
-    const status: string = subscription?.status;
     const customerId: string | null = (session.customer as string) || null;
 
     let targetUserId: string | null = null;
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
 
     // Upsert Product and Price to satisfy FK constraints
     // Ensure price and product exist
-    let price = subscription.items?.data?.[0]?.price as any;
+    let price: Stripe.Price | undefined = subscription?.items?.data?.[0]?.price as Stripe.Price | undefined;
     if (typeof price === 'string') {
       try {
         price = await stripe.prices.retrieve(price, { expand: ['product'] });
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
     }
 
     let productId: string | null = null;
-    let productObj: any = null;
+    let productObj: Stripe.Product | null = null;
     const productRef = price?.product;
     if (typeof productRef === 'string') {
       try {
@@ -95,9 +95,9 @@ export async function GET(request: NextRequest) {
         console.error('Failed to retrieve product by ID (sync-session):', e);
         productId = productRef;
       }
-    } else if (productRef && productRef.id) {
+    } else if (productRef && typeof productRef === 'object' && 'id' in productRef) {
       productId = productRef.id;
-      productObj = productRef;
+      productObj = productRef as Stripe.Product;
     }
 
     if (productId) {

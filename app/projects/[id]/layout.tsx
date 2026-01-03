@@ -61,6 +61,7 @@ export default function ProjectLayout({
     };
 
     loadProject();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, projectId, router, setCurrentProject]);
 
   if (isLoading) {

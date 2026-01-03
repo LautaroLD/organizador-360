@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
           const decoded = JSON.parse(Buffer.from(parts[1], 'base64').toString());
           userEmail = decoded.email || '';
         }
-      } catch (idTokenError) {
+      } catch {
         // Silent fail for ID token extraction
       }
     }

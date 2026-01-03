@@ -46,6 +46,7 @@ export const ChatView: React.FC = () => {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [openMenuMessageId, setOpenMenuMessageId] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [replyingTo, setReplyingTo] = useState<any | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null); const [pendingScrollMessageId, setPendingScrollMessageId] = useState<string | null>(null); const messageRefs = useRef<{ [key: string]: HTMLDivElement | null; }>({});
 
@@ -364,6 +365,7 @@ export const ChatView: React.FC = () => {
     createChannelMutation.mutate(data);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const scrollToMessage = async (repliedMessage: any) => {
     if (!repliedMessage) return;
 

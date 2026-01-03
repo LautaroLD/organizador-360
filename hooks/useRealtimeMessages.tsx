@@ -1,9 +1,23 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { RealtimeChannel } from '@supabase/supabase-js';
+
+interface Message {
+    id: string;
+    content: string;
+    channel_id: string;
+    reply_to?: string | null;
+    user?: {
+        name: string;
+        email?: string;
+        id?: string;
+    };
+    replied_message?: Message | null;
+    [key: string]: unknown;
+}
 
 interface UseRealtimeMessagesOptions {
     channelId: string | null | undefined;
@@ -18,6 +32,7 @@ export function useRealtimeMessages({ channelId, enabled = true }: UseRealtimeMe
     const supabase = createClient();
     const queryClient = useQueryClient();
     const channelRef = useRef<RealtimeChannel | null>(null);
+    const [isSubscribed, setIsSubscribed] = useState(false);
 
     useEffect(() => {
         // Don't subscribe if disabled or no channel selected
@@ -80,9 +95,9 @@ export function useRealtimeMessages({ channelId, enabled = true }: UseRealtimeMe
                                 replied_message: repliedMessage
                             };
 
-                            queryClient.setQueryData(['messages', channelId], (oldData: any) => {
+                            queryClient.setQueryData(['messages', channelId], (oldData: Message[] | undefined) => {
                                 const currentMessages = Array.isArray(oldData) ? oldData : [];
-                                const exists = currentMessages.some((msg: any) => msg.id === messageWithReply.id);
+                                const exists = currentMessages.some((msg: Message) => msg.id === messageWithReply.id);
                                 if (exists) return currentMessages;
                                 return [...currentMessages, messageWithReply];
                             });
@@ -90,9 +105,9 @@ export function useRealtimeMessages({ channelId, enabled = true }: UseRealtimeMe
                     }
                     // Handle UPDATE
                     else if (payload.eventType === 'UPDATE') {
-                        queryClient.setQueryData(['messages', channelId], (oldData: any) => {
+                        queryClient.setQueryData(['messages', channelId], (oldData: Message[] | undefined) => {
                             const currentMessages = Array.isArray(oldData) ? oldData : [];
-                            return currentMessages.map((msg: any) => {
+                            return currentMessages.map((msg: Message) => {
                                 if (msg.id === payload.new.id) {
                                     // Merge the new data with existing data (preserving user relation if not returned in payload)
                                     // Note: payload.new only contains the columns, not the relations.
@@ -105,9 +120,9 @@ export function useRealtimeMessages({ channelId, enabled = true }: UseRealtimeMe
                     }
                     // Handle DELETE
                     else if (payload.eventType === 'DELETE') {
-                        queryClient.setQueryData(['messages', channelId], (oldData: any) => {
+                        queryClient.setQueryData(['messages', channelId], (oldData: Message[] | undefined) => {
                             const currentMessages = Array.isArray(oldData) ? oldData : [];
-                            return currentMessages.filter((msg: any) => msg.id !== payload.old.id);
+                            return currentMessages.filter((msg: Message) => msg.id !== payload.old.id);
                         });
                     }
                 }
@@ -115,17 +130,20 @@ export function useRealtimeMessages({ channelId, enabled = true }: UseRealtimeMe
             .subscribe();
 
         channelRef.current = channel;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setIsSubscribed(true);
 
         return () => {
             if (channelRef.current) {
                 supabase.removeChannel(channelRef.current);
                 channelRef.current = null;
+                setIsSubscribed(false);
             }
         };
-    }, [channelId, enabled, queryClient]);
+    }, [channelId, enabled, queryClient, supabase]);
 
     return {
         // Could expose additional state here if needed
-        isSubscribed: !!channelRef.current,
+        isSubscribed,
     };
 }

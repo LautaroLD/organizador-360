@@ -43,7 +43,7 @@ export interface ShowNotificationOptions {
     body: string;
     icon?: string;
     tag?: string;
-    data?: any;
+    data?: Record<string, unknown>;
     onClick?: () => void;
 }
 
@@ -91,7 +91,7 @@ export function playNotificationSound(): void {
             // Silently fail - browser autoplay policy prevents playing without user interaction
             // This is expected behavior and not an error
         });
-    } catch (error) {
+    } catch {
         // Silently fail - audio not available or other issue
     }
 }

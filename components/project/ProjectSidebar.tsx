@@ -5,7 +5,6 @@ import { useRouter, usePathname, useParams } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Button } from '@/components/ui/Button';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   MessageSquare,
   FileText,
@@ -20,7 +19,7 @@ import {
   Layout,
 } from 'lucide-react';
 import Link from 'next/link';
-import { Project, User } from '@/models';
+import { Project } from '@/models';
 const SidebarContent = ({ handleBackToDashboard, currentProject, menuItems, pathname, setIsOpen, user }: { handleBackToDashboard: () => void, currentProject: Project | null, menuItems: { id: string; icon: React.ReactNode; label: string; path: string; }[], pathname: string, setIsOpen: (isOpen: boolean) => void, user: { id: string; email?: string; } | null; }) => (
   <>
     <div className="p-4 border-b border-[var(--text-secondary)]/20">

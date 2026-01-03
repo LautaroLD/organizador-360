@@ -140,6 +140,7 @@ export function useRealtimeProjectMessages({ projectId, enabled = true }: UseRea
             channelsRef.current = [];
             channelIdsRef.current = [];
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [projectId, enabled, queryClient]);
 
     return null;

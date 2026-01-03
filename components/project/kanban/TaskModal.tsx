@@ -286,12 +286,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           </label>
           <div className="flex flex-wrap gap-2">
             {projectTags?.map((tag) => {
+
               const isSelected = (watch('tags') || []).includes(tag.id);
               return (
                 <button
                   key={tag.id}
                   type="button"
                   onClick={() => {
+                    // eslint-disable-next-line react-hooks/incompatible-library
                     const current = watch('tags') || [];
                     if (isSelected) {
                       setValue('tags', current.filter(id => id !== tag.id));
@@ -325,6 +327,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             Asignar a
           </label>
           <div className="flex flex-wrap gap-2">
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {members?.map((member: any) => (
               <button
                 key={member.user_id}

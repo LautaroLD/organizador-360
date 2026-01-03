@@ -19,5 +19,5 @@ export interface PushLog {
 export interface PushLogEntry {
   level: 'info' | 'warn' | 'error';
   message: string;
-  details?: any;
+  details?: Record<string, unknown>;
 }

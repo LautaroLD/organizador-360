@@ -29,7 +29,7 @@ export interface NotificationPayload {
     icon?: string;
     badge?: string;
     tag?: string;
-    data?: any;
+    data?: Record<string, unknown>;
 }
 
 /**
@@ -74,9 +74,10 @@ export async function sendPushNotificationToUser(userId: string, payload: Notifi
                     JSON.stringify(payload)
                 );
                 return { success: true, subId: sub.id };
-            } catch (error: any) {
+            } catch (error: unknown) {
+                const webPushError = error as { statusCode?: number };
                 // Si la suscripción es inválida (410 Gone o 404 Not Found), eliminarla
-                if (error.statusCode === 410 || error.statusCode === 404) {
+                if (webPushError.statusCode === 410 || webPushError.statusCode === 404) {
                     console.log(`🗑️ Removing invalid subscription: ${sub.id}`);
                     await supabaseAdmin
                         .from('push_subscriptions')

@@ -131,6 +131,7 @@ export const CalendarView: React.FC = () => {
     };
 
     loadTokensFromSupabase();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // Manejar callback de Google OAuth (solo una vez)
@@ -230,6 +231,7 @@ export const CalendarView: React.FC = () => {
     };
 
     handleGoogleAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Conectar con Google Calendar
@@ -254,6 +256,7 @@ export const CalendarView: React.FC = () => {
   };
 
   // Sincronizar evento con Google Calendar
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const syncEventToGoogle = async (event: any, checkDuplicate = false) => {
     if (!tokens) {
       return { success: false, skipped: false };
@@ -281,6 +284,7 @@ export const CalendarView: React.FC = () => {
   };
 
   // Eliminar evento de Google Calendar
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const deleteEventFromGoogle = async (event: any) => {
     const projectId = event.project_id || currentProject?.id;
     const startDate = typeof event.start_date === 'string'
@@ -369,7 +373,7 @@ export const CalendarView: React.FC = () => {
       } else {
         toast.warning(`${successCount} sincronizados, ${skippedCount} omitidos, ${errorCount} errores`);
       }
-    } catch (error) {
+    } catch {
       toast.dismiss(loadingToast);
       toast.error('Error al sincronizar eventos');
     } finally {
@@ -544,9 +548,10 @@ export const CalendarView: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       toast.dismiss(loadingToast);
       toast.success(`${eventIds.length} evento(s) eliminado(s)`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.dismiss(loadingToast);
-      toast.error(error.message || 'Error al eliminar eventos');
+      const errorMessage = error instanceof Error ? error.message : 'Error al eliminar eventos';
+      toast.error(errorMessage);
     }
   };
 
@@ -579,9 +584,10 @@ export const CalendarView: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       toast.dismiss(loadingToast);
       toast.success(`${eventIds.length} evento(s) eliminado(s)`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.dismiss(loadingToast);
-      toast.error(error.message || 'Error al eliminar eventos');
+      const errorMessage = error instanceof Error ? error.message : 'Error al eliminar eventos';
+      toast.error(errorMessage);
     }
   };
 

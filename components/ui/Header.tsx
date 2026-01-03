@@ -47,7 +47,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
       logout();
       toast.success('Sesión cerrada');
       router.push('/');
-    } catch (error) {
+    } catch {
       toast.error('Error al cerrar sesión');
     }
   };
