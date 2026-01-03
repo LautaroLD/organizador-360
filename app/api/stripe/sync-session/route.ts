@@ -156,25 +156,27 @@ export async function GET(request: NextRequest) {
     }
 
     // Upsert en Supabase (usar admin para evitar RLS)
-    const { error: upsertError } = await supabaseAdmin
-      .from('subscriptions')
-      .upsert(
-        {
-          id: subscription.id,
-          user_id: targetUserId,
-          stripe_subscription_id: subscription.id,
-          status: subscription.status,
-          price_id: typeof price === 'string' ? price : price?.id ?? null,
-          current_period_start: subscription.current_period_start ? new Date(subscription.current_period_start * 1000).toISOString() : null,
-          current_period_end: subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null,
-          cancel_at_period_end: !!subscription.cancel_at_period_end,
-          canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
-          ended_at: subscription.ended_at ? new Date(subscription.ended_at * 1000).toISOString() : null,
-        },
-        { onConflict: 'user_id' }
-      );
-    if (upsertError) {
-      console.error('Upsert subscription failed (sync-session):', upsertError);
+    if (subscription) {
+      const { error: upsertError } = await supabaseAdmin
+        .from('subscriptions')
+        .upsert(
+          {
+            id: subscription.id,
+            user_id: targetUserId,
+            stripe_subscription_id: subscription.id,
+            status: subscription.status,
+            price_id: typeof price === 'string' ? price : price?.id ?? null,
+            current_period_start: subscription.current_period_start ? new Date(subscription.current_period_start * 1000).toISOString() : null,
+            current_period_end: subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null,
+            cancel_at_period_end: !!subscription.cancel_at_period_end,
+            canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
+            ended_at: subscription.ended_at ? new Date(subscription.ended_at * 1000).toISOString() : null,
+          },
+          { onConflict: 'user_id' }
+        );
+      if (upsertError) {
+        console.error('Upsert subscription failed (sync-session):', upsertError);
+      }
     }
 
     return NextResponse.json({ success: true });

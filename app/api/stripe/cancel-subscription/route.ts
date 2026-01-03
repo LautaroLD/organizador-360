@@ -68,15 +68,17 @@ export async function POST() {
     if (typeof productRef === 'string') {
       try {
         const prod = await stripe.products.retrieve(productRef);
-        productId = prod.id;
-        productObj = prod;
+        if (!('deleted' in prod) || !prod.deleted) {
+          productId = prod.id;
+          productObj = prod as Stripe.Product;
+        }
       } catch (e) {
         console.error('Fallo al recuperar product tras cancelación:', e);
         productId = productRef; // fallback sólo ID
       }
-    } else if (productRef && productRef.id) {
+    } else if (productRef && productRef.id && !('deleted' in productRef && productRef.deleted)) {
       productId = productRef.id;
-      productObj = productRef;
+      productObj = productRef as Stripe.Product;
     }
 
     if (productId) {
