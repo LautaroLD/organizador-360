@@ -55,7 +55,7 @@
 
 ### 💳 Sistema de Suscripciones
 - **Plan Free**: Hasta 10 miembros, 100MB storage
-- **Plan Pro**: Miembros ilimitados, 5GB storage
+- **Plan Pro**: Miembros ilimitados, 10GB storage
 - **Integración con Stripe** para pagos
 - **Gestión de suscripciones** automática
 
