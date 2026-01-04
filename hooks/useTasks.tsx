@@ -24,7 +24,8 @@ export function useTasks(projectId: string) {
             id,
             tag_id,
             tag:project_tags(*)
-          )
+          ),
+          images:task_images(*)
         `)
         .eq('project_id', projectId)
         .order('position');
@@ -37,7 +38,7 @@ export function useTasks(projectId: string) {
 
   const createTask = useMutation({
     mutationFn: async (newTask: CreateTaskDTO) => {
-      const { assigned_to, tags, checklist, ...taskData } = newTask;
+      const { assigned_to, tags, checklist, images, ...taskData } = newTask;
 
       // 1. Create task
       const { data: task, error: taskError } = await supabase
@@ -90,6 +91,36 @@ export function useTasks(projectId: string) {
           .insert(checklistItems);
 
         if (checklistError) throw checklistError;
+      }
+
+      // 5. Upload images if any
+      if (images && images.length > 0) {
+        for (const file of images) {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${task.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('task-images')
+            .upload(fileName, file);
+
+          if (uploadError) {
+            console.error('Error uploading image:', uploadError);
+            continue;
+          }
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('task-images')
+            .getPublicUrl(fileName);
+
+          await supabase
+            .from('task_images')
+            .insert({
+              task_id: task.id,
+              url: publicUrl,
+              file_name: file.name,
+              file_size: file.size
+            });
+        }
       }
 
       return task;
@@ -232,6 +263,63 @@ export function useTasks(projectId: string) {
     },
   });
 
+  const addTaskImage = useMutation({
+    mutationFn: async ({ taskId, file }: { taskId: string; file: File; }) => {
+      // Generate unique file name
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${taskId}/${Date.now()}.${fileExt}`;
+
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('task-images')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('task-images')
+        .getPublicUrl(fileName);
+
+      // Insert into task_images table
+      const { error: insertError } = await supabase
+        .from('task_images')
+        .insert({
+          task_id: taskId,
+          url: publicUrl,
+          file_name: file.name,
+          file_size: file.size
+        });
+
+      if (insertError) throw insertError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    },
+  });
+
+  const deleteTaskImage = useMutation({
+    mutationFn: async ({ imageId, imageUrl }: { imageId: string; imageUrl: string; }) => {
+      // Extract file path from URL
+      const urlParts = imageUrl.split('/task-images/');
+      if (urlParts.length > 1) {
+        const filePath = urlParts[1];
+        await supabase.storage.from('task-images').remove([filePath]);
+      }
+
+      // Delete from database
+      const { error } = await supabase
+        .from('task_images')
+        .delete()
+        .eq('id', imageId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    },
+  });
+
   return {
     tasks,
     isLoading,
@@ -243,6 +331,8 @@ export function useTasks(projectId: string) {
     updateChecklistItem,
     deleteChecklistItem,
     assignTag,
-    removeTag
+    removeTag,
+    addTaskImage,
+    deleteTaskImage
   };
 }

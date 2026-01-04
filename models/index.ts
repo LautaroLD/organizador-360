@@ -46,4 +46,4 @@ export type {
 export type { PushLog, PushLogEntry } from './pushLog';
 
 // Task Models
-export type { Task, TaskAssignment, CreateTaskDTO, UpdateTaskDTO } from './task';
+export type { Task, TaskAssignment, TaskImage, TaskChecklistItem, CreateTaskDTO, UpdateTaskDTO } from './task';

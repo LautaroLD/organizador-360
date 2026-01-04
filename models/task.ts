@@ -13,6 +13,17 @@ export interface Task {
   assignments?: TaskAssignment[];
   checklist?: TaskChecklistItem[];
   tags?: TaskTagAssociation[];
+  images?: TaskImage[];
+}
+
+export interface TaskImage {
+  id: string;
+  task_id: string;
+  url: string;
+  file_name: string;
+  file_size?: number;
+  uploaded_by?: string;
+  created_at: string;
 }
 
 export interface TaskTagAssociation {
@@ -51,6 +62,7 @@ export interface CreateTaskDTO {
   assigned_to?: string[]; // Array of user IDs
   tags?: number[]; // Array of tag IDs
   checklist?: Array<{ content: string; is_completed: boolean; }>;
+  images?: File[]; // Array of image files to upload
 }
 
 export interface UpdateTaskDTO {

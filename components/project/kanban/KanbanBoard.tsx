@@ -33,7 +33,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
     deleteTask,
     addChecklistItem,
     updateChecklistItem,
-    deleteChecklistItem
+    deleteChecklistItem,
+    addTaskImage,
+    deleteTaskImage
   } = useTasks(projectId);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -168,6 +170,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
           onAddChecklistItem={addChecklistItem.mutate}
           onUpdateChecklistItem={updateChecklistItem.mutate}
           onDeleteChecklistItem={deleteChecklistItem.mutate}
+          onAddImage={addTaskImage.mutate}
+          onDeleteImage={deleteTaskImage.mutate}
         />
       )}
     </div>

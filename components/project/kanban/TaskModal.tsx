@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Task, CreateTaskDTO, UpdateTaskDTO } from '@/models';
+import { Task, CreateTaskDTO, UpdateTaskDTO, TaskImage } from '@/models';
 import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 
-import { CheckSquare, Plus, Trash2 } from 'lucide-react';
+import { CheckSquare, Plus, Trash2, ImageIcon, X } from 'lucide-react';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -21,6 +21,8 @@ interface TaskModalProps {
   onAddChecklistItem?: (data: { taskId: string; content: string; }) => void;
   onUpdateChecklistItem?: (data: { id: string; is_completed: boolean; }) => void;
   onDeleteChecklistItem?: (id: string) => void;
+  onAddImage?: (data: { taskId: string; file: File; }) => void;
+  onDeleteImage?: (data: { imageId: string; imageUrl: string; }) => void;
 }
 
 export const TaskModal: React.FC<TaskModalProps> = ({
@@ -33,9 +35,15 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   onAddChecklistItem,
   onUpdateChecklistItem,
   onDeleteChecklistItem,
+  onAddImage,
+  onDeleteImage,
 }) => {
   const [newChecklistItem, setNewChecklistItem] = React.useState('');
   const [localChecklist, setLocalChecklist] = React.useState<Array<{ content: string; is_completed: boolean; tempId: string; }>>([]);
+  const [localImages, setLocalImages] = React.useState<Array<{ file: File; preview: string; tempId: string; }>>([]);
+  const [isUploadingImage, setIsUploadingImage] = React.useState(false);
+  const [fullscreenImage, setFullscreenImage] = React.useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { register, handleSubmit, reset, setValue, watch } = useForm<CreateTaskDTO>({
     defaultValues: {
@@ -93,6 +101,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setValue('assigned_to', initialData.assignments?.map(a => a.user_id) || []);
       setValue('tags', initialData.tags?.map(t => t.tag_id) || []);
       setLocalChecklist([]);
+      setLocalImages([]);
     } else {
       reset({
         title: '',
@@ -102,6 +111,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         tags: [],
       });
       setLocalChecklist([]);
+      setLocalImages([]);
     }
     setNewChecklistItem('');
   }, [initialData, isOpen, reset, setValue]);
@@ -145,17 +155,73 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     setLocalChecklist(localChecklist.filter(item => item.tempId !== tempId));
   };
 
+  // Image handling functions
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor selecciona un archivo de imagen válido.');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('La imagen no debe superar los 5MB.');
+      return;
+    }
+
+    if (initialData && onAddImage) {
+      // If editing, upload directly
+      setIsUploadingImage(true);
+      try {
+        onAddImage({ taskId: initialData.id, file });
+      } finally {
+        setIsUploadingImage(false);
+      }
+    } else {
+      // If creating, add to local state
+      const preview = URL.createObjectURL(file);
+      setLocalImages([...localImages, {
+        file,
+        preview,
+        tempId: Date.now().toString()
+      }]);
+    }
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteLocalImage = (tempId: string) => {
+    const image = localImages.find(img => img.tempId === tempId);
+    if (image) {
+      URL.revokeObjectURL(image.preview);
+    }
+    setLocalImages(localImages.filter(img => img.tempId !== tempId));
+  };
+
   const handleFormSubmit = (data: CreateTaskDTO | UpdateTaskDTO) => {
-    if (!initialData && localChecklist.length > 0) {
-      // Si estamos creando y hay checklist local, agregarla al data
-      onSubmit({ ...data, checklist: localChecklist.map(({ content, is_completed }) => ({ content, is_completed })) } as CreateTaskDTO);
+    if (!initialData) {
+      // Si estamos creando
+      const createData: CreateTaskDTO = {
+        ...data as CreateTaskDTO,
+        checklist: localChecklist.length > 0 ? localChecklist.map(({ content, is_completed }) => ({ content, is_completed })) : undefined,
+        images: localImages.length > 0 ? localImages.map(img => img.file) : undefined,
+      };
+      onSubmit(createData);
     } else {
       onSubmit(data);
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={initialData ? 'Editar Tarea' : 'Nueva Tarea'}>
+    <Modal size='xl' isOpen={isOpen} onClose={onClose} title={initialData ? 'Editar Tarea' : 'Nueva Tarea'}>
       <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
@@ -293,7 +359,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   key={tag.id}
                   type="button"
                   onClick={() => {
-                    // eslint-disable-next-line react-hooks/incompatible-library
+
                     const current = watch('tags') || [];
                     if (isSelected) {
                       setValue('tags', current.filter(id => id !== tag.id));
@@ -320,6 +386,84 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               </p>
             )}
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+            Imágenes
+          </label>
+
+          {/* Display existing images (when editing) */}
+          {initialData?.images && initialData.images.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {initialData.images.map((image) => (
+                <div key={image.id} className="relative group">
+                  <img
+                    src={image.url}
+                    alt={image.file_name}
+                    className="w-full h-20 object-cover rounded-md border border-[var(--border-color)] cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => setFullscreenImage(image.url)}
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteImage?.({ imageId: image.id, imageUrl: image.url });
+                    }}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Display local images (when creating) */}
+          {!initialData && localImages.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {localImages.map((image) => (
+                <div key={image.tempId} className="relative group">
+                  <img
+                    src={image.preview}
+                    alt={image.file.name}
+                    className="w-full h-20 object-cover rounded-md border border-[var(--border-color)] cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => setFullscreenImage(image.preview)}
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteLocalImage(image.tempId);
+                    }}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Upload button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageSelect}
+            className="hidden"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploadingImage}
+            className="w-full border border-dashed border-[var(--border-color)] hover:border-[var(--accent-primary)]"
+          >
+            <ImageIcon className="w-4 h-4 mr-2" />
+            {isUploadingImage ? 'Subiendo...' : 'Agregar imagen'}
+          </Button>
         </div>
 
         <div>
@@ -369,6 +513,28 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           </div>
         </div>
       </form>
+
+      {/* Fullscreen Image Viewer */}
+      {fullscreenImage && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center"
+          onClick={() => setFullscreenImage(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setFullscreenImage(null)}
+            className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors"
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <img
+            src={fullscreenImage}
+            alt="Vista completa"
+            className="max-w-[90vw] max-h-[90vh] object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </Modal>
   );
 };
