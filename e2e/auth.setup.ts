@@ -3,6 +3,10 @@ import path from 'path';
 
 const authFile = path.join(__dirname, '.auth/user.json');
 
+// Credenciales de test desde variables de entorno
+const TEST_EMAIL = process.env.E2E_TEST_EMAIL || 'test@example.com';
+const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD || 'testpassword';
+
 /**
  * Script de setup para autenticación
  * 
@@ -10,6 +14,11 @@ const authFile = path.join(__dirname, '.auth/user.json');
  * el estado de autenticación para reutilizarlo en todos los tests.
  */
 setup('authenticate', async ({ page }) => {
+  // Validar que las credenciales estén configuradas
+  if (!process.env.E2E_TEST_EMAIL || !process.env.E2E_TEST_PASSWORD) {
+    console.warn('[Warning] E2E_TEST_EMAIL or E2E_TEST_PASSWORD not set. Using default test credentials.');
+  }
+
   // Capturar logs de consola para debug
   page.on('console', msg => {
     if (msg.type() === 'error' || msg.text().includes('auth') || msg.text().includes('supabase')) {
@@ -33,11 +42,11 @@ setup('authenticate', async ({ page }) => {
   // 3. Completar formulario de login usando placeholders
   const emailInput = page.getByPlaceholder('tu@email.com');
   await emailInput.waitFor({ state: 'visible', timeout: 10000 });
-  await emailInput.fill('lauttyd@gmail.com');
+  await emailInput.fill(TEST_EMAIL);
   
   const passwordInput = page.getByPlaceholder('••••••••');
   await passwordInput.waitFor({ state: 'visible', timeout: 10000 });
-  await passwordInput.fill('cuenta123');
+  await passwordInput.fill(TEST_PASSWORD);
 
   // 4. Hacer click en el botón de login
   const loginButton = page.getByRole('button', { name: 'Iniciar Sesión' });
