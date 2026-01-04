@@ -645,9 +645,9 @@ export const ChatView: React.FC = () => {
                       messageRefs.current[message.id] = el;
                     }}
                     className={clsx(
-                      "group relative flex gap-2 md:gap-3 max-w-[85%] md:max-w-[70%] w-fit transition-colors duration-300",
+                      "group relative flex gap-2 md:gap-3 max-w-[85%] md:max-w-[70%] w-fit transition-colors duration-300 p-1",
                       message.user?.id === user?.id ? 'ml-auto flex-row-reverse' : 'flex-row',
-                      highlightedMessageId === message.id && 'bg-[var(--accent-primary)]/10 rounded-lg'
+                      highlightedMessageId === message.id && 'bg-[var(--accent-primary)]/30 rounded-lg'
                     )}
                     onMouseLeave={() => setOpenMenuMessageId(null)}
                   >
