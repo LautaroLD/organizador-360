@@ -394,7 +394,7 @@ export const ResourcesView: React.FC = () => {
             <p className='text-sm md:text-base text-[var(--text-secondary)] mb-2'>
               {resources?.length || 0} recurso(s) disponible(s)
             </p>
-            <div className="max-w-xs">
+            <div>
               <StorageIndicator
                 used={currentProject.storage_used || 0}
                 limit={currentProject.is_premium ? SUBSCRIPTION_LIMITS.PRO.MAX_STORAGE_BYTES : SUBSCRIPTION_LIMITS.FREE.MAX_STORAGE_BYTES}
@@ -482,7 +482,7 @@ export const ResourcesView: React.FC = () => {
             <p className='text-sm md:text-base text-[var(--text-secondary)] mb-6 max-w-md mx-auto px-4'>
               {activeTab === 'all'
                 ? 'Comienza agregando links o subiendo archivos al proyecto'
-                : `Agrega ${getEmptyStateText().toLowerCase()} para organizar mejor tus recursos`}
+                : `${getEmptyStateText()} cargados en tu proyecto.`}
             </p>
             <div className='flex flex-col sm:flex-row items-center justify-center gap-2'>
               <Button onClick={() => setIsLinkModalOpen(true)}>

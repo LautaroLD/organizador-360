@@ -648,7 +648,6 @@ export const CalendarView: React.FC = () => {
                     <Button
                       onClick={syncAllEventsToGoogle}
                       variant="secondary"
-                      className="text-xs sm:text-sm"
                       disabled={isSyncing || !events || events.length === 0}
                     >
                       🔄 Sincronizar Todos
@@ -656,7 +655,6 @@ export const CalendarView: React.FC = () => {
                     <Button
                       onClick={disconnectGoogleCalendar}
                       variant="secondary"
-                      className="text-xs sm:text-sm"
                     >
                       🔗 Desconectar Google
                     </Button>
@@ -665,7 +663,6 @@ export const CalendarView: React.FC = () => {
                   <Button
                     onClick={connectGoogleCalendar}
                     variant="secondary"
-                    className="text-xs sm:text-sm"
                   >
                     📅 Conectar Google Calendar
                   </Button>
@@ -679,7 +676,6 @@ export const CalendarView: React.FC = () => {
                   setSelectedDays([]);
                   setShowRecurrenceOptions(false);
                 }}
-                className="w-full sm:w-auto"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Nuevo Evento

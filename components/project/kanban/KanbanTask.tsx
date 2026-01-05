@@ -36,7 +36,7 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, onEdit }) => {
       className="cursor-pointer touch-none"
     >
       <Card className="p-3 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)] transition-colors border border-[var(--border-color)]">
-        <h4 className="font-medium text-[var(--text-primary)] mb-2">{task.title}</h4>
+        <h4 className="font-medium text-[var(--text-primary)] mb-2 text-ellipsis overflow-hidden whitespace-nowrap w-full">{task.title}</h4>
 
         {task.tags && task.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-2">
@@ -53,7 +53,7 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, onEdit }) => {
         )}
 
         {task.description && (
-          <p className="text-sm text-[var(--text-secondary)] line-clamp-2 mb-3">
+          <p className="text-sm text-[var(--text-secondary)] line-clamp-2 mb-3 text-ellipsis overflow-hidden whitespace-nowrap w-full">
             {task.description}
           </p>
         )}
