@@ -10,6 +10,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import { Calendar as CalendarIcon, Plus, ArrowUp } from 'lucide-react';
 import { useGoogleCalendarStore } from '@/store/googleCalendarStore';
+import { useGoogleCalendarTokens } from '@/hooks/useGoogleCalendarTokens';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { EventModal } from '@/components/calendar/EventModal';
 import { EventList } from '@/components/calendar/EventList';
@@ -58,6 +59,17 @@ export const CalendarView: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { tokens, isConnected, userEmail, setTokens, disconnect, clearIfDifferentUser } = useGoogleCalendarStore();
+  const {
+    tokens: unifiedTokens,
+    isConnected: isGoogleConnected,
+    isLoading: isGoogleLoading,
+    userEmail: googleUserEmail,
+    authMethod,
+    isGoogleUser,
+    needsReconnect,
+    connectGoogleCalendar: connectGoogle,
+    disconnectGoogleCalendar: disconnectGoogle,
+  } = useGoogleCalendarTokens();
   const userTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', []);
 
   const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<EventFormData>({
@@ -234,31 +246,36 @@ export const CalendarView: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Conectar con Google Calendar
+  // Conectar con Google Calendar (usando hook unificado)
   const connectGoogleCalendar = async () => {
     try {
-      const projectId = currentProject?.id || '';
-      const response = await fetch(`/api/google/auth-url?projectId=${projectId}`);
-      const data = await response.json();
-      if (data.authUrl) {
-        window.location.href = data.authUrl;
-      }
+      await connectGoogle(currentProject?.id);
     } catch (error) {
-      console.error('Error al obtener URL de autorización:', error);
+      console.error('Error al conectar con Google Calendar:', error);
       toast.error('Error al conectar con Google Calendar');
     }
   };
 
-  // Desconectar Google Calendar
-  const disconnectGoogleCalendar = () => {
-    disconnect();
-    toast.info('Google Calendar desconectado');
+  // Desconectar Google Calendar (usando hook unificado)
+  const disconnectGoogleCalendar = async () => {
+    try {
+      await disconnectGoogle();
+      toast.info('Google Calendar desconectado');
+    } catch (error) {
+      console.error('Error al desconectar:', error);
+      toast.error('Error al desconectar Google Calendar');
+    }
   };
+
+  // Obtener los tokens activos (del hook unificado o del callback manual)
+  const activeTokens = unifiedTokens || tokens;
+  const activeIsConnected = isGoogleConnected || isConnected;
+  const activeUserEmail = googleUserEmail || userEmail;
 
   // Sincronizar evento con Google Calendar
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const syncEventToGoogle = async (event: any, checkDuplicate = false) => {
-    if (!tokens) {
+    if (!activeTokens) {
       return { success: false, skipped: false };
     }
 
@@ -268,7 +285,7 @@ export const CalendarView: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ tokens, event: { ...event, timeZone: userTimeZone }, checkDuplicate }),
+        body: JSON.stringify({ tokens: activeTokens, event: { ...event, timeZone: userTimeZone }, checkDuplicate }),
       });
 
       if (!response.ok) {
@@ -291,7 +308,7 @@ export const CalendarView: React.FC = () => {
       ? event.start_date.split('T')[0]
       : '';
 
-    if (!projectId && !tokens) {
+    if (!projectId && !activeTokens) {
       return;
     }
 
@@ -302,7 +319,7 @@ export const CalendarView: React.FC = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          tokens,
+          tokens: activeTokens,
           projectId,
           eventTitle: event.title,
           startDate: startDate || event.start_date,
@@ -319,7 +336,7 @@ export const CalendarView: React.FC = () => {
 
   // Sincronizar todos los eventos existentes
   const syncAllEventsToGoogle = async () => {
-    if (!tokens || !events || events.length === 0) {
+    if (!activeTokens || !events || events.length === 0) {
       toast.error('No hay eventos para sincronizar');
       return;
     }
@@ -637,34 +654,53 @@ export const CalendarView: React.FC = () => {
 
             {/* Google Calendar Integration */}
             <div className="flex flex-col gap-2">
-              {isConnected && userEmail && (
-                <div className="text-xs text-[var(--text-secondary)] text-center sm:text-right">
-                  Conectado: {userEmail}
+              {activeIsConnected && activeUserEmail && (
+                <div className="text-xs text-[var(--text-secondary)] text-center sm:text-right flex items-center justify-center sm:justify-end gap-1">
+                  {authMethod === 'google_login' && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-green-500/20 text-green-600 dark:text-green-400">
+                      Auto
+                    </span>
+                  )}
+                  Conectado: {activeUserEmail}
                 </div>
               )}
+
+              {/* Mensaje para usuarios de Google que necesitan reconectar */}
+              {isGoogleUser && needsReconnect && !activeIsConnected && (
+                <div className="text-xs text-amber-600 dark:text-amber-400 text-center sm:text-right bg-amber-500/10 px-2 py-1 rounded">
+                  Tu sesión de Google Calendar expiró. Reconecta para sincronizar.
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row gap-2">
-                {isConnected ? (
+                {activeIsConnected ? (
                   <>
                     <Button
+                      className='w-full'
                       onClick={syncAllEventsToGoogle}
                       variant="secondary"
                       disabled={isSyncing || !events || events.length === 0}
                     >
                       🔄 Sincronizar Todos
                     </Button>
-                    <Button
-                      onClick={disconnectGoogleCalendar}
-                      variant="secondary"
-                    >
-                      🔗 Desconectar Google
-                    </Button>
+                    {authMethod !== 'google_login' && (
+                      <Button
+                        className='w-full'
+                        onClick={disconnectGoogleCalendar}
+                        variant="secondary"
+                      >
+                        🔗 Desconectar Google
+                      </Button>
+                    )}
                   </>
                 ) : (
                   <Button
+                    className='w-full'
                     onClick={connectGoogleCalendar}
                     variant="secondary"
+                    disabled={isGoogleLoading}
                   >
-                    📅 Conectar Google Calendar
+                    {isGoogleUser && needsReconnect ? '🔄 Reconectar Calendar' : '📅 Conectar Google Calendar'}
                   </Button>
                 )}
               </div>
