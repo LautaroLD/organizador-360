@@ -31,7 +31,7 @@ export const ManageMemberModal: React.FC<ManageMemberModalProps> = ({
         <div className='space-y-2'>
           <p className='text-sm font-medium text-[var(--text-primary)]'>Cambiar Rol:</p>
           <div className='grid grid-cols-3 gap-2'>
-            {['Admin', 'Developer', 'Viewer'].map((role) => (
+            {['Admin', 'Collaborator', 'Viewer'].map((role) => (
               <Button
                 key={role}
                 variant={member.role === role ? 'primary' : 'secondary'}

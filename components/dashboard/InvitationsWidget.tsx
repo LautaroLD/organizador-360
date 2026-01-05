@@ -81,7 +81,7 @@ export const InvitationsWidget: React.FC = () => {
 
   return (
     <div className='mb-6'>
-      <Card className='border-[var(--accent-primary)] bg-gradient-to-br from-purple-50/50 to-blue-50/50 dark:from-purple-900/10 dark:to-blue-900/10'>
+      <Card className='border-[var(--accent-primary)] bg-[var(--bg-secondary)]'>
         <CardHeader>
           <div className='flex items-center justify-between'>
             <div className='flex items-center'>
@@ -111,7 +111,7 @@ export const InvitationsWidget: React.FC = () => {
               return (
                 <div
                   key={invitation.id}
-                  className='bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow'
+                  className='bg-[var(--bg-primary)] rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow'
                 >
                   <div className='flex items-start justify-between'>
                     <div className='flex-1'>
@@ -122,7 +122,7 @@ export const InvitationsWidget: React.FC = () => {
                         </h4>
                       </div>
 
-                      <p className='text-sm text-[var(--text-secondary)] mb-2'>
+                      <p className='text-sm  mb-2'>
                         {(invitation.inviter?.name ?? invitation.inviter?.email ?? 'Usuario desconocido')} te invitó como <strong>{invitation.role}</strong>
                       </p>
 
@@ -132,8 +132,8 @@ export const InvitationsWidget: React.FC = () => {
                           {timeAgo}
                         </span>
                         <span className={`px-2 py-0.5 rounded-full ${daysUntilExpiration <= 2
-                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                          : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+                          ? 'border-[var(--accent-danger)] border text-[var(--accent-danger)] font-semibold'
+                          : 'border-[var(--accent-warning)] border text-[var(--accent-warning)] font-semibold'
                           }`}>
                           Expira en {daysUntilExpiration}d
                         </span>

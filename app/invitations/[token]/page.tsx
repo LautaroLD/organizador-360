@@ -283,7 +283,7 @@ export default function InvitationPage() {
     switch (role) {
       case 'Admin':
         return 'Gestionar proyecto, invitar usuarios, crear canales';
-      case 'Developer':
+      case 'Collaborator':
         return 'Participar en chat, subir recursos, crear eventos';
       case 'Viewer':
         return 'Solo ver contenido, sin permisos de edición';

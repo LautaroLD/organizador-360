@@ -22,7 +22,7 @@ export function StorageIndicator({ used, limit, className = '' }: StorageIndicat
         <span>Almacenamiento</span>
         <span>{formatBytes(used)} / {formatBytes(limit)}</span>
       </div>
-      <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 overflow-hidden">
+      <div className="w-full bg-[var(--bg-primary)] border border-gray-500 rounded-full h-2.5  overflow-hidden">
         <div
           className={`h-2.5 rounded-full ${colorClass} transition-all duration-500`}
           style={{ width: `${percentage}%` }}

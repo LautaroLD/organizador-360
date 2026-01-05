@@ -3,7 +3,7 @@
  * Tipos relacionados con invitaciones de miembros
  */
 
-export type MemberRole = 'Admin' | 'Developer' | 'Viewer';
+export type MemberRole = 'Admin' | 'Collaborator' | 'Viewer';
 
 export interface InviteFormData {
   email: string;

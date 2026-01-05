@@ -54,7 +54,7 @@ export const ProjectsView: React.FC = () => {
     reset: resetInvite,
   } = useForm<InviteFormData>({
     defaultValues: {
-      role: 'Developer',
+      role: 'Collaborator',
     },
   });
 
@@ -445,7 +445,7 @@ export const ProjectsView: React.FC = () => {
               {...registerInvite('role')}
               className='flex w-full rounded-lg border border-[var(--text-secondary)]/30 bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]'
             >
-              <option value='Developer'>Developer</option>
+              <option value='Collaborator'>Collaborator</option>
               <option value='Admin'>Admin</option>
               <option value='Viewer'>Viewer</option>
             </select>
@@ -461,7 +461,7 @@ export const ProjectsView: React.FC = () => {
                 crear canales
               </li>
               <li>
-                <strong>Developer:</strong> Participar en chat, subir recursos,
+                <strong>Collaborator:</strong> Participar en chat, subir recursos,
                 crear eventos
               </li>
               <li>

@@ -12,7 +12,7 @@ const getRoleIcon = (role: string) => {
       return <Crown className="h-5 w-5 text-yellow-500" />;
     case 'Admin':
       return <Shield className="h-5 w-5 text-[var(--accent-primary)]" />;
-    case 'Developer':
+    case 'Collaborator':
       return <Code className="h-5 w-5 text-[var(--accent-success)]" />;
     case 'Viewer':
       return <Eye className="h-5 w-5 text-[var(--text-secondary)]" />;
@@ -27,7 +27,7 @@ const getRoleColor = (role: string) => {
       return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30';
     case 'Admin':
       return 'bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] border-[var(--accent-primary)]/30';
-    case 'Developer':
+    case 'Collaborator':
       return 'bg-[var(--accent-success)]/10 text-[var(--accent-success)] border-[var(--accent-success)]/30';
     case 'Viewer':
       return 'bg-[var(--text-secondary)]/10 text-[var(--text-secondary)] border-[var(--text-secondary)]/30';
