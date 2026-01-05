@@ -396,12 +396,12 @@ export const MembersView: React.FC = () => {
             </h2>
             <p className='text-sm md:text-base text-[var(--text-secondary)] mt-1'>
               {members?.length || 0} miembro(s) en el equipo
-              {!subscriptionInfo?.isPremium && (
+              {!currentProject?.is_premium && (
                 <span className='ml-2 text-xs text-orange-500 font-medium'>
                   (Plan FREE: máx. 10 miembros)
                 </span>
               )}
-              {subscriptionInfo?.isPremium && (
+              {currentProject?.is_premium && (
                 <span className='ml-2 text-xs text-[var(--accent-primary)] font-medium inline-flex items-center gap-1'>
                   <Crown className='h-3 w-3' /> PRO - Sin límites
                 </span>
