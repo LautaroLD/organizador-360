@@ -130,7 +130,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   };
 
   return (
-    <div className="min-h-full flex flex-col overflow-hidden">
+    <div className="min-h-full flex flex-col overflow-hidden w-full">
       <div className="flex-none flex justify-between items-center mb-4 p-4">
         <h2 className="text-2xl font-bold text-[var(--text-primary)]">Tablero Kanban</h2>
         <Button onClick={() => { setEditingTaskId(null); setIsModalOpen(true); }}>
@@ -146,7 +146,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex-1 flex gap-5 overflow-x-auto overflow-y-hidden p-4 min-h-0 h-full">
+        <div className="flex-1 flex gap-5 overflow-x-auto  overflow-y-hidden p-4 min-h-0 h-full">
           <KanbanColumn id="todo" title="Por hacer" tasks={columns.todo} onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }} />
           <KanbanColumn id="in-progress" title="En progreso" tasks={columns['in-progress']} onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }} />
           <KanbanColumn id="done" title="Completado" tasks={columns.done} onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }} />

@@ -640,7 +640,7 @@ export const CalendarView: React.FC = () => {
   return (
     <>
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-[var(--bg-primary)] relative">
-        <div className="p-4 md:p-6 max-w-6xl mx-auto">
+        <div className="p-4 md:p-6  mx-auto">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
             <div className="flex-1">
@@ -676,7 +676,6 @@ export const CalendarView: React.FC = () => {
                 {activeIsConnected ? (
                   <>
                     <Button
-                      className='w-full'
                       onClick={syncAllEventsToGoogle}
                       variant="secondary"
                       disabled={isSyncing || !events || events.length === 0}
@@ -685,7 +684,6 @@ export const CalendarView: React.FC = () => {
                     </Button>
                     {authMethod !== 'google_login' && (
                       <Button
-                        className='w-full'
                         onClick={disconnectGoogleCalendar}
                         variant="secondary"
                       >
