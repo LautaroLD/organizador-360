@@ -113,7 +113,7 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-2xl font-semibold mb-4">8. Limitación de Responsabilidad</h2>
           <p className="mb-4">
-            El servicio se proporciona "tal cual" y "según disponibilidad". No garantizamos que:
+            El servicio se proporciona &quot;tal cual&quot; y &quot;según disponibilidad&quot;. No garantizamos que:
           </p>
           <ul className="list-disc pl-6 space-y-2 mb-4">
             <li>El servicio será ininterrumpido o libre de errores</li>

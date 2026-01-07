@@ -180,7 +180,7 @@ export default function PrivacyPolicyPage() {
           <p>
             Podemos actualizar esta Política de Privacidad ocasionalmente. Le notificaremos sobre
             cambios significativos publicando la nueva política en esta página y actualizando la
-            fecha de "Última actualización". Le recomendamos revisar esta política periódicamente.
+            fecha de &quot;Última actualización&quot;. Le recomendamos revisar esta política periódicamente.
           </p>
         </section>
 
