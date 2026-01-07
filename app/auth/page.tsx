@@ -336,6 +336,30 @@ export default function AuthPage() {
                 : '¿Ya tienes cuenta? Inicia sesión'}
             </button>
           </div>
+
+          {/* Enlaces a políticas */}
+          <div className="mt-6 pt-4 border-t border-[var(--text-secondary)]/20">
+            <p className="text-xs text-center text-[var(--text-secondary)]">
+              {!isLogin && 'Al crear una cuenta, aceptas nuestros '}
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--accent-primary)] hover:underline"
+              >
+                Términos de Servicio
+              </a>
+              {' y '}
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--accent-primary)] hover:underline"
+              >
+                Política de Privacidad
+              </a>
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
