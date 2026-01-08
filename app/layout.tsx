@@ -18,13 +18,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Organizador - Gestión de Proyectos',
-  description: 'Plataforma todo-en-uno para equipos de desarrollo con chat en tiempo real',
+  title: 'DevCore - Gestión de Proyectos',
+  description: 'Plataforma todo-en-uno para equipos de desarrollo.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Organizador',
+    title: 'DevCore - Gestión de Proyectos',
   },
 };
 
