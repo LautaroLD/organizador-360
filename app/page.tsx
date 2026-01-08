@@ -132,8 +132,24 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="border-t border-[var(--text-secondary)] py-8">
-        <div className="container mx-auto px-4 text-center text-[var(--text-secondary)]">
-          <p>&copy; 2024 DevCore. Todos los derechos reservados.</p>
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row items-center justify-between text-[var(--text-secondary)] space-y-4 md:space-y-0">
+            <p>&copy; 2026 DevCore. Todos los derechos reservados.</p>
+            <div className="flex items-center space-x-6">
+              <a
+                href="/privacy"
+                className="hover:text-[var(--accent-primary)] transition-colors"
+              >
+                Política de Privacidad
+              </a>
+              <a
+                href="/terms"
+                className="hover:text-[var(--accent-primary)] transition-colors"
+              >
+                Términos de Servicio
+              </a>
+            </div>
+          </div>
         </div>
       </footer>
     </div>
