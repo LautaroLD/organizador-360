@@ -8,6 +8,8 @@ import { useProjectStore } from '@/store/projectStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
+import { MessageContent } from '@/components/ui/MessageContent';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check, Reply } from 'lucide-react';
@@ -49,6 +51,7 @@ export const ChatView: React.FC = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [replyingTo, setReplyingTo] = useState<any | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null); const [pendingScrollMessageId, setPendingScrollMessageId] = useState<string | null>(null); const messageRefs = useRef<{ [key: string]: HTMLDivElement | null; }>({});
+  const [messageContent, setMessageContent] = useState('');
 
   // Subscribe to realtime messages
   useRealtimeMessages({
@@ -173,6 +176,7 @@ export const ChatView: React.FC = () => {
     onSuccess: () => {
       // Don't invalidate queries here - the realtime subscription will handle cache updates
       resetMessage();
+      setMessageContent('');
       setReplyingTo(null);
     },
     onError: (error) => {
@@ -355,9 +359,9 @@ export const ChatView: React.FC = () => {
     return () => document.removeEventListener('keydown', handleEscape);
   }, []);
 
-  const onSubmitMessage = (data: MessageFormData) => {
-    if (data.content.trim()) {
-      sendMessageMutation.mutate(data.content);
+  const onSubmitMessage = () => {
+    if (messageContent.trim()) {
+      sendMessageMutation.mutate(messageContent);
     }
   };
 
@@ -693,12 +697,16 @@ export const ChatView: React.FC = () => {
                         )}
                         {editingMessageId === message.id ? (
                           <div className="flex flex-col gap-2">
-                            <textarea
+                            <RichTextEditor
                               value={editContent}
-                              onChange={(e) => setEditContent(e.target.value)}
-                              className="w-full bg-[var(--bg-primary)] border border-[var(--text-secondary)]/30 rounded p-2 text-sm resize-none focus:outline-none focus:border-[var(--accent-primary)]"
-                              rows={2}
-                              autoFocus
+                              onChange={setEditContent}
+                              onSubmit={() => {
+                                if (editContent.trim()) {
+                                  updateMessageMutation.mutate({ messageId: message.id, content: editContent });
+                                }
+                              }}
+                              placeholder="Editar mensaje..."
+                              className="w-full"
                             />
                             <div className="flex justify-end gap-2">
                               <button
@@ -720,9 +728,7 @@ export const ChatView: React.FC = () => {
                             </div>
                           </div>
                         ) : (
-                          <p className="text-sm text-[var(--text-primary)] break-words whitespace-pre-wrap">
-                            {message.content}
-                          </p>
+                          <MessageContent content={message.content} />
                         )}
                       </div>
                     </div>
@@ -834,23 +840,25 @@ export const ChatView: React.FC = () => {
                   </button>
                 </div>
               )}
-              <form onSubmit={handleSubmitMessage(onSubmitMessage)} className="flex space-x-2">
-                <input
-                  {...registerMessage('content')}
+              <div className="flex gap-2 flex-col md:flex-row">
+                <RichTextEditor
+                  value={messageContent}
+                  onChange={setMessageContent}
+                  onSubmit={onSubmitMessage}
                   placeholder={`Mensaje en #${selectedChannel.name}`}
-                  className="flex-1 h-9 md:h-10 rounded-lg border border-[var(--text-secondary)]/30 bg-[var(--bg-primary)] px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] focus:border-transparent transition-shadow"
-                  aria-label="Escribir mensaje"
-                  autoComplete="off"
+                  disabled={sendMessageMutation.isPending}
+                  className="flex-1"
                 />
                 <Button
-                  type="submit"
-                  disabled={sendMessageMutation.isPending}
+                  type="button"
+                  onClick={onSubmitMessage}
+                  disabled={sendMessageMutation.isPending || !messageContent.trim()}
                   aria-label="Enviar mensaje"
-                  className="flex-shrink-0"
+                  className=" md:self-end md:mb-6"
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="h-5 w-5" />
                 </Button>
-              </form>
+              </div>
             </div>
           </>
         ) : (
