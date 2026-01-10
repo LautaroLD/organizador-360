@@ -860,6 +860,7 @@ export const ChatView: React.FC = () => {
                   </Button>
                   <Button
                     type="button"
+                    title="Enviar mensaje (Shift + Enter)"
                     onClick={onSubmitMessage}
                     disabled={sendMessageMutation.isPending || !messageContent.trim()}
                     aria-label="Enviar mensaje"

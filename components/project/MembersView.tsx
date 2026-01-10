@@ -403,7 +403,7 @@ export const MembersView: React.FC = () => {
               )}
               {currentProject?.is_premium && (
                 <span className='ml-2 text-xs text-[var(--accent-primary)] font-medium inline-flex items-center gap-1'>
-                  <Crown className='h-3 w-3' /> PRO - Sin límites
+                  <Crown className='h-3 w-3' /> PRO - máx. 20 miembros
                 </span>
               )}
             </p>

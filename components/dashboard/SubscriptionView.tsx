@@ -126,8 +126,8 @@ export const SubscriptionView: React.FC = () => {
       features: [
         'Proyectos ilimitados',
         'Canales y chat ilimitados',
-        'Hasta 10 GB de recursos',
-        'Miembros ilimitados',
+        'Hasta 5 GB de recursos',
+        'Hasta 20 miembros por proyecto',
         'Almacenamiento prioritario',
         'Soporte prioritario',
         'Integraciones avanzadas',
@@ -316,7 +316,7 @@ export const SubscriptionView: React.FC = () => {
               <strong>Gratuito:</strong> Hasta 100 MB por proyecto
             </p>
             <p>
-              <strong>Pro:</strong> Hasta 10 GB por proyecto
+              <strong>Pro:</strong> Hasta 5 GB por proyecto
             </p>
             <p className='text-xs mt-4'>
               El almacenamiento se calcula a partir de tus recursos y archivos
@@ -337,7 +337,7 @@ export const SubscriptionView: React.FC = () => {
               <strong>Gratuito:</strong> Hasta 10 miembros por proyecto
             </p>
             <p>
-              <strong>Pro:</strong> Miembros ilimitados
+              <strong>Pro:</strong> Hasta 20 miembros por proyecto
             </p>
             <p className='text-xs mt-4'>
               Invita a tu equipo a colaborar en proyectos. Los permisos se

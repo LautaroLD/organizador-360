@@ -195,7 +195,7 @@ export const SettingsView: React.FC = () => {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-[var(--text-secondary)] mb-4">
-              Actualiza a Pro para desbloquear proyectos ilimitados, miembros ilimitados y más.
+              Actualiza a Pro para desbloquear proyectos ilimitados, hasta 20 miembros por proyecto y más.
             </p>
             <Link href="/settings/subscription">
               <Button className="w-full">

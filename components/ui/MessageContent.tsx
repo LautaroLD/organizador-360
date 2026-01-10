@@ -97,16 +97,23 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content, classNa
             </li>
           ),
           // Links
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[var(--accent-primary)] hover:underline"
-            >
-              {children}
-            </a>
-          ),
+          a: ({ href, children }) => {
+            // Ensure URLs have a protocol, otherwise they become relative links
+            let finalHref = href || '';
+            if (finalHref && !finalHref.startsWith('http://') && !finalHref.startsWith('https://') && !finalHref.startsWith('mailto:') && !finalHref.startsWith('tel:')) {
+              finalHref = `https://${finalHref}`;
+            }
+            return (
+              <a
+                href={finalHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--accent-primary)] hover:underline"
+              >
+                {children}
+              </a>
+            );
+          },
           // Blockquote
           blockquote: ({ children }) => (
             <blockquote className="border-l-4 border-[var(--accent-primary)] pl-3 my-2 italic text-[var(--text-secondary)]">

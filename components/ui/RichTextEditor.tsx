@@ -156,7 +156,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Submit on Enter (without Shift) is handled differently now or not at all (removed in previous turn)
+    // Submit on Shift + Enter
+    if (e.key === 'Enter' && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      onSubmit?.();
+      return;
+    }
 
     // Handle Enter key for lists
     if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
