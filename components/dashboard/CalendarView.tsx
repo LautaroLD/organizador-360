@@ -643,7 +643,7 @@ export const CalendarView: React.FC = () => {
         <div className="p-4 md:p-6  mx-auto">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-            <div className="flex-1">
+            <div>
               <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-primary)]">
                 📅 Calendario
               </h2>
@@ -693,7 +693,6 @@ export const CalendarView: React.FC = () => {
                   </>
                 ) : (
                   <Button
-                    className='w-full'
                     onClick={connectGoogleCalendar}
                     variant="secondary"
                     disabled={isGoogleLoading}
@@ -701,19 +700,20 @@ export const CalendarView: React.FC = () => {
                     {isGoogleUser && needsReconnect ? '🔄 Reconectar Calendar' : '📅 Conectar Google Calendar'}
                   </Button>
                 )}
+                <Button
+                  onClick={() => {
+                    setIsModalOpen(true);
+                    reset();
+                    setSelectedDays([]);
+                    setShowRecurrenceOptions(false);
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nuevo Evento
+                </Button>
               </div>
 
-              <Button
-                onClick={() => {
-                  setIsModalOpen(true);
-                  reset();
-                  setSelectedDays([]);
-                  setShowRecurrenceOptions(false);
-                }}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Nuevo Evento
-              </Button>
+
             </div>
           </div>
 
