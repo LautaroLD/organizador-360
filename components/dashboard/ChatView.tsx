@@ -12,7 +12,7 @@ import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { MessageContent } from '@/components/ui/MessageContent';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
-import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check, Reply } from 'lucide-react';
+import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check, Reply, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
 import clsx from 'clsx';
 import { Channel } from '@/models';
@@ -411,6 +411,7 @@ export const ChatView: React.FC = () => {
     }
   };
 
+  const [showToolbar, setShowToolbar] = useState(true);
   if (!currentProject) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -821,7 +822,7 @@ export const ChatView: React.FC = () => {
             </div>
 
             {/* Message Input */}
-            <div className="p-3 md:p-4 border-t border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex-shrink-0">
+            <div className="p-2 md:p-4 border-t border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex-shrink-0">
               {replyingTo && (
                 <div className="mb-2 p-2 bg-[var(--bg-primary)] rounded-lg border border-[var(--accent-primary)]/40 flex items-start justify-between">
                   <div className="flex-1 min-w-0">
@@ -840,8 +841,9 @@ export const ChatView: React.FC = () => {
                   </button>
                 </div>
               )}
-              <div className="flex gap-2 flex-col md:flex-row">
+              <div className="flex gap-2 flex-row">
                 <RichTextEditor
+                  showToolbar={showToolbar}
                   value={messageContent}
                   onChange={setMessageContent}
                   onSubmit={onSubmitMessage}
@@ -849,15 +851,23 @@ export const ChatView: React.FC = () => {
                   disabled={sendMessageMutation.isPending}
                   className="flex-1"
                 />
-                <Button
-                  type="button"
-                  onClick={onSubmitMessage}
-                  disabled={sendMessageMutation.isPending || !messageContent.trim()}
-                  aria-label="Enviar mensaje"
-                  className=" md:self-end md:mb-6"
-                >
-                  <Send className="h-5 w-5" />
-                </Button>
+                <div className='flex flex-col justify-between'>
+                  <Button aria-label={showToolbar ? 'Ocultar barra de herramientas' : 'Mostrar barra de herramientas'} title={showToolbar ? 'Ocultar barra de herramientas' : 'Mostrar barra de herramientas'} variant='ghost' onClick={() => setShowToolbar(!showToolbar)}>
+                    {
+                      !showToolbar ? <ChevronUp className="h-5 w-5" /> :
+                        <ChevronDown className="h-5 w-5" />
+                    }
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={onSubmitMessage}
+                    disabled={sendMessageMutation.isPending || !messageContent.trim()}
+                    aria-label="Enviar mensaje"
+                  >
+                    <Send className="h-5 w-5" />
+                  </Button>
+
+                </div>
               </div>
             </div>
           </>

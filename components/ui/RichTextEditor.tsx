@@ -11,6 +11,7 @@ interface RichTextEditorProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  showToolbar?: boolean;
 }
 
 interface ToolbarButtonProps {
@@ -69,6 +70,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   placeholder = 'Escribe un mensaje...',
   disabled = false,
   className = '',
+  showToolbar = true,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -106,14 +108,14 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         newCursorPos = selectedText ? end + 8 : start + 5;
         break;
       case 'list':
-        const listItems = selectedText ? selectedText.split('\n').map(line => `- ${line}`).join('\n') : '- elemento';
+        const listItems = selectedText ? selectedText.split('\n').map(line => `- ${line}`).join('\n') : '- ';
         newText = value.substring(0, start) + listItems + value.substring(end);
         newCursorPos = start + listItems.length;
         break;
       case 'orderedlist':
         const orderedItems = selectedText
           ? selectedText.split('\n').map((line, i) => `${i + 1}. ${line}`).join('\n')
-          : '1. elemento';
+          : '1. ';
         newText = value.substring(0, start) + orderedItems + value.substring(end);
         newCursorPos = start + orderedItems.length;
         break;
@@ -154,11 +156,75 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Submit on Enter (without Shift)
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      onSubmit?.();
-      return;
+    // Submit on Enter (without Shift) is handled differently now or not at all (removed in previous turn)
+
+    // Handle Enter key for lists
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      const textarea = e.currentTarget;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+
+      const textBefore = value.substring(0, start);
+      const lineStart = textBefore.lastIndexOf('\n') + 1;
+      const currentLine = textBefore.substring(lineStart);
+
+      // Check if current line starts with a list marker
+      // Matches: "- ", "* ", "1. ", "10. " with optional leading spaces
+      const listMatch = currentLine.match(/^(\s*)((?:-|\*)|\d+\.)\s/);
+
+      if (listMatch) {
+        // Check if the list item is effectively empty (to terminate list)
+        const nextNewline = value.indexOf('\n', end);
+        const lineEnd = nextNewline === -1 ? value.length : nextNewline;
+        const textAfter = value.substring(end, lineEnd);
+        const fullLine = currentLine + textAfter;
+
+        const contentMatch = fullLine.match(/^(\s*(?:(?:-|\*)|\d+\.)\s)(.*)/);
+        if (contentMatch) {
+          const [, , content] = contentMatch;
+          if (!content.trim()) {
+            // Empty list item - terminate list
+            e.preventDefault();
+            // Remove the current line content, keeping the newlines around it if needed
+            // If we are deleting the line content, we just want to remove characters from lineStart to lineEnd
+            // But we usually want to keep the line itself as an empty line.
+            // value = "prev\n- \nnext" -> "prev\n\nnext"
+
+            // If it's the first line: "- \n" -> "\n" (empty line)
+            const newValue = value.substring(0, lineStart) + value.substring(lineEnd);
+            onChange(newValue);
+
+            // Move cursor to start of this (now empty) line
+            setTimeout(() => {
+              textarea.setSelectionRange(lineStart, lineStart);
+              textarea.focus();
+            }, 0);
+            return;
+          }
+        }
+
+        // Continue list
+        e.preventDefault();
+        const [, spaces, marker] = listMatch;
+        let nextMarker = marker;
+
+        // If ordered list, increment number
+        if (/^\d+\.$/.test(marker)) {
+          const num = parseInt(marker);
+          nextMarker = `${num + 1}.`;
+        }
+
+        const insertion = `\n${spaces}${nextMarker} `;
+        const newValue = value.substring(0, start) + insertion + value.substring(end);
+
+        onChange(newValue);
+        setTimeout(() => {
+          const newPos = start + insertion.length;
+          textarea.setSelectionRange(newPos, newPos);
+          textarea.focus();
+        }, 0);
+        return;
+      }
     }
 
     // Keyboard shortcuts
@@ -183,111 +249,111 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       }
     }
   };
-
   return (
     <div className={`flex flex-col border border-[var(--text-secondary)]/30 rounded-lg bg-[var(--bg-primary)] ${className}`}>
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-0.5 p-1.5 border-b border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] rounded-t-lg">
-        <ToolbarButton onClick={() => insertFormat('bold')} title="Negrita (Ctrl+B)">
-          <Bold className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton onClick={() => insertFormat('italic')} title="Cursiva (Ctrl+I)">
-          <Italic className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton onClick={() => insertFormat('strikethrough')} title="Tachado (Ctrl+U)">
-          <Strikethrough className="h-4 w-4" />
-        </ToolbarButton>
-
-        <div className="w-px h-4 bg-[var(--text-secondary)]/30 mx-1" />
-
-        <ToolbarButton onClick={() => insertFormat('code')} title="Código en línea">
-          <Code className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton onClick={() => insertFormat('quote')} title="Cita">
-          <Quote className="h-4 w-4" />
-        </ToolbarButton>
-
-        <div className="w-px h-4 bg-[var(--text-secondary)]/30 mx-1" />
-
-        <ToolbarButton onClick={() => insertFormat('list')} title="Lista">
-          <List className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton onClick={() => insertFormat('orderedlist')} title="Lista numerada">
-          <ListOrdered className="h-4 w-4" />
-        </ToolbarButton>
-
-        <div className="w-px h-4 bg-[var(--text-secondary)]/30 mx-1" />
-
-        <ToolbarButton onClick={() => insertFormat('link')} title="Enlace (Ctrl+K)">
-          <Link className="h-4 w-4" />
-        </ToolbarButton>
-
-        {/* Heading picker */}
-        <div className="relative">
-          <ToolbarButton
-            onClick={() => {
-              setShowHeadingPicker(!showHeadingPicker);
-              setShowColorPicker(false);
-            }}
-            title="Encabezado"
-            active={showHeadingPicker}
-          >
-            <Type className="h-4 w-4" />
-            <ChevronDown className="h-3 w-3 ml-0.5" />
+      {showToolbar &&
+        <div className="flex flex-wrap items-center gap-0.5 p-1.5 border-b border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] rounded-t-lg">
+          <ToolbarButton onClick={() => insertFormat('bold')} title="Negrita (Ctrl+B)">
+            <Bold className="h-4 w-4" />
           </ToolbarButton>
-          {showHeadingPicker && (
-            <div className="absolute top-full left-0 mt-1 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg z-50 py-1 min-w-[100px]">
-              {['# H1', '## H2', '### H3'].map((heading) => (
-                <button
-                  key={heading}
-                  type="button"
-                  onClick={() => {
-                    insertFormat('heading', heading.split(' ')[0]);
-                    setShowHeadingPicker(false);
-                  }}
-                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--bg-primary)] text-[var(--text-primary)]"
-                >
-                  {heading}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Color picker */}
-        <div className="relative">
-          <ToolbarButton
-            onClick={() => {
-              setShowColorPicker(!showColorPicker);
-              setShowHeadingPicker(false);
-            }}
-            title="Color de texto"
-            active={showColorPicker}
-          >
-            <Palette className="h-4 w-4" />
-            <ChevronDown className="h-3 w-3 ml-0.5" />
+          <ToolbarButton onClick={() => insertFormat('italic')} title="Cursiva (Ctrl+I)">
+            <Italic className="h-4 w-4" />
           </ToolbarButton>
-          {showColorPicker && (
-            <div className="absolute top-full right-0 mt-1 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg z-50 p-2 min-w-[120px]">
-              <div className="grid grid-cols-4 gap-1">
-                {COLORS.map((color) => (
+          <ToolbarButton onClick={() => insertFormat('strikethrough')} title="Tachado (Ctrl+U)">
+            <Strikethrough className="h-4 w-4" />
+          </ToolbarButton>
+
+          <div className="w-px h-4 bg-[var(--text-secondary)]/30 mx-1" />
+
+          <ToolbarButton onClick={() => insertFormat('code')} title="Código en línea">
+            <Code className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton onClick={() => insertFormat('quote')} title="Cita">
+            <Quote className="h-4 w-4" />
+          </ToolbarButton>
+
+          <div className="w-px h-4 bg-[var(--text-secondary)]/30 mx-1" />
+
+          <ToolbarButton onClick={() => insertFormat('list')} title="Lista">
+            <List className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton onClick={() => insertFormat('orderedlist')} title="Lista numerada">
+            <ListOrdered className="h-4 w-4" />
+          </ToolbarButton>
+
+          <div className="w-px h-4 bg-[var(--text-secondary)]/30 mx-1" />
+
+          <ToolbarButton onClick={() => insertFormat('link')} title="Enlace (Ctrl+K)">
+            <Link className="h-4 w-4" />
+          </ToolbarButton>
+
+          {/* Heading picker */}
+          <div className="relative">
+            <ToolbarButton
+              onClick={() => {
+                setShowHeadingPicker(!showHeadingPicker);
+                setShowColorPicker(false);
+              }}
+              title="Encabezado"
+              active={showHeadingPicker}
+            >
+              <Type className="h-4 w-4" />
+              <ChevronDown className="h-3 w-3 ml-0.5" />
+            </ToolbarButton>
+            {showHeadingPicker && (
+              <div className="absolute top-full left-0 mt-1 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg z-50 py-1 min-w-[100px]">
+                {['# H1', '## H2', '### H3'].map((heading) => (
                   <button
-                    key={color.code}
+                    key={heading}
                     type="button"
                     onClick={() => {
-                      insertFormat('color', color.code);
-                      setShowColorPicker(false);
+                      insertFormat('heading', heading.split(' ')[0]);
+                      setShowHeadingPicker(false);
                     }}
-                    title={color.name}
-                    className={`w-6 h-6 rounded ${color.bg} hover:ring-2 ring-offset-1 ring-[var(--accent-primary)] transition-shadow`}
-                  />
+                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--bg-primary)] text-[var(--text-primary)]"
+                  >
+                    {heading}
+                  </button>
                 ))}
               </div>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
+          </div>
 
+          {/* Color picker */}
+          <div className="relative">
+            <ToolbarButton
+              onClick={() => {
+                setShowColorPicker(!showColorPicker);
+                setShowHeadingPicker(false);
+              }}
+              title="Color de texto"
+              active={showColorPicker}
+            >
+              <Palette className="h-4 w-4" />
+              <ChevronDown className="h-3 w-3 ml-0.5" />
+            </ToolbarButton>
+            {showColorPicker && (
+              <div className="absolute top-full right-0 mt-1 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg z-50 p-2 min-w-[120px]">
+                <div className="grid grid-cols-4 gap-1">
+                  {COLORS.map((color) => (
+                    <button
+                      key={color.code}
+                      type="button"
+                      onClick={() => {
+                        insertFormat('color', color.code);
+                        setShowColorPicker(false);
+                      }}
+                      title={color.name}
+                      className={`w-6 h-6 rounded ${color.bg} hover:ring-2 ring-offset-1 ring-[var(--accent-primary)] transition-shadow`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      }
       {/* Textarea */}
       <textarea
         ref={textareaRef}
@@ -296,21 +362,13 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={disabled}
-        rows={2}
+        rows={3}
         className="flex-1 resize-none px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] bg-transparent focus-visible:outline-0 min-h-[60px] max-h-[150px]"
         aria-label="Escribir mensaje"
         autoComplete="off"
       />
 
-      {/* Help text */}
-      <div className="px-3 pb-2 text-xs text-[var(--text-secondary)]">
-        <span className="hidden md:inline">
-          Usa **negrita**, *cursiva*, ~~tachado~~, `código`, - listas • Shift+Enter para nueva línea
-        </span>
-        <span className="md:hidden">
-          Shift+Enter para nueva línea
-        </span>
-      </div>
+
     </div>
   );
 };
