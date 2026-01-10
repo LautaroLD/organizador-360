@@ -110,7 +110,7 @@ export const SubscriptionView: React.FC = () => {
       features: [
         'Hasta 3 proyectos',
         'Canales y chat ilimitados',
-        'Recursos ilimitados',
+        'Hasta 100 MB de recursos',
         'Hasta 10 miembros por proyecto',
         'Soporte por email',
       ],
@@ -126,7 +126,7 @@ export const SubscriptionView: React.FC = () => {
       features: [
         'Proyectos ilimitados',
         'Canales y chat ilimitados',
-        'Recursos ilimitados',
+        'Hasta 10 GB de recursos',
         'Miembros ilimitados',
         'Almacenamiento prioritario',
         'Soporte prioritario',
@@ -313,10 +313,10 @@ export const SubscriptionView: React.FC = () => {
           </CardHeader>
           <CardContent className='space-y-2 text-sm text-[var(--text-secondary)]'>
             <p>
-              <strong>Gratuito:</strong> Hasta 1 GB por proyecto
+              <strong>Gratuito:</strong> Hasta 100 MB por proyecto
             </p>
             <p>
-              <strong>Pro:</strong> Hasta 100 GB por proyecto
+              <strong>Pro:</strong> Hasta 10 GB por proyecto
             </p>
             <p className='text-xs mt-4'>
               El almacenamiento se calcula a partir de tus recursos y archivos
