@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import type { UploadFileModalProps } from '@/models';
 export const UploadFileModal: React.FC<UploadFileModalProps> = ({
   isOpen,
@@ -11,17 +12,34 @@ export const UploadFileModal: React.FC<UploadFileModalProps> = ({
   isLoading,
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [customName, setCustomName] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
   const handleClose = () => {
     setSelectedFile(null);
+    setCustomName('');
     onClose();
+  };
+
+  const handleFileSelect = (file: File | null) => {
+    setSelectedFile(file);
+    if (file) {
+      // Set default name without extension
+      const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+      setCustomName(nameWithoutExt);
+    } else {
+      setCustomName('');
+    }
   };
 
   const handleUpload = () => {
     if (selectedFile) {
-      onUpload(selectedFile);
+      // Get original extension
+      const ext = selectedFile.name.match(/\.[^/.]+$/)?.[0] || '';
+      const finalName = customName.trim() ? `${customName.trim()}${ext}` : selectedFile.name;
+      onUpload(selectedFile, finalName);
       setSelectedFile(null);
+      setCustomName('');
     }
   };
   useEffect(() => {
@@ -50,7 +68,7 @@ export const UploadFileModal: React.FC<UploadFileModalProps> = ({
           <input
             type='file'
 
-            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+            onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
             className='block w-full text-sm text-[var(--text-primary)]
               file:mr-4 file:py-2 file:px-4
               file:rounded-lg file:border-0
@@ -60,14 +78,20 @@ export const UploadFileModal: React.FC<UploadFileModalProps> = ({
               border border-[var(--text-secondary)]/30 rounded-lg'
           />
           {selectedFile && (
-            <div className='mt-3 p-3 bg-[var(--bg-primary)] rounded-lg'>
-              <p className='text-sm font-medium text-[var(--text-primary)]'>
-                Archivo seleccionado:
-              </p>
-              <p className='text-xs text-[var(--text-secondary)] mt-1'>
-                {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-              </p>
-            </div>
+            <>
+              <div className='mt-3'>
+                <Input
+                  label='Nombre del archivo'
+                  value={customName}
+                  onChange={(e) => setCustomName(e.target.value)}
+                  placeholder='Nombre del archivo'
+                />
+                <p className='text-xs text-[var(--text-secondary)] mt-1'>
+                  Extensión: {selectedFile.name.match(/\.[^/.]+$/)?.[0] || 'sin extensión'} •
+                  Tamaño: {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                </p>
+              </div>
+            </>
           )}
           {
             error && (

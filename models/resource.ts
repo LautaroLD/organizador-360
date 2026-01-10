@@ -43,7 +43,7 @@ export interface AddLinkModalProps {
 export interface UploadFileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUpload: (file: File) => void;
+  onUpload: (file: File, customName?: string) => void;
   isLoading: boolean;
 }
 
