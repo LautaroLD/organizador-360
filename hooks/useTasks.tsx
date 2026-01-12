@@ -132,7 +132,16 @@ export function useTasks(projectId: string) {
 
   const updateTask = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: UpdateTaskDTO; }) => {
-      const { assigned_to, tags, ...taskData } = data;
+      const {
+        assigned_to,
+        tags,
+        checklistToAdd,
+        checklistToUpdate,
+        checklistToDelete,
+        imagesToAdd,
+        imagesToDelete,
+        ...taskData
+      } = data;
 
       // 1. Update task fields
       if (Object.keys(taskData).length > 0) {
@@ -181,6 +190,93 @@ export function useTasks(projectId: string) {
             .insert(taskTags);
 
           if (tagError) throw tagError;
+        }
+      }
+
+      // 4. Handle checklist changes
+      // Delete items
+      if (checklistToDelete && checklistToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('task_checklist_items')
+          .delete()
+          .in('id', checklistToDelete);
+
+        if (deleteError) throw deleteError;
+      }
+
+      // Update existing items
+      if (checklistToUpdate && checklistToUpdate.length > 0) {
+        for (const item of checklistToUpdate) {
+          const { error: updateError } = await supabase
+            .from('task_checklist_items')
+            .update({ is_completed: item.is_completed })
+            .eq('id', item.id);
+
+          if (updateError) throw updateError;
+        }
+      }
+
+      // Add new items
+      if (checklistToAdd && checklistToAdd.length > 0) {
+        const checklistItems = checklistToAdd.map((item, index) => ({
+          task_id: id,
+          content: item.content,
+          is_completed: item.is_completed,
+          position: index + 1000 // Append at the end
+        }));
+
+        const { error: insertError } = await supabase
+          .from('task_checklist_items')
+          .insert(checklistItems);
+
+        if (insertError) throw insertError;
+      }
+
+      // 5. Handle image changes
+      // Delete images
+      if (imagesToDelete && imagesToDelete.length > 0) {
+        for (const { imageId, imageUrl } of imagesToDelete) {
+          // Extract path from URL
+          const urlParts = imageUrl.split('/task-images/');
+          if (urlParts.length > 1) {
+            const path = urlParts[1];
+            await supabase.storage.from('task-images').remove([path]);
+          }
+
+          await supabase
+            .from('task_images')
+            .delete()
+            .eq('id', imageId);
+        }
+      }
+
+      // Add new images
+      if (imagesToAdd && imagesToAdd.length > 0) {
+        for (const file of imagesToAdd) {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('task-images')
+            .upload(fileName, file);
+
+          if (uploadError) {
+            console.error('Error uploading image:', uploadError);
+            continue;
+          }
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('task-images')
+            .getPublicUrl(fileName);
+
+          await supabase
+            .from('task_images')
+            .insert({
+              task_id: id,
+              url: publicUrl,
+              file_name: file.name,
+              file_size: file.size
+            });
         }
       }
     },

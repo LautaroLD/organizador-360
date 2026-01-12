@@ -20,6 +20,9 @@ import { TaskModal } from './TaskModal';
 import { useTasks } from '@/hooks/useTasks';
 import { Button } from '@/components/ui/Button';
 import { Plus } from 'lucide-react';
+import { useMutation } from '@tanstack/react-query';
+import useGemini from '@/hooks/useGemini';
+import SuggestionsModal from './SuggestionsModal';
 
 interface KanbanBoardProps {
   projectId: string;
@@ -31,16 +34,12 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
     updateTask,
     createTask,
     deleteTask,
-    addChecklistItem,
-    updateChecklistItem,
-    deleteChecklistItem,
-    addTaskImage,
-    deleteTaskImage
   } = useTasks(projectId);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-
+  const { generateSuggestedTasks } = useGemini();
   const editingTask = React.useMemo(() =>
     tasks?.find(t => t.id === editingTaskId) || null
     , [tasks, editingTaskId]);
@@ -128,15 +127,31 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
       setEditingTaskId(null);
     }
   };
-
+  const generateSuggestions = useMutation(
+    {
+      mutationFn: async () => await generateSuggestedTasks({ currentTasks: columns }),
+      onSuccess: (data) => {
+        console.log(data);
+        setSuggestions(JSON.parse(data));
+      },
+      onError: (error) => {
+        console.error('Error generating suggestions:', error);
+        alert('Error al generar sugerencias. Por favor, intenta de nuevo más tarde.');
+      }
+    });
   return (
     <div className="min-h-full flex flex-col overflow-hidden w-full">
       <div className="flex-none flex justify-between items-center mb-4 p-4">
         <h2 className="text-2xl font-bold text-[var(--text-primary)]">Tablero Kanban</h2>
-        <Button onClick={() => { setEditingTaskId(null); setIsModalOpen(true); }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Nueva Tarea
-        </Button>
+        <div className='space-x-2'>
+          <Button variant='ghost' className='text-[var(--accent-primary)]' onClick={() => generateSuggestions.mutate()} disabled={generateSuggestions.isPending}>
+            {generateSuggestions.isPending ? 'Generando...' : 'Sugerir tareas con IA'}
+          </Button>
+          <Button onClick={() => { setEditingTaskId(null); setIsModalOpen(true); }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nueva Tarea
+          </Button>
+        </div>
       </div>
 
       <DndContext
@@ -158,7 +173,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
           ) : null}
         </DragOverlay>
       </DndContext>
-
+      {suggestions.length > 0 && (
+        <SuggestionsModal addTask={handleCreateTask} suggestions={suggestions} onClose={() => setSuggestions([])} />
+      )}
       {isModalOpen && (
         <TaskModal
           isOpen={isModalOpen}
@@ -167,11 +184,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
           onDelete={editingTask ? () => handleDeleteTask(editingTask.id) : undefined}
           initialData={editingTask}
           projectId={projectId}
-          onAddChecklistItem={addChecklistItem.mutate}
-          onUpdateChecklistItem={updateChecklistItem.mutate}
-          onDeleteChecklistItem={deleteChecklistItem.mutate}
-          onAddImage={addTaskImage.mutate}
-          onDeleteImage={deleteTaskImage.mutate}
         />
       )}
     </div>
