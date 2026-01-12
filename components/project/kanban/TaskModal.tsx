@@ -330,7 +330,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         }
       });
       isGeneratingWithAI.current = false;
-    }
+    },
+    onError: () => {
+      isGeneratingWithAI.current = false;
+      alert('Error al generar la descripción con IA. Por favor, intenta de nuevo más tarde.');
+    },
   });
   return (
     <Modal size='xl' isOpen={isOpen} onClose={onClose} title={initialData ? 'Editar Tarea' : 'Nueva Tarea'}>
