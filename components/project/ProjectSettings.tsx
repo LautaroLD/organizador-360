@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { useProjectStore } from '@/store/projectStore';
 import { Settings, Trash2, Save, AlertCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { Button } from '../ui/Button';
+import { useMutation } from '@tanstack/react-query';
 
 export function ProjectSettings() {
   const supabase = createClient();
@@ -13,23 +15,33 @@ export function ProjectSettings() {
     currentProject?.description || ''
   );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-
+  const handleSave = useMutation({
+    mutationFn: async () => {
+      try {
+        await supabase
+          .from('projects')
+          .update({ name: projectName, description: projectDescription })
+          .eq('id', currentProject?.id);
+      }
+      catch (error) {
+        console.error('Error updating project:', error);
+      }
+    },
+    onSuccess: () => {
+      if (currentProject) {
+        useProjectStore.getState().setCurrentProject({
+          ...currentProject,
+          name: projectName,
+          description: projectDescription,
+        });
+      }
+    }
+  });
   if (!currentProject) {
     return null;
   }
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      await supabase
-        .from('projects')
-        .update({ name: projectName, description: projectDescription })
-        .eq('id', currentProject.id);
-    } finally {
-      setIsSaving(false);
-    }
-  };
+
 
   const handleDelete = async () => {
     if (showDeleteConfirm) {
@@ -91,14 +103,13 @@ export function ProjectSettings() {
             </div>
 
             {hasChanges && (
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex items-center gap-2 px-4 py-2 bg-[var(--accent-primary)] text-white rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+              <Button
+                onClick={() => handleSave.mutate()}
+                disabled={handleSave.isPending}
               >
-                <Save className="w-4 h-4" />
-                {isSaving ? 'Guardando...' : 'Guardar Cambios'}
-              </button>
+                <Save className="w-4 h-4 mr-2" />
+                {handleSave.isPending ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
             )}
           </div>
         </section>
