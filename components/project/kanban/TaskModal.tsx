@@ -5,11 +5,12 @@ import { useForm } from 'react-hook-form';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Task, CreateTaskDTO, UpdateTaskDTO, TaskImage } from '@/models';
-import { useQuery } from '@tanstack/react-query';
+import { Task, CreateTaskDTO, UpdateTaskDTO } from '@/models';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 
 import { CheckSquare, Plus, Trash2, ImageIcon, X } from 'lucide-react';
+import useGemini from '@/hooks/useGemini';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -18,11 +19,6 @@ interface TaskModalProps {
   onDelete?: () => void;
   initialData?: Task | null;
   projectId: string;
-  onAddChecklistItem?: (data: { taskId: string; content: string; }) => void;
-  onUpdateChecklistItem?: (data: { id: string; is_completed: boolean; }) => void;
-  onDeleteChecklistItem?: (id: string) => void;
-  onAddImage?: (data: { taskId: string; file: File; }) => void;
-  onDeleteImage?: (data: { imageId: string; imageUrl: string; }) => void;
 }
 
 export const TaskModal: React.FC<TaskModalProps> = ({
@@ -32,19 +28,17 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   onDelete,
   initialData,
   projectId,
-  onAddChecklistItem,
-  onUpdateChecklistItem,
-  onDeleteChecklistItem,
-  onAddImage,
-  onDeleteImage,
 }) => {
   const [newChecklistItem, setNewChecklistItem] = React.useState('');
   const [localChecklist, setLocalChecklist] = React.useState<Array<{ content: string; is_completed: boolean; tempId: string; }>>([]);
   const [localImages, setLocalImages] = React.useState<Array<{ file: File; preview: string; tempId: string; }>>([]);
-  const [isUploadingImage, setIsUploadingImage] = React.useState(false);
   const [fullscreenImage, setFullscreenImage] = React.useState<string | null>(null);
+  // Estados para manejar cambios en edición (se aplican solo al guardar)
+  const [editChecklist, setEditChecklist] = React.useState<Array<{ id: string; content: string; is_completed: boolean; created_at: string; isNew?: boolean; tempId?: string; isDeleted?: boolean; }>>([]);
+  const [editImages, setEditImages] = React.useState<Array<{ id: string; url: string; file_name: string; isNew?: boolean; file?: File; preview?: string; tempId?: string; isDeleted?: boolean; }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+  const isGeneratingWithAI = useRef(false);
+  const { generateTaskDescription } = useGemini();
   const { register, handleSubmit, reset, setValue, watch } = useForm<CreateTaskDTO>({
     defaultValues: {
       title: '',
@@ -94,6 +88,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   });
 
   useEffect(() => {
+    // Si estamos generando con IA, no sobrescribir los valores del formulario
+    if (isGeneratingWithAI.current) {
+      return;
+    }
+
     if (initialData) {
       setValue('title', initialData.title);
       setValue('description', initialData.description || '');
@@ -102,6 +101,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setValue('tags', initialData.tags?.map(t => t.tag_id) || []);
       setLocalChecklist([]);
       setLocalImages([]);
+      // Copiar checklist e imágenes existentes al estado local para edición
+      setEditChecklist(initialData.checklist?.map(item => ({ ...item, isDeleted: false })) || []);
+      setEditImages(initialData.images?.map(img => ({ ...img, isDeleted: false })) || []);
     } else {
       reset({
         title: '',
@@ -112,6 +114,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       });
       setLocalChecklist([]);
       setLocalImages([]);
+      setEditChecklist([]);
+      setEditImages([]);
     }
     setNewChecklistItem('');
   }, [initialData, isOpen, reset, setValue]);
@@ -130,9 +134,17 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const handleAddChecklistItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (newChecklistItem.trim()) {
-      if (initialData && onAddChecklistItem) {
-        // Si estamos editando, agregar directamente a la DB
-        onAddChecklistItem({ taskId: initialData.id, content: newChecklistItem });
+      if (initialData) {
+        // Si estamos editando, agregar al estado local de edición
+        const tempId = Date.now().toString();
+        setEditChecklist([...editChecklist, {
+          id: tempId,
+          content: newChecklistItem,
+          is_completed: false,
+          created_at: new Date().toISOString(),
+          isNew: true,
+          tempId
+        }]);
       } else {
         // Si estamos creando, agregar al estado local
         setLocalChecklist([...localChecklist, {
@@ -155,6 +167,25 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     setLocalChecklist(localChecklist.filter(item => item.tempId !== tempId));
   };
 
+  // Funciones para manejar checklist en modo edición
+  const handleToggleEditChecklistItem = (id: string) => {
+    setEditChecklist(editChecklist.map(item =>
+      item.id === id ? { ...item, is_completed: !item.is_completed } : item
+    ));
+  };
+
+  const handleDeleteEditChecklistItem = (id: string, isNew?: boolean) => {
+    if (isNew) {
+      // Si es nuevo, simplemente lo removemos
+      setEditChecklist(editChecklist.filter(item => item.id !== id));
+    } else {
+      // Si ya existía, lo marcamos como eliminado
+      setEditChecklist(editChecklist.map(item =>
+        item.id === id ? { ...item, isDeleted: true } : item
+      ));
+    }
+  };
+
   // Image handling functions
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -174,14 +205,19 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       return;
     }
 
-    if (initialData && onAddImage) {
-      // If editing, upload directly
-      setIsUploadingImage(true);
-      try {
-        onAddImage({ taskId: initialData.id, file });
-      } finally {
-        setIsUploadingImage(false);
-      }
+    if (initialData) {
+      // If editing, add to local edit state
+      const preview = URL.createObjectURL(file);
+      const tempId = Date.now().toString();
+      setEditImages([...editImages, {
+        id: tempId,
+        url: preview,
+        file_name: file.name,
+        isNew: true,
+        file,
+        preview,
+        tempId
+      }]);
     } else {
       // If creating, add to local state
       const preview = URL.createObjectURL(file);
@@ -206,6 +242,23 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     setLocalImages(localImages.filter(img => img.tempId !== tempId));
   };
 
+  // Función para eliminar imágenes en modo edición
+  const handleDeleteEditImage = (id: string, isNew?: boolean) => {
+    if (isNew) {
+      // Si es nueva, revocar URL y remover
+      const image = editImages.find(img => img.id === id);
+      if (image?.preview) {
+        URL.revokeObjectURL(image.preview);
+      }
+      setEditImages(editImages.filter(img => img.id !== id));
+    } else {
+      // Si ya existía, marcar como eliminada
+      setEditImages(editImages.map(img =>
+        img.id === id ? { ...img, isDeleted: true } : img
+      ));
+    }
+  };
+
   const handleFormSubmit = (data: CreateTaskDTO | UpdateTaskDTO) => {
     if (!initialData) {
       // Si estamos creando
@@ -216,10 +269,69 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       };
       onSubmit(createData);
     } else {
-      onSubmit(data);
+      // Si estamos editando, incluir cambios de checklist e imágenes
+      const checklistToAdd = editChecklist
+        .filter(item => item.isNew && !item.isDeleted)
+        .map(({ content, is_completed }) => ({ content, is_completed }));
+
+      const checklistToUpdate = editChecklist
+        .filter(item => !item.isNew && !item.isDeleted)
+        .map(({ id, is_completed }) => ({ id, is_completed }));
+
+      const checklistToDelete = editChecklist
+        .filter(item => !item.isNew && item.isDeleted)
+        .map(item => item.id);
+
+      const imagesToAdd = editImages
+        .filter(img => img.isNew && !img.isDeleted && img.file)
+        .map(img => img.file as File);
+
+      const imagesToDelete = editImages
+        .filter(img => !img.isNew && img.isDeleted)
+        .map(({ id, url }) => ({ imageId: id, imageUrl: url }));
+
+      const updateData: UpdateTaskDTO = {
+        ...data as UpdateTaskDTO,
+        checklistToAdd: checklistToAdd.length > 0 ? checklistToAdd : undefined,
+        checklistToUpdate: checklistToUpdate.length > 0 ? checklistToUpdate : undefined,
+        checklistToDelete: checklistToDelete.length > 0 ? checklistToDelete : undefined,
+        imagesToAdd: imagesToAdd.length > 0 ? imagesToAdd : undefined,
+        imagesToDelete: imagesToDelete.length > 0 ? imagesToDelete : undefined,
+      };
+      onSubmit(updateData);
     }
   };
-
+  const generateDescription = useMutation({
+    mutationFn: async () => {
+      isGeneratingWithAI.current = true;
+      return await generateTaskDescription({ title_task: watch('title'), current_checklist: initialData?.checklist });
+    },
+    onSuccess: (data) => {
+      const { descripcion, checklist } = JSON.parse(data);
+      setValue('description', descripcion);
+      checklist.forEach((item: string) => {
+        if (initialData) {
+          // Si estamos editando, agregar al estado local de edición
+          const tempId = Date.now().toString() + Math.random().toString();
+          setEditChecklist(prev => [...prev, {
+            id: tempId,
+            content: item,
+            is_completed: false,
+            created_at: new Date().toISOString(),
+            isNew: true,
+            tempId
+          }]);
+        } else {
+          setLocalChecklist(prev => [...prev, {
+            content: item,
+            is_completed: false,
+            tempId: Date.now().toString() + Math.random().toString()
+          }]);
+        }
+      });
+      isGeneratingWithAI.current = false;
+    }
+  });
   return (
     <Modal size='xl' isOpen={isOpen} onClose={onClose} title={initialData ? 'Editar Tarea' : 'Nueva Tarea'}>
       <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
@@ -235,9 +347,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-            Descripción
-          </label>
+          <div className='flex justify-between items-center  mb-1'>
+            <label className="block text-sm font-medium text-[var(--text-secondary)]">
+              Descripción
+            </label>
+            <Button variant='ghost' type='button' size='sm' className='text-[var(--accent-primary)]' onClick={() => generateDescription.mutate()} disabled={generateDescription.isPending}>
+              {generateDescription.isPending ? 'Generando...' : 'Generar con IA'}
+            </Button>
+          </div>
           <textarea
             {...register('description')}
             placeholder="Descripción detallada..."
@@ -252,32 +369,35 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
           <div className="space-y-2 mb-3">
             {initialData ? (
-              // Mostrar checklist de la DB si estamos editando
-              initialData.checklist?.sort((a, b) => a.created_at.localeCompare(b.created_at)).map((item) => (
-                <div key={item.id} className="flex items-center gap-2 group">
-                  <button
-                    type="button"
-                    onClick={() => onUpdateChecklistItem?.({ id: item.id, is_completed: !item.is_completed })}
-                    className={`flex-none w-5 h-5 rounded border flex items-center justify-center transition-colors ${item.is_completed
-                      ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white'
-                      : 'border-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
-                      }`}
-                  >
-                    {item.is_completed && <CheckSquare className="w-3 h-3" />}
-                  </button>
-                  <span className={`flex-1 text-sm ${item.is_completed ? 'text-[var(--text-secondary)] line-through' : 'text-[var(--text-primary)]'}`}>
-                    {item.content}
-                  </span>
-                  <Button
-                    type='button'
-                    variant='danger'
-                    size='sm'
-                    onClick={() => onDeleteChecklistItem?.(item.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))
+              // Mostrar checklist local de edición
+              editChecklist
+                .filter(item => !item.isDeleted)
+                .sort((a, b) => a.created_at.localeCompare(b.created_at))
+                .map((item) => (
+                  <div key={item.id} className="flex items-center gap-2 group">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleEditChecklistItem(item.id)}
+                      className={`flex-none w-5 h-5 rounded border flex items-center justify-center transition-colors ${item.is_completed
+                        ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white'
+                        : 'border-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
+                        }`}
+                    >
+                      {item.is_completed && <CheckSquare className="w-3 h-3" />}
+                    </button>
+                    <span className={`flex-1 text-sm ${item.is_completed ? 'text-[var(--text-secondary)] line-through' : 'text-[var(--text-primary)]'}`}>
+                      {item.content}
+                    </span>
+                    <Button
+                      type='button'
+                      variant='danger'
+                      size='sm'
+                      onClick={() => handleDeleteEditChecklistItem(item.id, item.isNew)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))
             ) : (
               // Mostrar checklist local si estamos creando
               localChecklist.map((item) => (
@@ -393,10 +513,10 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             Imágenes
           </label>
 
-          {/* Display existing images (when editing) */}
-          {initialData?.images && initialData.images.length > 0 && (
+          {/* Display images (when editing) */}
+          {initialData && editImages.filter(img => !img.isDeleted).length > 0 && (
             <div className="grid grid-cols-3 gap-2 mb-3">
-              {initialData.images.map((image) => (
+              {editImages.filter(img => !img.isDeleted).map((image) => (
                 <div key={image.id} className="relative group">
                   <img
                     src={image.url}
@@ -408,7 +528,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onDeleteImage?.({ imageId: image.id, imageUrl: image.url });
+                      handleDeleteEditImage(image.id, image.isNew);
                     }}
                     className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
                   >
@@ -458,11 +578,10 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             variant="ghost"
             size="sm"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isUploadingImage}
             className="w-full border border-dashed border-[var(--border-color)] hover:border-[var(--accent-primary)]"
           >
             <ImageIcon className="w-4 h-4 mr-2" />
-            {isUploadingImage ? 'Subiendo...' : 'Agregar imagen'}
+            Agregar imagen
           </Button>
         </div>
 

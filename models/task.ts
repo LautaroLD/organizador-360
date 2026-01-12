@@ -72,4 +72,11 @@ export interface UpdateTaskDTO {
   position?: number;
   assigned_to?: string[]; // Array of user IDs to replace current assignments
   tags?: number[]; // Array of tag IDs to replace current tags
+  // Checklist changes
+  checklistToAdd?: Array<{ content: string; is_completed: boolean; }>;
+  checklistToUpdate?: Array<{ id: string; is_completed: boolean; }>;
+  checklistToDelete?: string[];
+  // Image changes
+  imagesToAdd?: File[];
+  imagesToDelete?: Array<{ imageId: string; imageUrl: string; }>;
 }
