@@ -70,7 +70,7 @@ jest.mock('react-toastify', () => ({
 
 // Mock UI components that might cause issues or are not focus of this test
 jest.mock('@/components/ui/RichTextEditor', () => ({
-  RichTextEditor: ({ onChange }: { onChange: (value: string) => void }) => <textarea data-testid="rich-text-editor" onChange={(e) => onChange(e.target.value)} />
+  RichTextEditor: ({ onChange }: { onChange: (value: string) => void; }) => <textarea data-testid="rich-text-editor" onChange={(e) => onChange(e.target.value)} />
 }));
 
 // Mock MessageContent to avoid react-markdown ESM issues
@@ -103,7 +103,7 @@ describe('ChatView Summary', () => {
     });
 
     // Mock useQuery to return channels and messages
-    (useQuery as jest.Mock).mockImplementation((options: { queryKey: unknown }) => {
+    (useQuery as jest.Mock).mockImplementation((options: { queryKey: unknown; }) => {
       const queryKey = options.queryKey;
 
       if (Array.isArray(queryKey) && queryKey[0] === 'channels') {
@@ -175,5 +175,36 @@ describe('ChatView Summary', () => {
 
     // Check result is displayed
     expect(await screen.findByText('Resumen generado exitosamente.')).toBeInTheDocument();
+  });
+
+  it('displays error message when generation fails', async () => {
+    render(<ChatView />);
+
+    // Wait for channels to load and General to be displayed
+    await waitFor(() => {
+      const elements = screen.getAllByText('General');
+      expect(elements.length).toBeGreaterThan(0);
+    });
+
+    const summaryBtn = screen.getByTitle('Resumir chat con IA');
+    fireEvent.click(summaryBtn);
+
+    // Check modal opens
+    await waitFor(() => {
+      expect(screen.getByText('Resumen del Chat con IA')).toBeInTheDocument();
+    });
+
+    const generateBtn = screen.getByRole('button', { name: /generar resumen/i });
+    const startDateInput = screen.getByLabelText('Fecha Inicio');
+    const endDateInput = screen.getByLabelText('Fecha Fin');
+
+    fireEvent.change(startDateInput, { target: { value: '2023-10-01' } });
+    fireEvent.change(endDateInput, { target: { value: '2023-10-03' } });
+
+    mockGenerateChatSummary.mockRejectedValueOnce(new Error('Failed'));
+
+    fireEvent.click(generateBtn);
+
+    expect(await screen.findByText('No se pudo generar el resumen. Por favor, intenta de nuevo más tarde.')).toBeInTheDocument();
   });
 });

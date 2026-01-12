@@ -49,6 +49,7 @@ export const ChatView: React.FC = () => {
   const [summaryStartDate, setSummaryStartDate] = useState('');
   const [summaryEndDate, setSummaryEndDate] = useState('');
   const [summaryResult, setSummaryResult] = useState('');
+  const [summaryError, setSummaryError] = useState('');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   const openSummaryModal = () => {
@@ -59,12 +60,16 @@ export const ChatView: React.FC = () => {
     setSummaryStartDate(start.toISOString().split('T')[0]);
     setSummaryEndDate(end.toISOString().split('T')[0]);
     setSummaryResult('');
+    setSummaryError('');
     setIsSummaryModalOpen(true);
   };
 
   const handleGenerateSummary = async () => {
     if (!selectedChannel) return;
     setIsGeneratingSummary(true);
+    setSummaryError('');
+    setSummaryResult('');
+
     try {
       // Usamos T00:00:00 para asegurar que se interprete como hora local del usuario y no UTC
       const start = new Date(`${summaryStartDate}T00:00:00`);
@@ -77,7 +82,7 @@ export const ChatView: React.FC = () => {
       }) || [];
 
       if (msgsToSummarize.length === 0) {
-        toast.info('No hay mensajes en el rango de fechas seleccionado.');
+        setSummaryError('No hay mensajes en el rango de fechas seleccionado.');
         setIsGeneratingSummary(false);
         return;
       }
@@ -89,10 +94,14 @@ export const ChatView: React.FC = () => {
         channelName: selectedChannel.name
       });
 
+      if (!summary) {
+        throw new Error('No content generated');
+      }
+
       setSummaryResult(summary);
     } catch (error) {
       console.error(error);
-      toast.error('Error al generar el resumen');
+      setSummaryError('No se pudo generar el resumen. Por favor, intenta de nuevo más tarde.');
     } finally {
       setIsGeneratingSummary(false);
     }
@@ -997,6 +1006,12 @@ export const ChatView: React.FC = () => {
               </>
             )}
           </Button>
+
+          {summaryError && (
+            <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-900/50 text-sm">
+              {summaryError}
+            </div>
+          )}
 
           {summaryResult && (
             <div className="mt-4 p-4 bg-[var(--bg-secondary)] rounded-lg border border-[var(--text-secondary)]/20 max-h-60 overflow-y-auto">
