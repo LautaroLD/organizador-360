@@ -360,7 +360,10 @@ export const ProjectsView: React.FC = () => {
           />
           <div>
             <label className='block text-sm font-medium text-[var(--text-primary)] mb-1'>
-              Descripción
+              <p>Descripción</p>
+              <p className='text-sm text-[var(--text-secondary)]'>
+                Sugerimos una descripción detallada y clara, esta información será utilizada por los modelos de IA para entender mejor el contexto de tu proyecto.
+              </p>
             </label>
             <textarea
               {...register('description')}

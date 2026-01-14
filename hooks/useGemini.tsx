@@ -40,5 +40,27 @@ export default function useGemini() {
       throw error;
     }
   };
-  return { generateTaskDescription, generateSuggestedTasks };
+
+  const generateChatSummary = async ({ messages, startDate, endDate, channelName }: { messages: unknown[]; startDate: string; endDate: string; channelName: string; }) => {
+    try {
+      const res = await fetch('/api/ia/chat/summary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages,
+          startDate,
+          endDate,
+          channelName,
+        }),
+      });
+      const data = await res.json();
+      return data.summary;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  return { generateTaskDescription, generateSuggestedTasks, generateChatSummary };
 };

@@ -12,7 +12,8 @@ import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { MessageContent } from '@/components/ui/MessageContent';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
-import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check, Reply, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check, Reply, ChevronDown, ChevronUp, FileText, Sparkles } from 'lucide-react';
+import useGemini from '@/hooks/useGemini';
 import { formatTime } from '@/lib/utils';
 import clsx from 'clsx';
 import { Channel } from '@/models';
@@ -43,6 +44,68 @@ export const ChatView: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { permission, requestPermission, isSupported } = useNotifications();
   const { subscribe: subscribePush, unsubscribe: unsubscribePush, isSupported: isPushSupported } = usePushNotifications();
+  const { generateChatSummary } = useGemini();
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [summaryStartDate, setSummaryStartDate] = useState('');
+  const [summaryEndDate, setSummaryEndDate] = useState('');
+  const [summaryResult, setSummaryResult] = useState('');
+  const [summaryError, setSummaryError] = useState('');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+
+  const openSummaryModal = () => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - 7);
+
+    setSummaryStartDate(start.toISOString().split('T')[0]);
+    setSummaryEndDate(end.toISOString().split('T')[0]);
+    setSummaryResult('');
+    setSummaryError('');
+    setIsSummaryModalOpen(true);
+  };
+
+  const handleGenerateSummary = async () => {
+    if (!selectedChannel) return;
+    setIsGeneratingSummary(true);
+    setSummaryError('');
+    setSummaryResult('');
+
+    try {
+      // Usamos T00:00:00 para asegurar que se interprete como hora local del usuario y no UTC
+      const start = new Date(`${summaryStartDate}T00:00:00`);
+      const end = new Date(`${summaryEndDate}T23:59:59.999`);
+
+      const msgsToSummarize = messages?.filter(msg => {
+        if (msg.is_deleted) return false;
+        const msgDate = new Date(msg.created_at);
+        return msgDate >= start && msgDate <= end;
+      }) || [];
+
+      if (msgsToSummarize.length === 0) {
+        setSummaryError('No hay mensajes en el rango de fechas seleccionado.');
+        setIsGeneratingSummary(false);
+        return;
+      }
+
+      const summary = await generateChatSummary({
+        messages: msgsToSummarize,
+        startDate: summaryStartDate,
+        endDate: summaryEndDate,
+        channelName: selectedChannel.name
+      });
+
+      if (!summary) {
+        throw new Error('No content generated');
+      }
+
+      setSummaryResult(summary);
+    } catch (error) {
+      console.error(error);
+      setSummaryError('No se pudo generar el resumen. Por favor, intenta de nuevo más tarde.');
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
 
   const [activeTab, setActiveTab] = useState<'chat' | 'pinned'>('chat');
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -528,9 +591,20 @@ export const ChatView: React.FC = () => {
                     {selectedChannel.description || 'Sin descripción'}
                   </p>
                 </div>
+                {/* Summary Button */}
+                <Button
+                  variant="ghost"
+                  onClick={openSummaryModal}
+                  title="Resumir chat con IA"
+                  className="mr-2 text-[var(--text-secondary)] hover:text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/10"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" fill="currentColor"><path d="M10.6144 17.7956 11.492 15.7854C12.2731 13.9966 13.6789 12.5726 15.4325 11.7942L17.8482 10.7219C18.6162 10.381 18.6162 9.26368 17.8482 8.92277L15.5079 7.88394C13.7092 7.08552 12.2782 5.60881 11.5105 3.75894L10.6215 1.61673C10.2916.821765 9.19319.821767 8.8633 1.61673L7.97427 3.75892C7.20657 5.60881 5.77553 7.08552 3.97685 7.88394L1.63658 8.92277C.868537 9.26368.868536 10.381 1.63658 10.7219L4.0523 11.7942C5.80589 12.5726 7.21171 13.9966 7.99275 15.7854L8.8704 17.7956C9.20776 18.5682 10.277 18.5682 10.6144 17.7956ZM19.4014 22.6899 19.6482 22.1242C20.0882 21.1156 20.8807 20.3125 21.8695 19.8732L22.6299 19.5353C23.0412 19.3526 23.0412 18.7549 22.6299 18.5722L21.9121 18.2532C20.8978 17.8026 20.0911 16.9698 19.6586 15.9269L19.4052 15.3156C19.2285 14.8896 18.6395 14.8896 18.4628 15.3156L18.2094 15.9269C17.777 16.9698 16.9703 17.8026 15.956 18.2532L15.2381 18.5722C14.8269 18.7549 14.8269 19.3526 15.2381 19.5353L15.9985 19.8732C16.9874 20.3125 17.7798 21.1156 18.2198 22.1242L18.4667 22.6899C18.6473 23.104 19.2207 23.104 19.4014 22.6899Z"></path></svg>
+                </Button>
+
                 {/* Notification Toggle */}
                 {isSupported && (
-                  <button
+                  <Button
+                    variant='ghost'
                     onClick={async () => {
                       setIsNotificationLoading(true);
                       try {
@@ -588,7 +662,6 @@ export const ChatView: React.FC = () => {
                     }}
                     disabled={isNotificationLoading}
                     className={clsx(
-                      "p-2 rounded-lg transition-colors flex-shrink-0 relative",
                       notificationsEnabled
                         ? "text-[var(--accent-primary)] bg-[var(--accent-primary)]/10 hover:bg-[var(--accent-primary)]/20"
                         : "text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]",
@@ -604,7 +677,7 @@ export const ChatView: React.FC = () => {
                     ) : (
                       <BellOff className="h-5 w-5" />
                     )}
-                  </button>
+                  </Button>
                 )}
               </div>
 
@@ -860,6 +933,7 @@ export const ChatView: React.FC = () => {
                   </Button>
                   <Button
                     type="button"
+                    title="Enviar mensaje (Shift + Enter)"
                     onClick={onSubmitMessage}
                     disabled={sendMessageMutation.isPending || !messageContent.trim()}
                     aria-label="Enviar mensaje"
@@ -879,6 +953,77 @@ export const ChatView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Summary Modal */}
+      <Modal
+        size='lg'
+        isOpen={isSummaryModalOpen}
+        onClose={() => setIsSummaryModalOpen(false)}
+        title="Resumen del Chat con IA"
+      >
+        <div className="space-y-4">
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                Desde
+              </label>
+              <Input
+                type="date"
+                aria-label="Fecha Inicio"
+                value={summaryStartDate}
+                onChange={(e) => setSummaryStartDate(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                Hasta
+              </label>
+              <Input
+                type="date"
+                aria-label="Fecha Fin"
+                value={summaryEndDate}
+                onChange={(e) => setSummaryEndDate(e.target.value)}
+                className="w-full"
+              />
+            </div>
+          </div>
+
+          <Button
+            onClick={handleGenerateSummary}
+            disabled={isGeneratingSummary}
+            className="w-full flex items-center justify-center gap-2 bg-[var(--accent-primary)] text-white hover:opacity-90 transition-opacity"
+          >
+            {isGeneratingSummary ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Generando...
+              </>
+            ) : (
+              <>
+                <FileText className="h-4 w-4" />
+                Generar Resumen
+              </>
+            )}
+          </Button>
+
+          {summaryError && (
+            <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-900/50 text-sm">
+              {summaryError}
+            </div>
+          )}
+
+          {summaryResult && (
+            <div className="mt-4 p-4 bg-[var(--bg-secondary)] rounded-lg border border-[var(--text-secondary)]/20 max-h-60 overflow-y-auto">
+              <h4 className="font-semibold text-[var(--text-primary)] mb-2 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-[var(--accent-primary)]" />
+                Resumen Generado
+              </h4>
+              <MessageContent content={summaryResult} />
+            </div>
+          )}
+        </div>
+      </Modal>
 
       {/* Create Channel Modal */}
       <Modal

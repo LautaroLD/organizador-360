@@ -117,7 +117,7 @@ export const ResourcesView: React.FC = () => {
 
   // Upload file mutation
   const uploadFileMutation = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file, customName }: { file: File; customName?: string; }) => {
       // Check storage limit
       const { canAdd, reason } = await checkStorageLimit(supabase, currentProject!.id, file.size);
       if (!canAdd) {
@@ -133,8 +133,10 @@ export const ResourcesView: React.FC = () => {
           .toLowerCase();                       // opcional: todo en minúsculas
       }
 
+      // Use custom name if provided, otherwise use original file name
+      const displayName = customName || file.name;
       // Uso en tu caso:
-      const safeName = sanitizeFileName(file.name);
+      const safeName = sanitizeFileName(displayName);
       const fileName = `${currentProject!.id}/${Date.now()}-${safeName}`;
       const { error: uploadError } = await supabase.storage.from('resources').upload(fileName, file);
 
@@ -146,7 +148,7 @@ export const ResourcesView: React.FC = () => {
 
       const { error: insertError } = await supabase.from('resources').insert({
         project_id: currentProject!.id,
-        title: file.name,
+        title: displayName,
         type: 'file',
         url: publicUrl,
         uploaded_by: user!.id,
@@ -508,7 +510,7 @@ export const ResourcesView: React.FC = () => {
       <UploadFileModal
         isOpen={isFileModalOpen}
         onClose={() => setIsFileModalOpen(false)}
-        onUpload={(file) => uploadFileMutation.mutate(file)}
+        onUpload={(file, customName) => uploadFileMutation.mutate({ file, customName })}
         isLoading={uploadFileMutation.isPending}
       />
     </div>

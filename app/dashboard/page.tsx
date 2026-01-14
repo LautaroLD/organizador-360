@@ -74,7 +74,7 @@ export default async function DashboardPage({
     .eq('user_id', user.id)
     .single();
 
-  const isPremium = subscription?.status === 'active' || subscription?.status === 'trialing';
+  const isPro = subscription?.status === 'active' || subscription?.status === 'trialing';
 
   // Calcular días restantes si la cancelación está programada
   let daysRemaining: number | null = null;
@@ -85,10 +85,10 @@ export default async function DashboardPage({
     daysRemaining = Math.ceil(diff / (1000 * 60 * 60 * 24));
   }
 
-  const subtitleText = isPremium
+  const subtitleText = isPro
     ? daysRemaining && daysRemaining > 0
-      ? `Plan Premium Activo - ${daysRemaining} día${daysRemaining === 1 ? '' : 's'} restante${daysRemaining === 1 ? '' : 's'}`
-      : 'Plan Premium Activo'
+      ? `Plan Pro Activo - ${daysRemaining} día${daysRemaining === 1 ? '' : 's'} restante${daysRemaining === 1 ? '' : 's'}`
+      : 'Plan Pro Activo'
     : 'Plan Gratuito';
 
   return (
@@ -97,7 +97,7 @@ export default async function DashboardPage({
         title="Mis Proyectos"
         subtitle={subtitleText}
       />
-      {!isPremium && (
+      {!isPro && (
         <div className="m-6 p-2 bg-[var(--accent-warning)]/10 border border-[var(--accent-warning)] rounded-md">
           <p className="text-[var(--accent-warning)] text-sm">
             Estás limitado a 3 proyectos.

@@ -11,8 +11,8 @@ export const SUBSCRIPTION_LIMITS = {
     MAX_STORAGE_BYTES: 100 * 1024 * 1024, // 100 MB
   },
   PRO: {
-    MAX_MEMBERS_PER_PROJECT: Infinity,
-    MAX_STORAGE_BYTES: 10 * 1024 * 1024 * 1024, // 10 GB
+    MAX_MEMBERS_PER_PROJECT: 20,
+    MAX_STORAGE_BYTES: 5 * 1024 * 1024 * 1024, // 5 GB
   },
 } as const;
 
@@ -109,19 +109,18 @@ export async function canAddMemberToProject(
     // Verificar si el dueño es premium
     const isPremium = await checkIsPremiumUser(supabase, ownerId);
 
-    // Si es premium, no hay límite
-    if (isPremium) {
-      return { canAdd: true };
-    }
+    // Obtener límite según el plan
+    const limit = isPremium 
+      ? SUBSCRIPTION_LIMITS.PRO.MAX_MEMBERS_PER_PROJECT 
+      : SUBSCRIPTION_LIMITS.FREE.MAX_MEMBERS_PER_PROJECT;
 
-    // Si es free, verificar el límite
+    // Verificar el límite
     const currentCount = await getProjectMemberCount(supabase, projectId);
-    const limit = SUBSCRIPTION_LIMITS.FREE.MAX_MEMBERS_PER_PROJECT;
 
     if (currentCount >= limit) {
       return {
         canAdd: false,
-        reason: `Has alcanzado el límite de ${limit} miembros para usuarios Free. Actualiza a Pro para agregar más miembros.`,
+        reason: `Has alcanzado el límite de ${limit} miembros para usuarios ${isPremium ? 'Pro' : 'Free'}.`,
         currentCount,
         limit,
       };
