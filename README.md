@@ -1,4 +1,4 @@
-# 🚀 DevCore - Plataforma de Colaboración Todo-en-Uno
+# 🚀 Veenzo - Plataforma de Colaboración Todo-en-Uno
 
 > Una plataforma moderna de gestión de proyectos y colaboración en equipo, construida con Next.js 16, React 19 y Supabase.
 
