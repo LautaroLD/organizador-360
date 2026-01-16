@@ -12,7 +12,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { toast } from 'react-toastify';
 import { LogIn, UserPlus } from 'lucide-react';
-import Image from 'next/image';
 import Logo from '@/components/ui/Logo';
 
 // Icono de Google SVG
