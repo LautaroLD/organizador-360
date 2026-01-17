@@ -474,7 +474,7 @@ export const SettingsView: React.FC = () => {
         {/* About */}
         <Card>
           <CardHeader>
-            <CardTitle>Acerca de DevCore</CardTitle>
+            <CardTitle>Acerca de Veenzo</CardTitle>
             <CardDescription>
               Información sobre la aplicación
             </CardDescription>
@@ -484,7 +484,7 @@ export const SettingsView: React.FC = () => {
               <p><strong>Versión:</strong> 1.0.0</p>
               <p><strong>Última actualización:</strong> Noviembre 2024</p>
               <p className="pt-2 border-t border-[var(--text-secondary)]">
-                DevCore es una plataforma de colaboración todo-en-uno diseñada específicamente
+                Veenzo es una plataforma de colaboración todo-en-uno diseñada específicamente
                 para equipos de desarrollo.
               </p>
             </div>

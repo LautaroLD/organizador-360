@@ -6,7 +6,7 @@ test.describe('Responsive Design', () => {
     await page.goto('/');
     
     // Page should load
-    await expect(page).toHaveTitle(/organizador|DevCore/i);
+    await expect(page).toHaveTitle(/Veenzo/i);
   });
 
   test('should load in tablet viewport', async ({ page }) => {
@@ -14,7 +14,7 @@ test.describe('Responsive Design', () => {
     await page.goto('/');
     
     // Page should load and display content
-    await expect(page).toHaveTitle(/organizador|DevCore/i);
+    await expect(page).toHaveTitle(/Veenzo/i);
   });
 
   test('should load in desktop viewport', async ({ page }) => {
@@ -22,7 +22,7 @@ test.describe('Responsive Design', () => {
     await page.goto('/');
     
     // Page should load
-    await expect(page).toHaveTitle(/organizador|DevCore/i);
+    await expect(page).toHaveTitle(/Veenzo/i);
   });
 });
 

@@ -9,6 +9,9 @@ import { Settings, LogOut, ChevronDown, Home, Code2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import Link from 'next/link';
 import clsx from 'clsx';
+import Image from 'next/image';
+import { useThemeStore } from '@/store/themeStore';
+import Logo from './Logo';
 
 interface HeaderProps {
   title?: string;
@@ -23,7 +26,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   const router = useRouter();
   const path = usePathname();
   const location = { pathname: path };
-
+  const { theme } = useThemeStore();
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -55,14 +58,28 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   const closeMenu = () => {
     setIsUserMenuOpen(false);
   };
+  const [screenWidth, setScreenWidth] = useState<number | null>(null);
 
+  useEffect(() => {
+    const handleResize = () => {
+      setScreenWidth(window.innerWidth);
+    };
+    handleResize(); // Set initial width
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+
+  }, []);
+  console.log(theme);
   return (
     <header className="border-b border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] sticky top-0 z-30">
 
       <div className="flex items-center justify-between border-b border-[var(--text-secondary)]/20 px-6 py-2">
-        <Link href='/dashboard' className={clsx('flex items-center space-x-2', !location.pathname.includes('/projects') ? 'flex' : 'hidden')}>
-          <Code2 className="h-8 w-8 text-[var(--accent-primary)]" />
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">DevCore</h1>
+        <Link href='/dashboard' className={clsx('flex items-center', !location.pathname.includes('/projects') ? 'flex' : 'hidden')}>
+          {screenWidth !== null && screenWidth >= 640 ? (
+            <Logo />
+          ) :
+            <Image src='/veenzo-logo-square.png' alt='Veenzo' width={40} height={40} />
+          }
         </Link>
 
 

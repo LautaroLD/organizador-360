@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/Button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { createClient } from '@/lib/supabase/client';
 import { Code2, MessageSquare, FolderKanban, Calendar, Sparkles } from 'lucide-react';
+import Image from 'next/image';
+import Logo from '@/components/ui/Logo';
 
 export default function HomePage() {
   const supabase = createClient();
@@ -56,8 +58,7 @@ export default function HomePage() {
       <header className="border-b border-[var(--text-secondary)]">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Code2 className="h-8 w-8 text-[var(--accent-primary)]" />
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">DevCore</h1>
+            <Logo />
           </div>
           <div className="flex items-center space-x-4">
             <ThemeToggle />
@@ -76,7 +77,7 @@ export default function HomePage() {
           <span className="text-[var(--accent-primary)]">para Equipos de Desarrollo</span>
         </h2>
         <p className="text-xl text-[var(--text-secondary)] mb-8 max-w-2xl mx-auto">
-          Deja de cambiar entre múltiples herramientas. DevCore centraliza el chat,
+          Deja de cambiar entre múltiples herramientas. Veenzo centraliza el chat,
           proyectos, documentación y calendario en un solo lugar.
         </p>
         <div className="flex items-center justify-center space-x-4">
@@ -118,7 +119,7 @@ export default function HomePage() {
             ¿Listo para mejorar la productividad de tu equipo?
           </h3>
           <p className="text-lg mb-6 opacity-90">
-            Únete a cientos de equipos que ya están usando DevCore
+            Únete a cientos de equipos que ya están usando Veenzo
           </p>
           <Button
             size="lg"
@@ -134,7 +135,7 @@ export default function HomePage() {
       <footer className="border-t border-[var(--text-secondary)] py-8">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between text-[var(--text-secondary)] space-y-4 md:space-y-0">
-            <p>&copy; 2026 DevCore. Todos los derechos reservados.</p>
+            <p>&copy; 2026 Veenzo. Todos los derechos reservados.</p>
             <div className="flex items-center space-x-6">
               <a
                 href="/privacy"

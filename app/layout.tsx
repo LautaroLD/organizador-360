@@ -18,13 +18,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'DevCore - Gestión de Proyectos',
+  title: 'Veenzo - Gestión de Proyectos',
   description: 'Plataforma todo-en-uno para equipos de desarrollo.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'DevCore - Gestión de Proyectos',
+    title: 'Veenzo - Gestión de Proyectos',
   },
 };
 

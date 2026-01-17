@@ -19,13 +19,14 @@ import {
   Layout,
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Project } from '@/models';
+import Logo from '../ui/Logo';
 const SidebarContent = ({ handleBackToDashboard, currentProject, menuItems, pathname, setIsOpen, user }: { handleBackToDashboard: () => void, currentProject: Project | null, menuItems: { id: string; icon: React.ReactNode; label: string; path: string; }[], pathname: string, setIsOpen: (isOpen: boolean) => void, user: { id: string; email?: string; } | null; }) => (
   <>
     <div className="p-4 border-b border-[var(--text-secondary)]/20">
       <Link href='/dashboard' className='flex items-center justify-center space-x-2 bg-[var(--bg-primary)] p-2 rounded-lg'>
-        <Code2 className="h-8 w-8 text-[var(--accent-primary)]" />
-        <h1 className="text-xl font-bold text-[var(--text-primary)]">DevCore</h1>
+        <Logo />
       </Link>
       <Button
         variant="ghost"

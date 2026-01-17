@@ -8,7 +8,7 @@ test.describe('Home Page', () => {
     await page.goto('/');
     
     // Check if page loaded
-    await expect(page).toHaveTitle(/organizador|DevCore/i);
+    await expect(page).toHaveTitle(/Veenzo/i);
     
     // Check for features section
     await expect(page.getByText(/Chat en Tiempo Real/i)).toBeVisible();
