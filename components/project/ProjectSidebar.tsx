@@ -169,10 +169,10 @@ export const Sidebar: React.FC = () => {
       {isOpen && (
         <>
           <div
-            className="lg:hidden fixed inset-0 bg-black/50 z-40"
+            className="lg:hidden fixed inset-0 bg-black/50 z-40 "
             onClick={() => setIsOpen(false)}
           />
-          <aside className="lg:hidden fixed left-0 top-0 h-full w-64 bg-[var(--bg-secondary)] border-r border-[var(--text-secondary)]/20 z-40 flex flex-col">
+          <aside className="lg:hidden fixed left-0 top-0 h-full w-64 bg-[var(--bg-secondary)] border-r border-[var(--text-secondary)]/20 z-40 flex flex-col overflow-auto">
             <SidebarContent
               currentProject={currentProject}
               handleBackToDashboard={handleBackToDashboard}
