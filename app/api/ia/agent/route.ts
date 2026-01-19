@@ -33,14 +33,13 @@ export async function POST(req: NextRequest) {
 
     // 3. Ejecutar consultas en paralelo para optimizar tiempo
     const [tasksResult, messagesResult, membersResult, resourcesResult, eventsResult] = await Promise.all([
-      // Tareas recientes (pendientes o en progreso tienen prioridad)
+      // Tareas recientes (limitado a 100 para tener contexto suficiente)
       supabase
         .from('tasks')
         .select('title, status, description, created_at')
         .eq('project_id', projectId)
-        .neq('status', 'done') // Priorizamos lo no terminado
         .order('created_at', { ascending: false })
-        .limit(50), // Aumentamos límite a 50
+        .limit(100),
 
       // Mensajes recientes de cualquier canal del proyecto
       channelIds.length > 0 ? supabase
@@ -114,10 +113,21 @@ export async function POST(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       events.map((e: any) => `- [${new Date(e.start_date).toLocaleString()} - ${new Date(e.end_date).toLocaleTimeString()}] ${e.title}: ${e.description || 'Sin descripción'}`).join('\n')}
 
-    TAREAS PENDIENTES (Top 50):
-    ${
+    TAREAS DEL PROYECTO (Agrupadas por estado):
+    ${(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      tasks.map((t: any) => `- [${t.status}] ${t.title}: ${t.description || 'Sin descripción'}`).join('\n')}
+      const tasksByStatus = tasks.reduce((acc: any, task: any) => {
+        const status = task.status || 'Sin estado';
+        if (!acc[status]) acc[status] = [];
+        acc[status].push(task);
+        return acc;
+      }, {});
+      
+      return Object.entries(tasksByStatus).map(([status, list]) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return `ESTADO: ${status.toUpperCase()}\n${(list as any[]).map((t: any) => `- ${t.title}`).join('\n')}`;
+      }).join('\n\n');
+    })()}
 
     ÚLTIMOS MENSAJES DE CHAT (Contexto de conversación):
     ${
