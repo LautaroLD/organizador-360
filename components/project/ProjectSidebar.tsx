@@ -186,7 +186,7 @@ export const Sidebar: React.FC = () => {
       )}
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex fixed left-0 top-0 h-full w-64 bg-[var(--bg-secondary)] border-r border-[var(--text-secondary)]/20 flex-col">
+      <aside className="hidden lg:flex fixed left-0 top-0 h-full w-64 bg-[var(--bg-secondary)] border-r border-[var(--text-secondary)]/20 flex-col overflow-auto">
         <SidebarContent
           currentProject={currentProject}
           handleBackToDashboard={handleBackToDashboard}
