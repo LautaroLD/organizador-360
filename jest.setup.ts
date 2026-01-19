@@ -75,7 +75,6 @@ if (typeof window !== 'undefined') {
   });
 
   // Mock IntersectionObserver
-  // @ts-ignore
   global.IntersectionObserver = class IntersectionObserver {
     root: Element | null = null;
     rootMargin: string = '';
