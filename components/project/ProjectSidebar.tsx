@@ -17,6 +17,7 @@ import {
   Users,
   Code2,
   Layout,
+  Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -111,6 +112,12 @@ export const Sidebar: React.FC = () => {
       icon: <MessageSquare className="h-5 w-5" />,
       label: 'Chat',
       path: `/projects/${projectId}/chat`
+    },
+    {
+      id: 'agent',
+      icon: <Sparkles className="h-5 w-5" />,
+      label: 'Asistente AI',
+      path: `/projects/${projectId}/agent`
     },
     {
       id: 'kanban',

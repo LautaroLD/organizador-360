@@ -12,6 +12,7 @@ import { ResourceCard } from '@/components/resources/ResourceCard';
 import { ResourceTabs } from '@/components/resources/ResourceTabs';
 import { AddLinkModal } from '@/components/resources/AddLinkModal';
 import { UploadFileModal } from '@/components/resources/UploadFileModal';
+import { AnalyzeResourceModal } from '@/components/resources/AnalyzeResourceModal';
 import type { LinkFormData, ResourceTab, Resource } from '@/models';
 import { checkStorageLimit, SUBSCRIPTION_LIMITS } from '@/lib/subscriptionUtils';
 import { StorageIndicator } from './StorageIndicator';
@@ -38,6 +39,13 @@ export const ResourcesView: React.FC = () => {
   const supabase = createClient();
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [isFileModalOpen, setIsFileModalOpen] = useState(false);
+
+  // Estados para Análisis IA
+  const [isAnalyzeModalOpen, setIsAnalyzeModalOpen] = useState(false);
+  const [analyzingResource, setAnalyzingResource] = useState<Resource | null>(null);
+  const [analysisSummary, setAnalysisSummary] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
   const [activeTab, setActiveTab] = useState<ResourceTab>('all');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedResources, setSelectedResources] = useState<Set<string>>(new Set());
@@ -319,6 +327,38 @@ export const ResourcesView: React.FC = () => {
     }
   });
 
+  // Analyze Resource Function
+  const handleAnalyzeResource = async (resource: Resource) => {
+    setAnalyzingResource(resource);
+    setIsAnalyzeModalOpen(true);
+    setAnalysisSummary(null);
+    setIsAnalyzing(true);
+
+    try {
+      const response = await fetch('/api/ia/resources/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ resourceId: resource.id }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error analyzing file');
+      }
+
+      setAnalysisSummary(data.summary);
+    } catch (error) {
+      console.error(error);
+      toast.error('Error al analizar el archivo. Asegúrate de que es un formato soportado.');
+      setAnalysisSummary('Hubo un error al intentar analizar este archivo.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const toggleSelection = (resource: Resource, selected: boolean) => {
     const newSelected = new Set(selectedResources);
     if (selected) {
@@ -467,6 +507,7 @@ export const ResourcesView: React.FC = () => {
                 key={resource.id}
                 resource={resource}
                 onDelete={(resource) => deleteResourceMutation.mutate(resource)}
+                onAnalyze={handleAnalyzeResource}
                 selectionMode={selectionMode}
                 selected={selectedResources.has(resource.id)}
                 onSelect={toggleSelection}
@@ -512,6 +553,14 @@ export const ResourcesView: React.FC = () => {
         onClose={() => setIsFileModalOpen(false)}
         onUpload={(file, customName) => uploadFileMutation.mutate({ file, customName })}
         isLoading={uploadFileMutation.isPending}
+      />
+
+      <AnalyzeResourceModal
+        isOpen={isAnalyzeModalOpen}
+        onClose={() => setIsAnalyzeModalOpen(false)}
+        isLoading={isAnalyzing}
+        summary={analysisSummary}
+        resourceTitle={analyzingResource?.title || ''}
       />
     </div>
   );

@@ -46,6 +46,15 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
 
   const handleLogout = async () => {
     try {
+      // Limpiar historial del agente
+      if (typeof sessionStorage !== 'undefined') {
+        Object.keys(sessionStorage).forEach((key) => {
+          if (key.startsWith('agent_chat_')) {
+            sessionStorage.removeItem(key);
+          }
+        });
+      }
+
       await supabase.auth.signOut();
       logout();
       toast.success('Sesión cerrada');
@@ -69,7 +78,6 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
     return () => window.removeEventListener('resize', handleResize);
 
   }, []);
-  console.log(theme);
   return (
     <header className="border-b border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] sticky top-0 z-30">
 

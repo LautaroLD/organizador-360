@@ -25,7 +25,6 @@ export async function POST(req: NextRequest) {
         ],
       }
     })
-    console.log(response.text);
     
     return NextResponse.json({ message: response.text });
   } catch (error) {

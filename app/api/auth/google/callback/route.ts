@@ -82,7 +82,6 @@ export async function GET(request: NextRequest) {
     
     // Extraer projectId del state parameter
     const projectId = state || '';
-    console.log('ProjectId:', projectId || 'none');
 
     // Crear objeto con tokens y email del usuario
     const authData = {
