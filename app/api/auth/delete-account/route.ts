@@ -5,8 +5,6 @@ export async function DELETE() {
   const supabase = await createClient();
   const {data} = await supabase.auth.getSession()
 const { session } = data;
-  console.log(data, 'data');
-  console.log(session, 'session');
   
   if (!session || !session.user) {
     return new Response(JSON.stringify({ error: 'No authenticated user found' }), { status: 401 });

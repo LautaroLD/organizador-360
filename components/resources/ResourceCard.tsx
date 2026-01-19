@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { FileText, Link2, ExternalLink, Trash2, ImageIcon, Video, File } from 'lucide-react';
+import { FileText, Link2, ExternalLink, Trash2, ImageIcon, Video, File, Sparkles } from 'lucide-react';
 import type { Resource, ResourceCardProps } from '@/models';
 import { formatBytes } from '@/lib/subscriptionUtils';
 
@@ -44,7 +44,7 @@ const getResourceIcon = (resource: Resource) => {
   }
 };
 
-export const ResourceCard: React.FC<ResourceCardProps> = ({ resource, onDelete, selected, onSelect, selectionMode }) => {
+export const ResourceCard: React.FC<ResourceCardProps> = ({ resource, onDelete, onAnalyze, selected, onSelect, selectionMode }) => {
   return (
     <Card
       className={`hover:shadow-lg transition-all hover:scale-[1.02] bg-[var(--bg-secondary)] border ${selected ? 'border-[var(--accent-primary)] ring-2 ring-[var(--accent-primary)]/20' : 'border-[var(--text-secondary)]/20'}`}
@@ -68,17 +68,31 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({ resource, onDelete, 
             </div>
           </div>
           {!selectionMode && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (confirm('¿Eliminar este recurso?')) {
-                  onDelete(resource);
-                }
-              }}
-              className='p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 text-red-500 transition-colors'
-            >
-              <Trash2 className='h-4 w-4' />
-            </button>
+            <div className="flex items-center gap-1">
+              {resource.type === 'file' && onAnalyze && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAnalyze(resource);
+                  }}
+                  className='p-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/20 text-indigo-500 transition-colors'
+                  title="Analizar con IA"
+                >
+                  <Sparkles className='h-4 w-4' />
+                </button>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm('¿Eliminar este recurso?')) {
+                    onDelete(resource);
+                  }
+                }}
+                className='p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 text-red-500 transition-colors'
+              >
+                <Trash2 className='h-4 w-4' />
+              </button>
+            </div>
           )}
         </div>
         <div className='mt-3'>

@@ -14,7 +14,6 @@ export async function POST(req: NextRequest) {
         const timestamp = new Date(msg.created_at).toLocaleString('es-ES');
         return `[${timestamp}] ${senderName}: ${msg.content}`;
     }).join('\n');
-console.log(messagesText);
 
     const prompt = `
 Genera un resumen conciso y estructurado de la conversación del chat "${channelName}" para el rango de fechas ${startDate} a ${endDate}.
@@ -45,8 +44,6 @@ Instrucciones:
         ],
       }
     });
-
-    console.log(response.text);
     
     return NextResponse.json({ summary: response.text });
   } catch (error) {
