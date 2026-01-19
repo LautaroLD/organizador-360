@@ -117,7 +117,7 @@ export default function AgentPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-[var(--bg-primary)]">
+    <div className="flex flex-col h-dvh bg-[var(--bg-primary)]">
       {/* Header */}
       <div className="p-4 border-b border-[var(--text-secondary)]/10 flex items-center gap-3 bg-[var(--bg-secondary)]">
         <div className="p-2 bg-[var(--accent-primary)] rounded-lg">
