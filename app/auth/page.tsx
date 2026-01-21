@@ -54,6 +54,15 @@ export default function AuthPage() {
   const mode = searchParams?.get('mode');
   const email = searchParams?.get('email');
   const redirect = searchParams?.get('redirect');
+  const preapprovalId = searchParams?.get('preapproval_id');
+
+  // Construir URL de redirección con preapproval_id si existe
+  const buildRedirectUrl = (baseUrl: string) => {
+    if (!preapprovalId) return baseUrl;
+    const url = new URL(baseUrl, window.location.origin);
+    url.searchParams.set('preapproval_id', preapprovalId);
+    return url.pathname + url.search;
+  };
 
   useEffect(() => {
     // Si hay un modo en la URL, úsalo
@@ -90,9 +99,9 @@ export default function AuthPage() {
         if (pendingInvitation) {
           router.push(`/invitations/${pendingInvitation}`);
         } else if (redirect) {
-          router.push(redirect);
+          router.push(buildRedirectUrl(redirect));
         } else {
-          router.push('/dashboard');
+          router.push(buildRedirectUrl('/dashboard'));
         }
       } else {
         // Verifica si el usuario ya existe en la base de datos
@@ -144,9 +153,9 @@ export default function AuthPage() {
             // Redirige a la página de invitación
             router.push(`/invitations/${pendingInvitation}`);
           } else if (redirect) {
-            router.push(redirect);
+            router.push(buildRedirectUrl(redirect));
           } else {
-            router.push('/dashboard');
+            router.push(buildRedirectUrl('/dashboard'));
           }
         } else {
           // Usuario necesita confirmar email

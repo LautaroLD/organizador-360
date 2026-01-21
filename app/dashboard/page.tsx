@@ -4,9 +4,7 @@ import { Header } from '@/components/ui/Header';
 import { ProjectsView } from '@/components/dashboard/ProjectsView';
 import { InvitationsWidget } from '@/components/dashboard/InvitationsWidget';
 import SubscriptionSync from '@/components/dashboard/SubscriptionSync';
-import { stripe } from '@/lib/stripe';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import Stripe from 'stripe';
 
 type SearchParams = { [key: string]: string | string[] | undefined; };
 
@@ -20,52 +18,6 @@ export default async function DashboardPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     redirect('/auth');
-  }
-
-  // Sincronizar suscripción si venimos de Stripe con session_id
-  const resolvedParams = searchParams ? await searchParams : undefined;
-  const sessionParam = resolvedParams?.session_id;
-  const sessionId = Array.isArray(sessionParam) ? sessionParam[0] : sessionParam;
-  if (sessionId) {
-    try {
-      const session = await stripe.checkout.sessions.retrieve(sessionId, {
-        expand: ['subscription'],
-      });
-      let sub: Stripe.Subscription | null = session.subscription as Stripe.Subscription | null;
-      // Fallback: si viene como ID, recupera la suscripción completa
-      if (typeof sub === 'string') {
-        try {
-          sub = await stripe.subscriptions.retrieve(sub);
-        } catch (e) {
-          console.error('Failed to retrieve subscription by ID:', e);
-        }
-      }
-      if (sub) {
-        const { error: upsertError } = await supabaseAdmin
-          .from('subscriptions')
-          .upsert(
-            {
-              id: sub.id,
-              user_id: user.id,
-              stripe_subscription_id: sub.id,
-              status: sub.status,
-              price_id: sub.items?.data?.[0]?.price?.id ?? null,
-              current_period_start: sub.current_period_start ? new Date(sub.current_period_start * 1000).toISOString() : null,
-              current_period_end: sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
-              cancel_at_period_end: !!sub.cancel_at_period_end,
-              canceled_at: sub.canceled_at ? new Date(sub.canceled_at * 1000).toISOString() : null,
-              ended_at: sub.ended_at ? new Date(sub.ended_at * 1000).toISOString() : null,
-            },
-            { onConflict: 'user_id' }
-          );
-        if (upsertError) {
-          console.error('Upsert subscription failed:', upsertError);
-        }
-      }
-    } catch (e) {
-      // No bloquear el render si falla la sincronización
-      console.error('Sync subscription on server failed:', e);
-    }
   }
 
   const { data: subscription } = await supabase
@@ -105,16 +57,11 @@ export default async function DashboardPage({
           </p>
         </div>
       )}
-      <main className="min-h-[calc(100vh-73px)]">
+      <main>
         {/* Sincroniza la suscripción al volver de Stripe con session_id */}
         <SubscriptionSync />
-        <div className="p-6">
-          <InvitationsWidget />
-        </div>
-
+        <InvitationsWidget />
         <ProjectsView />
-
-
       </main>
     </div>
   );

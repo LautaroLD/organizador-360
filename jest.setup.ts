@@ -1,6 +1,69 @@
 // Learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
 import React from 'react';
+import { TextEncoder, TextDecoder } from 'util';
+
+global.TextEncoder = TextEncoder;
+// @ts-ignore
+global.TextDecoder = TextDecoder;
+
+// Polyfill Request/Response para tests de API y Next.js
+if (typeof Request === 'undefined') {
+    // @ts-ignore
+    global.Request = class Request {
+        url: string;
+        method: string;
+        headers: Headers;
+        body: any;
+        constructor(input: string | Request, init?: any) {
+            this.url = typeof input === 'string' ? input : input.url;
+            this.method = init?.method || 'GET';
+            this.headers = new Headers(init?.headers);
+            this.body = init?.body;
+        }
+        json() { return Promise.resolve(JSON.parse(this.body)); }
+    };
+}
+
+if (typeof Response === 'undefined') {
+    // @ts-ignore
+    global.Response = class Response {
+        status: number;
+        statusText: string;
+        headers: Headers;
+        body: any;
+        ok: boolean;
+        constructor(body?: any, init?: any) {
+            this.status = init?.status || 200;
+            this.statusText = init?.statusText || '';
+            this.headers = new Headers(init?.headers);
+            this.body = body;
+            this.ok = this.status >= 200 && this.status < 300;
+        }
+        json() { 
+            return Promise.resolve(typeof this.body === 'string' ? JSON.parse(this.body) : this.body); 
+        }
+    };
+}
+
+if (typeof Headers === 'undefined') {
+    // @ts-ignore
+    global.Headers = class Headers {
+        map: Map<string, string>;
+        constructor(init?: any) {
+            this.map = new Map();
+            if (init) {
+                Object.keys(init).forEach(key => this.map.set(key, init[key]));
+            }
+        }
+        append(key: string, value: string) { this.map.set(key, value); }
+        delete(key: string) { this.map.delete(key); }
+        get(key: string) { return this.map.get(key) || null; }
+        has(key: string) { return this.map.has(key); }
+        set(key: string, value: string) { this.map.set(key, value); }
+        forEach(callback: any) { this.map.forEach(callback); }
+    };
+}
 
 // Mock next/image
 jest.mock('next/image', () => ({

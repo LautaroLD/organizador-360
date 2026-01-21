@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import React from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/Button';
@@ -23,6 +24,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import { Modal } from '../ui/Modal';
 
 interface PricingPlan {
   name: string;
@@ -35,11 +37,43 @@ interface PricingPlan {
   id: 'free' | 'pro';
 }
 
+interface MercadoPagoDetails {
+  id: string;
+  status: string;
+  statusLabel: string;
+  statusColor: string;
+  reason: string;
+  dateCreated: string;
+  nextPaymentDate: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  amount: number;
+  currency: string;
+  frequency: number;
+  frequencyType: string;
+  hasFreeTrial: boolean;
+  freeTrialDays: number;
+  chargedQuantity: number;
+  pendingChargeQuantity: number;
+  totalChargedAmount: number;
+  lastChargedDate: string | null;
+  paymentMethodId: string | null;
+  daysUntilNextPayment: number | null;
+  daysUntilEnd: number | null;
+  isExpired: boolean;
+  isActive: boolean;
+  isCancelled: boolean;
+  isPaused: boolean;
+  isPending: boolean;
+}
+
 export const SubscriptionView: React.FC = () => {
   const supabase = createClient();
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
+  const [loadingCheckout, setLoadingCheckout] = useState(false);
 
-  // Fetch subscription data
+  // Fetch subscription data from local DB
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({
     queryKey: ['subscription', user?.id],
     queryFn: async () => {
@@ -47,6 +81,7 @@ export const SubscriptionView: React.FC = () => {
         .from('subscriptions')
         .select('*')
         .eq('user_id', user?.id)
+        .in('status', ['active', 'authorized', 'trialing'])
         .maybeSingle();
 
       return data;
@@ -54,34 +89,23 @@ export const SubscriptionView: React.FC = () => {
     enabled: !!user?.id,
   });
 
-  // Mutation para iniciar checkout
-  const checkoutMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        throw new Error('Error al crear sesión de checkout');
-      }
-
-      const { url } = await response.json();
-      return url;
+  // Fetch detailed subscription info from MercadoPago
+  const { data: mpDetails } = useQuery({
+    queryKey: ['subscription-details', user?.id],
+    queryFn: async () => {
+      const response = await fetch('/api/mercadopago/subscription-details');
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.source === 'mercadopago' ? data.details as MercadoPagoDetails : null;
     },
-    onSuccess: (url) => {
-      if (url) {
-        window.location.href = url;
-      }
-    },
-    onError: (error) => {
-      toast.error(error.message || 'Error al iniciar pago');
-    },
+    enabled: !!user?.id && !!subscription?.mercadopago_subscription_id,
+    staleTime: 60000, // Cache for 1 minute
   });
 
   // Mutation para cancelar suscripción
   const cancelMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch('/api/stripe/cancel-subscription', {
+      const response = await fetch('/api/mercadopago/cancel-subscription', {
         method: 'POST',
       });
 
@@ -93,11 +117,39 @@ export const SubscriptionView: React.FC = () => {
     },
     onSuccess: () => {
       toast.success('Suscripción cancelada. Tu plan finalizará al fin del período.');
+      queryClient.invalidateQueries({ queryKey: ['subscription', user?.id] });
     },
     onError: (error) => {
       toast.error(error.message || 'Error al cancelar');
     },
   });
+
+  const handleSubscribe = async () => {
+    setLoadingCheckout(true);
+    try {
+      const response = await fetch('/api/checkout/mercadopago', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planId: 'pro',
+          payerEmail: user?.email
+        })
+      });
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result.error || 'Error iniciando pago');
+
+      if (result.init_point) {
+        window.location.href = result.init_point;
+      } else {
+        throw new Error('No se recibió enlace de pago');
+      }
+    } catch (err: any) {
+      console.error('Error checkout:', err);
+      toast.error(err.message || 'Error iniciando pago');
+      setLoadingCheckout(false);
+    }
+  };
 
   const plans: PricingPlan[] = [
     {
@@ -118,7 +170,7 @@ export const SubscriptionView: React.FC = () => {
     {
       id: 'pro',
       name: 'Pro',
-      price: 2,
+      price: 2000,
       billing: '/mes',
       description: 'Para equipos en crecimiento',
       icon: <Star className='h-8 w-8' />,
@@ -136,7 +188,7 @@ export const SubscriptionView: React.FC = () => {
     },
   ];
 
-  const isPro = subscription?.status === 'active';
+  const isPro = subscription?.status === 'active' || subscription?.status === 'authorized';
 
   if (subscriptionLoading) {
     return (
@@ -159,7 +211,7 @@ export const SubscriptionView: React.FC = () => {
           Planes y Suscripción
         </h1>
         <p className='text-[var(--text-secondary)]'>
-          Elige el plan que mejor se adapte a tus necesidades
+          Elige el plan que mejor se adapte a tus necesidades. Pagos procesados por Mercado Pago.
         </p>
       </div>
 
@@ -174,42 +226,103 @@ export const SubscriptionView: React.FC = () => {
                   Estás en el plan Pro
                 </CardTitle>
                 <CardDescription>
-                  Tu suscripción está activa y renovable
+                  {mpDetails ? (
+                    <span className={`inline-flex items-center gap-2 ${mpDetails.status === 'authorized' ? 'text-green-600' :
+                      mpDetails.status === 'paused' ? 'text-orange-600' :
+                        mpDetails.status === 'cancelled' ? 'text-red-600' :
+                          'text-[var(--text-secondary)]'
+                      }`}>
+                      {mpDetails.statusLabel}
+                      {mpDetails.daysUntilNextPayment !== null && mpDetails.daysUntilNextPayment <= 7 && (
+                        <span className='text-xs bg-orange-500/20 text-orange-600 px-2 py-0.5 rounded'>
+                          {mpDetails.daysUntilNextPayment === 0 ? 'Cobra hoy' :
+                            mpDetails.daysUntilNextPayment === 1 ? 'Cobra mañana' :
+                              `Próximo cobro en ${mpDetails.daysUntilNextPayment} días`}
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    'Tu suscripción está activa y renovable'
+                  )}
                 </CardDescription>
               </div>
               <div className='text-right'>
                 <div className='text-sm text-[var(--text-secondary)]'>
-                  Próxima renovación:
+                  {mpDetails?.nextPaymentDate ? 'Próximo pago:' : 'Próxima renovación:'}
                 </div>
                 <div className='text-lg font-semibold text-[var(--text-primary)]'>
-                  {formatDate(subscription.current_period_end)}
+                  {mpDetails?.nextPaymentDate
+                    ? formatDate(mpDetails.nextPaymentDate)
+                    : formatDate(subscription.current_period_end)}
                 </div>
+                {mpDetails?.amount && (
+                  <div className='text-sm text-[var(--text-secondary)]'>
+                    ${mpDetails.amount.toLocaleString()} {mpDetails.currency}
+                  </div>
+                )}
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className='flex items-center gap-4 text-sm'>
-              <div>
-                <span className='text-[var(--text-secondary)]'>
-                  Período actual: {formatDate(subscription.current_period_start)} a{' '}
-                  {formatDate(subscription.current_period_end)}
-                </span>
-              </div>
-              {!subscription.cancel_at_period_end && (
-                <Button
-                  variant='secondary'
-                  size='sm'
-                  onClick={() => cancelMutation.mutate()}
-                  disabled={cancelMutation.isPending}
-                >
-                  {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar suscripción'}
-                </Button>
-              )}
-              {subscription.cancel_at_period_end && (
-                <div className='px-3 py-1 bg-orange-500/10 border border-orange-500/30 rounded text-orange-600 text-xs font-medium'>
-                  Cancelada al final del período
+            <div className='flex flex-col gap-4'>
+              {/* Información detallada de MP */}
+              {mpDetails && (
+                <div className='grid grid-cols-2 md:grid-cols-4 gap-4 text-sm'>
+                  <div>
+                    <span className='text-[var(--text-secondary)] block'>Pagos realizados</span>
+                    <span className='font-medium text-[var(--text-primary)]'>
+                      {mpDetails.chargedQuantity} {mpDetails.pendingChargeQuantity > 0 && `(${mpDetails.pendingChargeQuantity} pendiente${mpDetails.pendingChargeQuantity > 1 ? 's' : ''})`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className='text-[var(--text-secondary)] block'>Total cobrado</span>
+                    <span className='font-medium text-[var(--text-primary)]'>
+                      ${mpDetails.totalChargedAmount.toLocaleString()} {mpDetails.currency}
+                    </span>
+                  </div>
+                  {mpDetails.endDate && (
+                    <div>
+                      <span className='text-[var(--text-secondary)] block'>Fecha de fin</span>
+                      <span className='font-medium text-[var(--text-primary)]'>
+                        {formatDate(mpDetails.endDate)}
+                      </span>
+                    </div>
+                  )}
+                  {mpDetails.paymentMethodId && (
+                    <div>
+                      <span className='text-[var(--text-secondary)] block'>Método de pago</span>
+                      <span className='font-medium text-[var(--text-primary)] capitalize'>
+                        {mpDetails.paymentMethodId.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* Período y botón cancelar */}
+              <div className='flex items-center gap-4 text-sm border-t border-[var(--border-primary)] pt-4'>
+                <div>
+                  <span className='text-[var(--text-secondary)]'>
+                    Período actual: {formatDate(subscription.current_period_start)} a{' '}
+                    {formatDate(subscription.current_period_end)}
+                  </span>
+                </div>
+                {!subscription.cancel_at_period_end && (
+                  <Button
+                    variant='secondary'
+                    size='sm'
+                    onClick={() => cancelMutation.mutate()}
+                    disabled={cancelMutation.isPending}
+                  >
+                    {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar suscripción'}
+                  </Button>
+                )}
+                {subscription.cancel_at_period_end && (
+                  <div className='px-3 py-1 bg-orange-500/10 border border-orange-500/30 rounded text-orange-600 text-xs font-medium'>
+                    Cancelada al final del período
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -276,25 +389,23 @@ export const SubscriptionView: React.FC = () => {
                 <Button
                   className='w-full'
                   disabled={
-                    checkoutMutation.isPending ||
-                    (isPro && plan.id === 'pro')
+                    (isPro && plan.id === 'pro') || loadingCheckout
                   }
                   onClick={() => {
                     if (plan.id === 'pro') {
-                      checkoutMutation.mutate();
+                      handleSubscribe();
                     }
                   }}
                   variant={plan.popular ? 'primary' : 'secondary'}
                 >
-                  {isPro && plan.id === 'pro' ? (
-                    'Plan actual'
-                  ) : plan.id === 'free' ? (
-                    'Ya estás aquí'
-                  ) : checkoutMutation.isPending ? (
-                    'Procesando...'
-                  ) : (
-                    'Actualizar a Pro'
-                  )}
+                  {loadingCheckout && plan.id === 'pro' ? 'Redirigiendo...' :
+                    isPro && plan.id === 'pro' ? (
+                      'Plan actual'
+                    ) : plan.id === 'free' ? (
+                      'Ya estás aquí'
+                    ) : (
+                      'Actualizar a Pro'
+                    )}
                 </Button>
               </CardContent>
             </Card>

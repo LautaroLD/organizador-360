@@ -90,7 +90,7 @@ export default function TermsOfServicePage() {
             Ofrecemos planes de suscripción con diferentes características:
           </p>
           <ul className="list-disc pl-6 space-y-2 mb-4">
-            <li>Los pagos se procesan de forma segura a través de Stripe</li>
+            <li>Los pagos se procesan de forma segura a través de Mercado Pago</li>
             <li>Las suscripciones se renuevan automáticamente</li>
             <li>Puede cancelar su suscripción en cualquier momento</li>
             <li>No se emiten reembolsos por periodos no utilizados, salvo que la ley lo requiera</li>

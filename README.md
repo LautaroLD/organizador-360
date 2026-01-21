@@ -56,7 +56,7 @@
 ### 💳 Sistema de Suscripciones
 - **Plan Free**: Hasta 10 miembros, 100MB storage
 - **Plan Pro**: Hasta 20 miembros, 5GB storage
-- **Integración con Stripe** para pagos
+- **Integración con Mercado Pago** para pagos
 - **Gestión de suscripciones** automática
 
 ### 🔐 Autenticación y Seguridad
@@ -90,7 +90,7 @@
   - Realtime subscriptions
   - Authentication
   - Storage
-- **[Stripe](https://stripe.com/)** - Procesamiento de pagos
+- **[Mercado Pago](https://www.mercadopago.com.ar/developers/)** - Procesamiento de pagos
 
 ### APIs Externas
 - **[Google Calendar API](https://developers.google.com/calendar)** - Sincronización de eventos
@@ -113,7 +113,7 @@ Antes de comenzar, asegúrate de tener instalado:
 - **npm** >= 9.0.0 o **pnpm** >= 8.0.0
 - **Git**
 - Cuenta en **[Supabase](https://supabase.com/)**
-- Cuenta en **[Stripe](https://stripe.com/)** (para pagos)
+- Cuenta en **[Mercado Pago](https://www.mercadopago.com.ar/developers/)** (para pagos)
 - **[Google Cloud Console](https://console.cloud.google.com/)** proyecto configurado
 
 ---
@@ -176,13 +176,16 @@ Completa todas las variables (ver [.env.example](.env.example) para detalles).
      - `https://tu-dominio.com/api/google/callback`
 5. Copia Client ID y Client Secret a `.env.local`
 
-### 4. Configuración de Stripe
+### 4. Configuración de Mercado Pago
 
-1. Regístrate en [Stripe](https://dashboard.stripe.com/register)
-2. Obtén tus API keys (Developers > API keys)
-3. Crea productos y precios en el dashboard
-4. Configura webhook endpoint: `https://tu-dominio.com/api/stripe/webhook`
-5. Copia el Webhook Secret
+1. Regístrate en [Mercado Pago Developers](https://www.mercadopago.com.ar/developers/)
+2. Crea una aplicación para obtener tus Credenciales (Access Token y Public Key)
+3. Crea un plan de suscripción (`/preapproval_plan`) y obtén su ID
+4. Configura webhook endpoint: `https://tu-dominio.com/api/webhooks/mercadopago`
+5. Configura las variables de entorno:
+   - `MP_ACCESS_TOKEN`
+   - `NEXT_PUBLIC_MP_PUBLIC_KEY`
+   - `MP_PRO_PLAN_ID`
 
 ### 5. Configuración de Web Push
 

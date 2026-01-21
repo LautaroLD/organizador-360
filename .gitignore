@@ -65,3 +65,5 @@ e2e/.auth/
 *.swp
 *.swo
 *~
+
+scripts
