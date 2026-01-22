@@ -1,15 +1,16 @@
 // Learn more: https://github.com/testing-library/jest-dom
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import '@testing-library/jest-dom';
 import React from 'react';
 import { TextEncoder, TextDecoder } from 'util';
 
 global.TextEncoder = TextEncoder;
-// @ts-ignore
+// @ts-expect-error Global type mismatch for TextDecoder
 global.TextDecoder = TextDecoder;
 
 // Polyfill Request/Response para tests de API y Next.js
 if (typeof Request === 'undefined') {
-    // @ts-ignore
+    // @ts-expect-error Polyfill for Request
     global.Request = class Request {
         url: string;
         method: string;
@@ -26,7 +27,7 @@ if (typeof Request === 'undefined') {
 }
 
 if (typeof Response === 'undefined') {
-    // @ts-ignore
+    // @ts-expect-error Polyfill for Response
     global.Response = class Response {
         status: number;
         statusText: string;
@@ -47,7 +48,7 @@ if (typeof Response === 'undefined') {
 }
 
 if (typeof Headers === 'undefined') {
-    // @ts-ignore
+    // @ts-expect-error Polyfill for Headers
     global.Headers = class Headers {
         map: Map<string, string>;
         constructor(init?: any) {
@@ -68,7 +69,7 @@ if (typeof Headers === 'undefined') {
 // Mock next/image
 jest.mock('next/image', () => ({
   __esModule: true,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   default: (props: any) => {
     return React.createElement('img', props);
   },

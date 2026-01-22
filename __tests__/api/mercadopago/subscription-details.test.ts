@@ -105,7 +105,7 @@ describe('GET /api/mercadopago/subscription-details', () => {
       payment_method_id: 'visa',
     };
 
-    // @ts-ignore
+    // @ts-expect-error Mocking MP response type which might not match exactly
     mockPreapproval.get.mockResolvedValue(mockMpResponse);
 
     const response = await GET();
@@ -139,7 +139,6 @@ describe('GET /api/mercadopago/subscription-details', () => {
         single: mockSingle,
       });
 
-    // @ts-ignore
     mockPreapproval.get.mockRejectedValue(new Error('MP API Error'));
 
     const response = await GET();
