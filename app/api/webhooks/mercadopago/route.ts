@@ -40,14 +40,27 @@ export async function POST(request: NextRequest) {
       // Estados MP: authorized, paused, cancelled, pending
       
       if (userId) {
+        // Asegurar que userId sea un UUID válido antes de intentar upsert
+        if (userId === 'NO_REF' || userId.length < 10) {
+             console.warn('Webhook recibido sin External Reference válida (User ID). Ignorando upsert.', userId);
+             return NextResponse.json({ status: 'ignored', reason: 'invalid_user_id' });
+        }
+
+        // Upsert para manejar tanto creación como actualización
+        // Esto corrige el problema de "no carga como pro" si el checkout inicial falló en guardar la BD
         const { error } = await supabaseAdmin
           .from('subscriptions')
-          .update({
+          .upsert({
+            id: subscription.id,
+            mercadopago_subscription_id: subscription.id, // Redundante pero seguro
+            user_id: userId,
             status: status,
-            // Actualizar otras propiedades si cambian
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            price_id: (subscription as any).preapproval_plan_id,
             current_period_end: subscription.next_payment_date ? new Date(subscription.next_payment_date).toISOString() : undefined,
-          })
-          .eq('mercadopago_subscription_id', id);
+            // Mantener fecha de creación original si existe, o usar now
+            updated_at: new Date().toISOString() // Si tienes columna updated_at
+          }, { onConflict: 'mercadopago_subscription_id' }); // O 'id' si es PK
 
         if (error) {
           console.error('Error actualizando suscripción via webhook:', error);
@@ -65,7 +78,9 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ status: 'ok' });
-  } catch (error: any) {
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   catch (error: any) {
     console.error('Error procesando webhook MP:', error);
     return NextResponse.json({ status: 'error', message: error.message }, { status: 500 });
   }

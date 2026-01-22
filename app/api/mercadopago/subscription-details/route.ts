@@ -41,7 +41,6 @@ export async function GET() {
         id: subscription.mercadopago_subscription_id 
       });
 
-      // Mapear estado
       let statusLabel = 'Desconocido';
       let statusColor = 'gray';
       
@@ -89,10 +88,7 @@ export async function GET() {
 
       const isExpired = mpSubscription.status === 'cancelled' || (!!endDate && endDate < now);
 
-      return NextResponse.json({
-        hasSubscription: true,
-        source: 'mercadopago',
-        details: {
+      const mpDetails = {
           id: mpSubscription.id,
           status: mpSubscription.status,
           statusLabel,
@@ -132,15 +128,36 @@ export async function GET() {
           isCancelled: mpSubscription.status === 'cancelled',
           isPaused: mpSubscription.status === 'paused',
           isPending: mpSubscription.status === 'pending',
-        }
+      };
+
+      // DETERMINAR PLAN (Lógica del Servidor)
+      const proPlanId = process.env.MP_PRO_PLAN_ID;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const subscriptionPlanId = (mpSubscription as any).preapproval_plan_id;
+      
+      // Si el precio/plan coincide con la variable de entorno, es PRO.
+      const internalPlanId = subscriptionPlanId === proPlanId ? 'pro' : 'free';
+
+      return NextResponse.json({
+        hasSubscription: true,
+        isPro: internalPlanId === 'pro',
+        internalPlanId,
+        source: 'mercadopago',
+        details: mpDetails
       });
 
-    } catch (mpError) {
+      } catch (mpError) {
       console.error('Error obteniendo suscripción de MP:', mpError);
       
       // Devolver datos de la BD si no podemos obtener de MP
+      
+      const proPlanId = process.env.MP_PRO_PLAN_ID;
+      const internalPlanId = subscription.price_id === proPlanId ? 'pro' : 'free';
+
       return NextResponse.json({
         hasSubscription: true,
+        isPro: internalPlanId === 'pro',
+        internalPlanId,
         source: 'database',
         details: {
           id: subscription.mercadopago_subscription_id,

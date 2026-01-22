@@ -81,26 +81,35 @@ export const SubscriptionView: React.FC = () => {
         .from('subscriptions')
         .select('*')
         .eq('user_id', user?.id)
-        .in('status', ['active', 'authorized', 'trialing'])
+        .in('status', ['active', 'authorized', 'trialing', 'canceled', 'cancelled'])
+        .order('created', { ascending: false }) // Priorizar la más reciente si hubiera múltiples
+        .limit(1)
         .maybeSingle();
 
       return data;
     },
     enabled: !!user?.id,
   });
+  console.log(subscription);
 
   // Fetch detailed subscription info from MercadoPago
-  const { data: mpDetails } = useQuery({
+  const { data: mpData } = useQuery({
     queryKey: ['subscription-details', user?.id],
     queryFn: async () => {
       const response = await fetch('/api/mercadopago/subscription-details');
       if (!response.ok) return null;
       const data = await response.json();
-      return data.source === 'mercadopago' ? data.details as MercadoPagoDetails : null;
+      return {
+        details: data.details as MercadoPagoDetails,
+        isPro: data.isPro as boolean,
+        internalPlanId: data.internalPlanId as string
+      };
     },
     enabled: !!user?.id && !!subscription?.mercadopago_subscription_id,
     staleTime: 60000, // Cache for 1 minute
   });
+
+  const mpDetails = mpData?.details;
 
   // Mutation para cancelar suscripción
   const cancelMutation = useMutation({
@@ -117,7 +126,8 @@ export const SubscriptionView: React.FC = () => {
     },
     onSuccess: () => {
       toast.success('Suscripción cancelada. Tu plan finalizará al fin del período.');
-      queryClient.invalidateQueries({ queryKey: ['subscription', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['subscription', user?.id], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['subscription-details', user?.id], exact: false });
     },
     onError: (error) => {
       toast.error(error.message || 'Error al cancelar');
@@ -188,7 +198,15 @@ export const SubscriptionView: React.FC = () => {
     },
   ];
 
-  const isPro = subscription?.status === 'active' || subscription?.status === 'authorized';
+  // Determinar si es Pro: Status activo O (status cancelado Y fecha fin futura)
+  const isCanceled = subscription?.status === 'canceled' || subscription?.status === 'cancelled';
+  const hasActivePeriod = subscription?.current_period_end
+    ? new Date(subscription.current_period_end) > new Date()
+    : false;
+
+  // Lógica mejorada: Usar flag del servidor si está disponible, sino fallback a local
+  const isPro = mpData?.isPro ?? ((subscription?.status === 'active' || subscription?.status === 'authorized' || subscription?.status === 'trialing') || (isCanceled && hasActivePeriod));
+  console.log(mpDetails, 'mp');
 
   if (subscriptionLoading) {
     return (
@@ -220,21 +238,21 @@ export const SubscriptionView: React.FC = () => {
         <Card className='mb-8 border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/5'>
           <CardHeader>
             <div className='flex items-center justify-between'>
-              <div>
+              <div className=' space-y-2'>
                 <CardTitle className='flex items-center gap-2'>
                   <Star className='h-5 w-5 text-[var(--accent-primary)]' />
-                  Estás en el plan Pro
+                  {mpDetails?.reason}
                 </CardTitle>
                 <CardDescription>
                   {mpDetails ? (
                     <span className={`inline-flex items-center gap-2 ${mpDetails.status === 'authorized' ? 'text-green-600' :
-                      mpDetails.status === 'paused' ? 'text-orange-600' :
-                        mpDetails.status === 'cancelled' ? 'text-red-600' :
+                      mpDetails.status === 'paused' ? 'text-[var(--text-warning)]' :
+                        mpDetails.status === 'cancelled' ? 'text-[var(--accent-danger)]' :
                           'text-[var(--text-secondary)]'
                       }`}>
                       {mpDetails.statusLabel}
-                      {mpDetails.daysUntilNextPayment !== null && mpDetails.daysUntilNextPayment <= 7 && (
-                        <span className='text-xs bg-orange-500/20 text-orange-600 px-2 py-0.5 rounded'>
+                      {mpDetails.status !== 'cancelled' && mpDetails.daysUntilNextPayment !== null && mpDetails.daysUntilNextPayment <= 7 && (
+                        <span className='text-xs bg-[var(--accent-danger)]/10 text-[var(--accent-danger)] px-2 py-0.5 rounded'>
                           {mpDetails.daysUntilNextPayment === 0 ? 'Cobra hoy' :
                             mpDetails.daysUntilNextPayment === 1 ? 'Cobra mañana' :
                               `Próximo cobro en ${mpDetails.daysUntilNextPayment} días`}
@@ -318,7 +336,7 @@ export const SubscriptionView: React.FC = () => {
                   </Button>
                 )}
                 {subscription.cancel_at_period_end && (
-                  <div className='px-3 py-1 bg-orange-500/10 border border-orange-500/30 rounded text-orange-600 text-xs font-medium'>
+                  <div className='px-3 py-1 bg-[var(--accent-danger)]/10 border border-[var(--accent-danger)]/30 rounded text-[var(--accent-danger)] text-xs font-medium'>
                     Cancelada al final del período
                   </div>
                 )}
@@ -350,8 +368,8 @@ export const SubscriptionView: React.FC = () => {
                 <div className='flex items-start justify-between mb-4'>
                   <div className='text-[var(--accent-primary)]'>{plan.icon}</div>
                   {isPro && plan.id === 'pro' && (
-                    <div className='text-xs font-bold px-2 py-1 bg-green-500/20 text-green-700 rounded'>
-                      ACTUAL
+                    <div className={`text-xs font-bold px-2 py-1 rounded ${isCanceled ? 'bg-[var(--accent-danger)]/20 text-[var(--accent-danger)]' : 'bg-green-500/20 text-green-700'}`}>
+                      {isCanceled ? 'CANCELADO (ACTIVO)' : 'ACTUAL'}
                     </div>
                   )}
                 </div>
@@ -389,7 +407,7 @@ export const SubscriptionView: React.FC = () => {
                 <Button
                   className='w-full'
                   disabled={
-                    (isPro && plan.id === 'pro') || loadingCheckout
+                    (isPro && plan.id === 'pro' && !isCanceled) || loadingCheckout
                   }
                   onClick={() => {
                     if (plan.id === 'pro') {
@@ -400,7 +418,7 @@ export const SubscriptionView: React.FC = () => {
                 >
                   {loadingCheckout && plan.id === 'pro' ? 'Redirigiendo...' :
                     isPro && plan.id === 'pro' ? (
-                      'Plan actual'
+                      isCanceled ? 'Reactivar Suscripción' : 'Plan actual'
                     ) : plan.id === 'free' ? (
                       'Ya estás aquí'
                     ) : (

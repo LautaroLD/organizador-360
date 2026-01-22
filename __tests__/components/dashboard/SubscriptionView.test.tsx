@@ -1,4 +1,4 @@
-import React from 'react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { SubscriptionView } from '@/components/dashboard/SubscriptionView';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -133,6 +133,7 @@ describe('SubscriptionView', () => {
     const mockDetails = {
       status: 'authorized',
       statusLabel: 'Activa',
+      reason: 'Plan Pro',
       nextPaymentDate: '2023-02-01T00:00:00.000Z',
       amount: 2000,
       currency: 'ARS',
@@ -146,15 +147,77 @@ describe('SubscriptionView', () => {
         return { data: mockSub, isLoading: false };
       }
       if (options.queryKey[0] === 'subscription-details') {
-        return { data: mockDetails, isLoading: false };
+        return {
+          data: {
+            details: mockDetails,
+            isPro: true,
+            internalPlanId: 'pro'
+          },
+          isLoading: false
+        };
       }
       return { data: null, isLoading: false };
     });
 
     renderComponent();
 
-    expect(screen.getByText('Estás en el plan Pro')).toBeInTheDocument();
+    expect(screen.getByText('Plan Pro')).toBeInTheDocument();
     expect(screen.getByText('Activa')).toBeInTheDocument();
     expect(screen.getAllByText('$2,000 ARS').length).toBeGreaterThan(0);
+  });
+
+  it('renders cancelled but still active subscription correctly', () => {
+    // Fecha futura
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 10); // 10 days from now
+
+    const mockSubscription = {
+      status: 'canceled', // Canceled status
+      plan_id: 'pro',
+      current_period_end: futureDate.toISOString(), // But still valid period
+    };
+
+    const mockDetails = {
+      status: 'cancelled',
+      statusLabel: 'Cancelado',
+      reason: 'Plan Pro',
+      nextPaymentDate: null, // No next payment
+      amount: 2500,
+      currency: 'ARS',
+      chargedQuantity: 1,
+      totalChargedAmount: 2500,
+      pendingChargeQuantity: 0,
+      daysUntilNextPayment: null,
+    };
+
+    mockUseQuery.mockImplementation((options) => {
+      if (options.queryKey[0] === 'subscription') {
+        return { data: mockSubscription, isLoading: false };
+      }
+      if (options.queryKey[0] === 'subscription-details') {
+        return {
+          data: {
+            details: mockDetails,
+            isPro: true, // Should be true for "Cancelled but Active" due to logic
+            internalPlanId: 'pro'
+          },
+          isLoading: false
+        };
+      }
+      return { data: null, isLoading: false };
+    });
+
+    renderComponent();
+
+    // Check for "CANCELADO (ACTIVO)" badge
+    expect(screen.getByText('CANCELADO (ACTIVO)')).toBeInTheDocument();
+
+    // Check for "Reactivar Suscripción" button
+    const reactivateButton = screen.getByText('Reactivar Suscripción');
+    expect(reactivateButton).toBeInTheDocument();
+
+    // Check key differentiator: button should NOT be disabled.
+    // Usually "Plan actual" is disabled.
+    expect(reactivateButton).not.toBeDisabled();
   });
 });
