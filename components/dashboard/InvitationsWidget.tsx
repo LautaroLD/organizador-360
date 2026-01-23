@@ -80,7 +80,7 @@ export const InvitationsWidget: React.FC = () => {
   };
 
   return (
-    <div className='mb-6'>
+    <div className='p-6'>
       <Card className='border-[var(--accent-primary)] bg-[var(--bg-secondary)]'>
         <CardHeader>
           <div className='flex items-center justify-between'>
