@@ -4,15 +4,11 @@ import { Header } from '@/components/ui/Header';
 import { ProjectsView } from '@/components/dashboard/ProjectsView';
 import { InvitationsWidget } from '@/components/dashboard/InvitationsWidget';
 import SubscriptionSync from '@/components/dashboard/SubscriptionSync';
-import { supabaseAdmin } from '@/lib/supabase/admin';
+// import { supabaseAdmin } from '@/lib/supabase/admin';
 
-type SearchParams = { [key: string]: string | string[] | undefined; };
+// type SearchParams = { [key: string]: string | string[] | undefined; };
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams?: Promise<SearchParams>;
-}) {
+export default async function DashboardPage() {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();

@@ -101,8 +101,8 @@ export async function canAddMemberToProject(
           limit: data.limit,
         };
       }
-    } catch (dbError) {
-      console.log('Database function not available, using fallback logic:', dbError);
+    } catch {
+      // Database function not available, using fallback logic
     }
 
     // Fallback to client-side logic

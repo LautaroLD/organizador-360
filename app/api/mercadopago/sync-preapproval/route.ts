@@ -33,8 +33,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Obtener datos de la suscripción desde MercadoPago
-    console.log(`[SYNC] Obteniendo preapproval ${preapprovalId} de MercadoPago...`);
-    
     const mpSubscription = await preapproval.get({ id: preapprovalId });
 
     if (!mpSubscription) {
@@ -43,13 +41,6 @@ export async function GET(request: NextRequest) {
         { status: 404 }
       );
     }
-
-    console.log('[SYNC] Suscripción MP obtenida:', {
-      id: mpSubscription.id,
-      status: mpSubscription.status,
-      payer_email: mpSubscription.payer_email,
-      reason: mpSubscription.reason
-    });
 
     // Mapear estado de MP a estados permitidos en nuestra BD
     // Estados de MP: pending, authorized, paused, cancelled
@@ -114,7 +105,6 @@ export async function GET(request: NextRequest) {
       subscription: {
         id: preapprovalId,
         status: dbStatus,
-        mercadopago_status: mpSubscription.status
       }
     });
 

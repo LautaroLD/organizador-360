@@ -21,7 +21,6 @@ export async function GET(request: Request) {
     if (data.session?.provider_token) {
       // Los tokens de Google Calendar ya están en la sesión
       // Se pueden usar directamente sin necesidad de guardarlos aparte
-      console.log('Usuario autenticado con Google, tokens de provider disponibles');
     }
 
     // Verificar si hay una invitación pendiente

@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ suggestions }), { status: 200 });
   } catch (error: unknown) {
     const err = error as { status?: number };
-    console.log(err.status);
+    console.error('Error fetching suggestions:', error);
     if (err.status === 429) {
       return new Response('Rate Limit Exceeded', { status: 429 });
     }

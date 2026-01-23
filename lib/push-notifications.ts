@@ -54,7 +54,6 @@ export async function sendPushNotificationToUser(userId: string, payload: Notifi
         }
 
         if (!subscriptions || subscriptions.length === 0) {
-            console.log(`ℹ️ No subscriptions found for user ${userId}`);
             return { success: true, sentCount: 0 };
         }
 
@@ -78,7 +77,6 @@ export async function sendPushNotificationToUser(userId: string, payload: Notifi
                 const webPushError = error as { statusCode?: number };
                 // Si la suscripción es inválida (410 Gone o 404 Not Found), eliminarla
                 if (webPushError.statusCode === 410 || webPushError.statusCode === 404) {
-                    console.log(`🗑️ Removing invalid subscription: ${sub.id}`);
                     await supabaseAdmin
                         .from('push_subscriptions')
                         .delete()

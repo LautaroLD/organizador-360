@@ -1,9 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from '@/lib/supabase/server';
-import { preapproval, customer, card } from '@/lib/mercadopago';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
       const supabase = await createClient();
     const {
@@ -17,6 +15,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
                 init_point: `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=${targetPlanId}`
   });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || 'Error al procesar la suscripción' },
