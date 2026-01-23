@@ -33,7 +33,6 @@ export async function POST(request: NextRequest) {
       id: subscription.mercadopago_subscription_id,
       body: { status: 'cancelled' },
     });
-    console.log(res_mp, 'res_mp');
 
     // Actualizar base de datos local
     // Establecemos cancel_at_period_end en true y mantenemos status en 'active'
@@ -52,7 +51,6 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Error actualizando estado local al cancelar:', error);
     }
-console.log(data,'data');
 
     return NextResponse.json({ success: true, message: 'Suscripción cancelada' });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

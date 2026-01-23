@@ -90,7 +90,6 @@ export const SubscriptionView: React.FC = () => {
     },
     enabled: !!user?.id,
   });
-  console.log(subscription);
 
   // Fetch detailed subscription info from MercadoPago
   const { data: mpData } = useQuery({
@@ -206,7 +205,6 @@ export const SubscriptionView: React.FC = () => {
 
   // Lógica mejorada: Usar flag del servidor si está disponible, sino fallback a local
   const isPro = mpData?.isPro ?? ((subscription?.status === 'active' || subscription?.status === 'authorized' || subscription?.status === 'trialing') || (isCanceled && hasActivePeriod));
-  console.log(mpDetails, 'mp');
 
   if (subscriptionLoading) {
     return (

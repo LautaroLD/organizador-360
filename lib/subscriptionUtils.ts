@@ -102,7 +102,7 @@ export async function canAddMemberToProject(
         };
       }
     } catch (dbError) {
-      console.log('Database function not available, using fallback logic:', dbError);
+      // Database function not available, using fallback logic
     }
 
     // Fallback to client-side logic

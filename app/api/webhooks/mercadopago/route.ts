@@ -23,8 +23,6 @@ export async function POST(request: NextRequest) {
       // Body vacío o no JSON, usamos query params
     }
 
-    console.log('Webhook MP recibido:', { topic, id });
-
     if (!id) {
        return NextResponse.json({ status: 'ignored', reason: 'no id provided' });
     }
@@ -74,7 +72,6 @@ export async function POST(request: NextRequest) {
        // Aquí podríamos verificar si el pago fue aprobado y actualizar fechas si fuera necesario,
        // pero generalmente 'subscription_preapproval' es la fuente de verdad del estado de la suscripción.
        // Sin embargo, si un pago falla, la suscripción podría entrar en 'retry' o similar.
-       console.log('Pago recibido:', id);
     }
 
     return NextResponse.json({ status: 'ok' });
