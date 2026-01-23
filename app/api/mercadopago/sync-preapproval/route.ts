@@ -105,6 +105,7 @@ export async function GET(request: NextRequest) {
       subscription: {
         id: preapprovalId,
         status: dbStatus,
+      }
     });
 
   } catch (error: unknown) {

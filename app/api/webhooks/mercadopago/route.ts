@@ -19,8 +19,8 @@ export async function POST(request: NextRequest) {
       if (body.data && body.data.id) id = body.data.id;
       // Compatibilidad con diferentes formatos de notificación
       if (body.id) id = body.id;
-    } catch (e) {
-      // Body vacío o no JSON, usamos query params
+    } catch {
+      // Body vacío o no JSON, usamos query params (ignorar error 'e')
     }
 
     if (!id) {

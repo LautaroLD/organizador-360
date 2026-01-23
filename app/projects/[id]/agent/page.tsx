@@ -154,10 +154,10 @@ export default function AgentPage() {
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
-                      ul: ({ node, ...props }) => <ul className="list-disc pl-4 my-2" {...props} />,
-                      ol: ({ node, ...props }) => <ol className="list-decimal pl-4 my-2" {...props} />,
-                      li: ({ node, ...props }) => <li className="my-1" {...props} />,
-                      p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />
+                      ul: ({ ...props }) => <ul className="list-disc pl-4 my-2" {...props} />,
+                      ol: ({ ...props }) => <ol className="list-decimal pl-4 my-2" {...props} />,
+                      li: ({ ...props }) => <li className="my-1" {...props} />,
+                      p: ({ ...props }) => <p className="mb-2 last:mb-0" {...props} />
                     }}
                   >
                     {msg.content}

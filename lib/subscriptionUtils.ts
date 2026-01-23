@@ -101,7 +101,7 @@ export async function canAddMemberToProject(
           limit: data.limit,
         };
       }
-    } catch (dbError) {
+    } catch {
       // Database function not available, using fallback logic
     }
 

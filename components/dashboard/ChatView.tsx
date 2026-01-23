@@ -122,7 +122,7 @@ export const ChatView: React.FC = () => {
     enabled: !!selectedChannel?.id,
   });
 
-  const { register: registerMessage, handleSubmit: handleSubmitMessage, reset: resetMessage } =
+  const { reset: resetMessage } =
     useForm<MessageFormData>();
   const { register: registerChannel, handleSubmit: handleSubmitChannel, reset: resetChannel, formState: { errors } } =
     useForm<ChannelFormData>();

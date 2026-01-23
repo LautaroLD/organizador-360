@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { preapproval } from '@/lib/mercadopago';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const supabase = await createClient();
     const {
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Cancelar en Mercado Pago (Detiene futuros cobros)
-    const res_mp = await preapproval.update({
+    await preapproval.update({
       id: subscription.mercadopago_subscription_id,
       body: { status: 'cancelled' },
     });
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     // Actualizar base de datos local
     // Establecemos cancel_at_period_end en true y mantenemos status en 'active'
     // Esto permite que el usuario siga accediendo hasta current_period_end
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('subscriptions')
       .update({ 
         cancel_at_period_end: true,
