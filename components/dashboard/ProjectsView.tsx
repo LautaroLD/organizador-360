@@ -25,6 +25,8 @@ import {
   Clock,
   ArrowRight,
   Users,
+  Lock,
+  LockOpen,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import type { ProjectFormData, InviteFormData, Project } from '@/models';
@@ -36,6 +38,9 @@ export const ProjectsView: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [selectedProjectForInvite, setSelectedProjectForInvite] =
+    useState<Project | null>(null);
+  const [isActiveModalOpen, setIsActiveModalOpen] = useState(false);
+  const [selectedProjectForActive, setSelectedProjectForActive] =
     useState<Project | null>(null);
   const { user } = useAuthStore();
   const router = useRouter();
@@ -91,16 +96,37 @@ export const ProjectsView: React.FC = () => {
     enabled: !!user?.id,
   });
 
+  // Check subscription status
+  const { data: subscription } = useQuery({
+    queryKey: ['subscription', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('subscriptions')
+        .select('status, current_period_end')
+        .eq('user_id', user!.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Calculate disabled projects count
+  const disabledProjectsCount = projects?.filter(p => !p.enabled && p.userRole === 'Owner').length || 0;
+  const isPremium = subscription &&
+    ['active', 'trialing', 'past_due'].includes(subscription.status) &&
+    new Date(subscription.current_period_end) > new Date();
+
   // Create project mutation
   const createProjectMutation = useMutation({
     mutationFn: async (data: ProjectFormData) => {
       // 1. OBTENER ESTADO DE SUSCRIPCIÓN Y CONTEO ACTUAL
-      // Consultamos los proyectos del usuario y su estado premium en paralelo
+      // Consultamos los proyectos habilitados del usuario y su estado premium en paralelo
       const [projectsCountRes, subscriptionRes] = await Promise.all([
         supabase
           .from('projects')
           .select('*', { count: 'exact', head: true })
-          .eq('owner_id', user!.id),
+          .eq('owner_id', user!.id)
+          .eq('enabled', true), // Solo contar proyectos habilitados
         supabase
           .from('subscriptions')
           .select('status,cancel_at_period_end,current_period_end,canceled_at')
@@ -127,11 +153,11 @@ export const ProjectsView: React.FC = () => {
             (currentPeriodEnd && now < currentPeriodEnd)
           ))
       );
-      const currentProjects = projectsCountRes.count || 0;
+      const enabledProjects = projectsCountRes.count || 0;
 
-      // 2. LÓGICA DE NEGOCIO: Límite de 3 proyectos para usuarios gratuitos
-      if (!isPremium && currentProjects >= 3) {
-        throw new Error('Has alcanzado el límite de 3 proyectos. Actualiza a Pro para crear proyectos ilimitados.');
+      // 2. LÓGICA DE NEGOCIO: Límite de 3 proyectos habilitados para usuarios gratuitos
+      if (!isPremium && enabledProjects >= 3) {
+        throw new Error('Has alcanzado el límite de 3 proyectos habilitados. Actualiza a Pro para crear proyectos ilimitados.');
       }
 
       // 3. PROCESO DE CREACIÓN (Tu código anterior corregido)
@@ -237,6 +263,11 @@ export const ProjectsView: React.FC = () => {
     setSelectedProjectForInvite(project);
     setIsInviteModalOpen(true);
   };
+  const handleActiveClick = (project: Project, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedProjectForActive(project);
+    setIsActiveModalOpen(true);
+  };
 
   const selectProject = (projectId: string) => {
     router.push(`/projects/${projectId}`);
@@ -254,7 +285,29 @@ export const ProjectsView: React.FC = () => {
   }
 
   return (
-    <div className='p-6'>
+    <div className='px-6 space-y-6'>
+      {/* Alert for disabled projects */}
+      {!isPremium && disabledProjectsCount > 0 && (
+        <div className=' bg-[var(--accent-warning)]/10 border border-[var(--accent-warning)] rounded-lg p-4'>
+          <div className='flex items-start gap-3'>
+            <Lock className='h-5 w-5 text-[var(--accent-warning)]  flex-shrink-0 mt-0.5' />
+            <div className='flex-1'>
+              <h3 className='font-semibold text-[var(--accent-warning)] mb-1'>
+                Proyectos Deshabilitados
+              </h3>
+              <p className='text-sm text-[var(--accent-warning)] mb-2'>
+                Los usuarios con plan gratuito solo pueden tener 3 proyectos habilitados simultáneamente.
+              </p>
+              <div className='flex gap-2 flex-wrap'>
+                <p className='text-xs text-[var(--accent-warning)]  self-center'>
+                  Para habilitar un proyecto, primero desactiva otro o actualiza tu plan.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className='flex items-center justify-between mb-6'>
         <div>
           <h2 className='text-2xl font-bold text-[var(--text-primary)]'>
@@ -275,8 +328,8 @@ export const ProjectsView: React.FC = () => {
           {projects.map((project) => (
             <Card
               key={project.id}
-              className='cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] group'
-              onClick={() => selectProject(project.id)}
+              className={`${!project.enabled ? 'cursor-not-allowed opacity-80' : 'cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] group'}`}
+              onClick={() => project.enabled && selectProject(project.id)}
             >
               <CardHeader>
                 <div className='flex items-start justify-between'>
@@ -287,8 +340,14 @@ export const ProjectsView: React.FC = () => {
                     <span className='text-xs px-2 py-1 rounded-full bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] font-medium'>
                       {project.userRole}
                     </span>
-                    <span className='text-xs text-[var(--text-secondary)]'>
-                      {formatDate(project.created_at)}
+                    <span className='text-xs text-[var(--text-secondary)] flex gap-2'>
+                      <p className={`text-[${project.enabled ? 'var(--accent-primary)' : 'var(--text-secondary)'}]`}>
+                        {project.enabled ? 'Activo' : 'Inactivo'}
+                      </p>
+                      |
+                      <p>
+                        {formatDate(project.created_at)}
+                      </p>
                     </span>
                   </div>
                 </div>
@@ -313,17 +372,36 @@ export const ProjectsView: React.FC = () => {
                     {project.members.length} Colaboradores
                   </div>
                 </div>
-                {(project.userRole === 'Owner' || project.userRole === 'Admin') && (
-                  <Button
-                    variant='secondary'
-                    size='sm'
-                    className='w-full'
-                    onClick={(e) => handleInviteClick(project, e)}
-                  >
-                    <UserPlus className='h-4 w-4 mr-2' />
-                    Invitar Colaborador
-                  </Button>
-                )}
+                <div className='flex gap-2'>
+                  {project.userRole === 'Owner' && (
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='w-full'
+                      onClick={(e) => handleActiveClick(project, e)}
+                    >
+                      {project.enabled ? <>
+                        <Lock className='h-4 w-4 mr-2' />
+                        Desactivar
+                      </> : <>
+                        <LockOpen className='h-4 w-4 mr-2' />
+                        Activar
+                      </>} Proyecto
+                    </Button>
+                  )}
+                  {(project.userRole === 'Owner' || project.userRole === 'Admin') && (
+                    <Button
+                      variant='secondary'
+                      size='sm'
+                      className='w-full'
+                      disabled={!project.enabled}
+                      onClick={(e) => project.enabled && handleInviteClick(project, e)}
+                    >
+                      <UserPlus className='h-4 w-4 mr-2' />
+                      Invitar Colaborador
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -502,6 +580,59 @@ export const ProjectsView: React.FC = () => {
             </Button>
           </div>
         </form>
+      </Modal>
+      <Modal isOpen={isActiveModalOpen} onClose={() => {
+        setIsActiveModalOpen(false);
+        setSelectedProjectForActive(null);
+      }} title={selectedProjectForActive?.enabled ? 'Desactivar Proyecto' : 'Activar Proyecto'}>
+        <div className='space-y-4'>
+          <p>¿Estás seguro que deseas {selectedProjectForActive?.enabled ? 'desactivar' : 'activar'} el proyecto <strong>{selectedProjectForActive?.name}</strong>?</p>
+          <div className='flex justify-end space-x-2 pt-4'>
+            <Button
+              type='button'
+              variant='secondary'
+              onClick={() => {
+                setIsActiveModalOpen(false);
+                setSelectedProjectForActive(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button type='button' onClick={async () => {
+              if (!selectedProjectForActive) return;
+
+              try {
+                const { error } = await supabase
+                  .from('projects')
+                  .update({ enabled: !selectedProjectForActive.enabled })
+                  .eq('id', selectedProjectForActive.id);
+
+                if (error) {
+                  // Check if it's the limit error (ERRCODE P0002)
+                  if (error.code === 'P0002') {
+                    toast.error('Límite de proyectos habilitados alcanzado. Los usuarios gratuitos pueden tener máximo 3 proyectos habilitados. Actualiza a Plan Pro para proyectos ilimitados.', {
+                      autoClose: 5000
+                    });
+                  } else {
+                    toast.error('Error al actualizar el estado del proyecto');
+                  }
+                  return;
+                }
+
+                toast.success(`Proyecto ${selectedProjectForActive.enabled ? 'desactivado' : 'activado'} exitosamente`);
+                queryClient.invalidateQueries({ queryKey: ['projects'] });
+                setIsActiveModalOpen(false);
+                setSelectedProjectForActive(null);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              } catch (err: any) {
+                console.error('Error toggling project:', err);
+                toast.error(err.message || 'Error al actualizar el estado del proyecto');
+              }
+            }}>
+              {selectedProjectForActive?.enabled ? 'Desactivar' : 'Activar'}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

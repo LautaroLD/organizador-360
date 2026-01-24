@@ -13,6 +13,7 @@ export interface Project {
   is_premium?: boolean;
   userRole?: string;
   storage_used?: number;
+  enabled: boolean;
 }
 
 export interface ProjectFormData {
