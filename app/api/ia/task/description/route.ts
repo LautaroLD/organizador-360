@@ -1,9 +1,28 @@
 import { ai } from '@/lib/gemini';
 import { Project } from '@/models';
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { checkIsPremiumUser } from '@/lib/subscriptionUtils';
 
 export async function POST(req: NextRequest) {
   try {
+    // Verificar que el usuario esté autenticado
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    }
+
+    // Verificar que el usuario sea premium
+    const isPremium = await checkIsPremiumUser(supabase, user.id);
+    if (!isPremium) {
+      return NextResponse.json(
+        { error: 'Esta función está disponible solo para usuarios Pro' },
+        { status: 403 }
+      );
+    }
+
     const {project, title_task, current_checklist}:{ project: Project, title_task: string, current_checklist?: unknown } = await req.json();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',

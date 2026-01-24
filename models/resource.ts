@@ -24,6 +24,7 @@ export interface ResourceCardProps {
   resource: Resource;
   onDelete: (resource: Resource) => void;
   onAnalyze?: (resource: Resource) => void;
+  isPremium?: boolean;
   selected?: boolean;
   onSelect?: (resource: Resource, selected: boolean) => void;
   selectionMode?: boolean;

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { FileText, Link2, ExternalLink, Trash2, ImageIcon, Video, File, Sparkles } from 'lucide-react';
+import { FileText, Link2, ExternalLink, Trash2, ImageIcon, Video, File, Sparkles, Lock } from 'lucide-react';
 import type { Resource, ResourceCardProps } from '@/models';
 import { formatBytes } from '@/lib/subscriptionUtils';
 
@@ -44,7 +44,7 @@ const getResourceIcon = (resource: Resource) => {
   }
 };
 
-export const ResourceCard: React.FC<ResourceCardProps> = ({ resource, onDelete, onAnalyze, selected, onSelect, selectionMode }) => {
+export const ResourceCard: React.FC<ResourceCardProps> = ({ resource, onDelete, onAnalyze, isPremium = false, selected, onSelect, selectionMode }) => {
   return (
     <Card
       className={`hover:shadow-lg transition-all hover:scale-[1.02] bg-[var(--bg-secondary)] border ${selected ? 'border-[var(--accent-primary)] ring-2 ring-[var(--accent-primary)]/20' : 'border-[var(--text-secondary)]/20'}`}
@@ -70,16 +70,29 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({ resource, onDelete, 
           {!selectionMode && (
             <div className="flex items-center gap-1">
               {resource.type === 'file' && onAnalyze && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAnalyze(resource);
-                  }}
-                  className='p-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/20 text-indigo-500 transition-colors'
-                  title="Analizar con IA"
-                >
-                  <Sparkles className='h-4 w-4' />
-                </button>
+                <div className="relative group">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isPremium) {
+                        onAnalyze(resource);
+                      }
+                    }}
+                    disabled={!isPremium}
+                    className={`p-1.5 rounded-lg transition-colors ${isPremium
+                        ? 'hover:bg-indigo-100 dark:hover:bg-indigo-900/20 text-indigo-500'
+                        : 'text-gray-400 cursor-not-allowed'
+                      }`}
+                    title={!isPremium ? 'Función disponible solo en Plan Pro' : 'Analizar con IA'}
+                  >
+                    {isPremium ? <Sparkles className='h-4 w-4' /> : <Lock className='h-4 w-4' />}
+                  </button>
+                  {!isPremium && (
+                    <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
+                      <p>Función disponible solo en Plan Pro</p>
+                    </div>
+                  )}
+                </div>
               )}
               <button
                 onClick={(e) => {

@@ -9,8 +9,9 @@ import { Task, CreateTaskDTO, UpdateTaskDTO } from '@/models';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 
-import { CheckSquare, Plus, Trash2, ImageIcon, X, Sparkles } from 'lucide-react';
+import { CheckSquare, Plus, Trash2, ImageIcon, X, Sparkles, Lock } from 'lucide-react';
 import useGemini from '@/hooks/useGemini';
+import { checkIsPremiumUser } from '@/lib/subscriptionUtils';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isGeneratingWithAI = useRef(false);
   const { generateTaskDescription } = useGemini();
+  const [isPremium, setIsPremium] = React.useState(false);
   const { register, handleSubmit, reset, setValue, watch } = useForm<CreateTaskDTO>({
     defaultValues: {
       title: '',
@@ -50,6 +52,20 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   });
 
   const supabase = createClient();
+
+  // Verificar si el usuario es premium
+  useEffect(() => {
+    const checkPremium = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const premium = await checkIsPremiumUser(supabase, user.id);
+        setIsPremium(premium);
+      }
+    };
+    if (isOpen) {
+      checkPremium();
+    }
+  }, [isOpen, supabase]);
 
   // Fetch project members for assignment
   const { data: members } = useQuery({
@@ -355,10 +371,25 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <label className="block text-sm font-medium text-[var(--text-secondary)]">
               Descripción
             </label>
-            <Button variant='ghost' type='button' size='sm' className='text-[var(--accent-primary)] gap-1' onClick={() => generateDescription.mutate()} disabled={generateDescription.isPending}>
-              {generateDescription.isPending ? 'Generando...' : 'Generar con IA'}
-              <Sparkles size={16} />
-            </Button>
+            <div className="relative group">
+              <Button
+                variant='ghost'
+                type='button'
+                size='sm'
+                className='text-[var(--accent-primary)] gap-1'
+                onClick={() => generateDescription.mutate()}
+                disabled={generateDescription.isPending || !isPremium}
+                title={!isPremium ? 'Función disponible solo en Plan Pro' : ''}
+              >
+                {generateDescription.isPending ? 'Generando...' : 'Generar con IA'}
+                {!isPremium ? <Lock size={16} /> : <Sparkles size={16} />}
+              </Button>
+              {!isPremium && (
+                <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
+                  <p>Función disponible solo en Plan Pro</p>
+                </div>
+              )}
+            </div>
           </div>
           <textarea
             {...register('description')}

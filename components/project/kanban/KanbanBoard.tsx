@@ -19,10 +19,12 @@ import { KanbanTask } from './KanbanTask';
 import { TaskModal } from './TaskModal';
 import { useTasks } from '@/hooks/useTasks';
 import { Button } from '@/components/ui/Button';
-import { Plus, Sparkle, Sparkles } from 'lucide-react';
+import { Plus, Sparkle, Sparkles, Lock } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import useGemini from '@/hooks/useGemini';
 import SuggestionsModal from './SuggestionsModal';
+import { createClient } from '@/lib/supabase/client';
+import { checkIsPremiumUser } from '@/lib/subscriptionUtils';
 
 interface KanbanBoardProps {
   projectId: string;
@@ -39,7 +41,22 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [isPremium, setIsPremium] = useState(false);
   const { generateSuggestedTasks } = useGemini();
+  const supabase = createClient();
+
+  // Verificar si el usuario es premium
+  React.useEffect(() => {
+    const checkPremium = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const premium = await checkIsPremiumUser(supabase, user.id);
+        setIsPremium(premium);
+      }
+    };
+    checkPremium();
+  }, [supabase]);
+
   const editingTask = React.useMemo(() =>
     tasks?.find(t => t.id === editingTaskId) || null
     , [tasks, editingTaskId]);
@@ -143,12 +160,25 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
       <div className="flex-none flex justify-between items-center mb-4 p-4">
         <h2 className="text-2xl font-bold text-[var(--text-primary)]">Tablero Kanban</h2>
         <div className='flex gap-3 items-center'>
-          <Button variant='ghost' className='text-[var(--accent-primary)]' onClick={() => generateSuggestions.mutate()} disabled={generateSuggestions.isPending}>
-            <p className='hidden md:flex md:mr-2'>
-              {generateSuggestions.isPending ? 'Generando...' : 'Sugerir tareas con IA'}
-            </p>
-            <Sparkles size={20} />
-          </Button>
+          <div className="relative group">
+            <Button
+              variant='ghost'
+              className='text-[var(--accent-primary)]'
+              onClick={() => generateSuggestions.mutate()}
+              disabled={generateSuggestions.isPending || !isPremium}
+              title={!isPremium ? 'Función disponible solo en Plan Pro' : ''}
+            >
+              <p className='hidden md:flex md:mr-2'>
+                {generateSuggestions.isPending ? 'Generando...' : 'Sugerir tareas con IA'}
+              </p>
+              {!isPremium ? <Lock size={20} /> : <Sparkles size={20} />}
+            </Button>
+            {!isPremium && (
+              <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
+                <p>Función disponible solo en Plan Pro</p>
+              </div>
+            )}
+          </div>
           <Button onClick={() => { setEditingTaskId(null); setIsModalOpen(true); }}>
             <Plus size={24} />
             <p className='hidden md:flex md:ml-2'>

@@ -4,9 +4,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useAgent } from '@/hooks/useAgent';
 import { Button } from '@/components/ui/Button';
-import { Bot, Send, User, Sparkles, Loader2 } from 'lucide-react';
+import { Bot, Send, User, Sparkles, Loader2, Lock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { checkIsPremiumUser } from '@/lib/subscriptionUtils';
+import { createClient } from '@/lib/supabase/client';
+import { useAuthStore } from '@/store/authStore';
+import Link from 'next/link';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -115,7 +119,44 @@ export default function AgentPage() {
       setMessages(prev => [...prev, errorMsg]);
     }
   };
+  const supabase = createClient();
+  const { user } = useAuthStore();
+  const [isPremium, setIsPremium] = useState(false);
 
+  // Verificar si el usuario es premium
+  useEffect(() => {
+    const checkPremium = async () => {
+      if (user?.id) {
+        const premium = await checkIsPremiumUser(supabase, user.id);
+        setIsPremium(premium);
+      }
+    };
+    checkPremium();
+  }, [user, supabase]);
+  if (!isPremium) {
+    return (
+      <main className="flex grow flex-col max-h-full overflow-hidden">
+        {/* Header */}
+        <div className="p-4 border-b border-[var(--text-secondary)]/10 flex items-center gap-3 bg-[var(--bg-secondary)]">
+          <div className="p-2 bg-[var(--accent-primary)] rounded-lg">
+            <Bot className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-[var(--text-primary)]">Asistente de Proyecto</h1>
+            <p className="text-sm text-[var(--text-secondary)]">Pregunta sobre tareas, mensajes, documentos, y estado del equipo</p>
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col justify-center items-center p-4">
+          <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-4">Función disponible solo en Plan Pro</h2>
+          <Lock size={48} className="text-[var(--text-secondary)] mb-4" />
+          <p className="text-[var(--text-secondary)] mb-6 text-center">Para acceder al asistente IA de proyectos, por favor actualiza a un plan Pro.</p>
+          <Link className='bg-[var(--accent-primary)] px-2 py-1 rounded-lg' href="/settings/subscription">
+            Actualizar a Pro
+          </Link>
+        </div>
+      </main>
+    );
+  }
   return (
     <main className="flex grow flex-col max-h-full overflow-hidden">
       {/* Header */}

@@ -14,7 +14,7 @@ import { AddLinkModal } from '@/components/resources/AddLinkModal';
 import { UploadFileModal } from '@/components/resources/UploadFileModal';
 import { AnalyzeResourceModal } from '@/components/resources/AnalyzeResourceModal';
 import type { LinkFormData, ResourceTab, Resource } from '@/models';
-import { checkStorageLimit, SUBSCRIPTION_LIMITS } from '@/lib/subscriptionUtils';
+import { checkStorageLimit, SUBSCRIPTION_LIMITS, checkIsPremiumUser } from '@/lib/subscriptionUtils';
 import { StorageIndicator } from './StorageIndicator';
 
 const getFileCategory = (fileName: string): string => {
@@ -49,9 +49,21 @@ export const ResourcesView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ResourceTab>('all');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedResources, setSelectedResources] = useState<Set<string>>(new Set());
+  const [isPremium, setIsPremium] = useState(false);
   const { user } = useAuthStore();
   const { currentProject, setCurrentProject } = useProjectStore();
   const queryClient = useQueryClient();
+
+  // Verificar si el usuario es premium
+  React.useEffect(() => {
+    const checkPremium = async () => {
+      if (user?.id) {
+        const premium = await checkIsPremiumUser(supabase, user.id);
+        setIsPremium(premium);
+      }
+    };
+    checkPremium();
+  }, [user, supabase]);
 
   // Fetch resources
   const { data: resources, isLoading } = useQuery({
@@ -508,6 +520,7 @@ export const ResourcesView: React.FC = () => {
                 resource={resource}
                 onDelete={(resource) => deleteResourceMutation.mutate(resource)}
                 onAnalyze={handleAnalyzeResource}
+                isPremium={isPremium}
                 selectionMode={selectionMode}
                 selected={selectedResources.has(resource.id)}
                 onSelect={toggleSelection}
