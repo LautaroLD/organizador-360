@@ -18,14 +18,25 @@ jest.mock('@/lib/gemini', () => ({
   },
 }));
 
+jest.mock('@/lib/subscriptionUtils', () => ({
+  checkIsPremiumUser: jest.fn().mockResolvedValue(true),
+}));
+
 describe('API Route: /api/ia/agent', () => {
-  let mockSupabase: Record<string, jest.Mock>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockSupabase: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
 
     // Mock Supabase chain
     mockSupabase = {
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: 'user-123' } },
+          error: null,
+        }),
+      },
       from: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
       eq: jest.fn().mockReturnThis(),
@@ -115,7 +126,7 @@ describe('API Route: /api/ia/agent', () => {
     const res = await POST(req);
     await res.json(); // Consumir promesa pero no asignar si no se usa
 
-    // If project not found
+    // If project not found devuelve 404
     expect(res.status).toBe(404);
   });
 });

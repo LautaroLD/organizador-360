@@ -54,8 +54,8 @@
 - **Búsqueda y filtrado** avanzado
 
 ### 💳 Sistema de Suscripciones
-- **Plan Free**: Hasta 10 miembros, 100MB storage
-- **Plan Pro**: Hasta 20 miembros, 5GB storage
+- **Plan Free**: Hasta 10 miembros, 100MB storage, sin acceso a IA
+- **Plan Pro**: Hasta 20 miembros, 5GB storage, acceso completo a IA
 - **Integración con Mercado Pago** para pagos
 - **Gestión de suscripciones** automática
 
@@ -365,10 +365,13 @@ const channel = supabase
 
 | Feature | Free | Pro |
 |---------|------|-----|
-| Miembros por proyecto | 10 | ∞ |
+| Miembros por proyecto | 10 | 20 |
 | Almacenamiento | 100MB | 5GB |
 | Proyectos | ∞ | ∞ |
 | Google Calendar | ✅ | ✅ |
+| **Asistente IA** | ❌ | ✅ |
+| **Generar tareas con IA** | ❌ | ✅ |
+| **Resúmenes de chat con IA** | ❌ | ✅ |
 
 ---
 

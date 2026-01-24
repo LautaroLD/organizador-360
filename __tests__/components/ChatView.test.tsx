@@ -35,16 +35,29 @@ jest.mock('@/hooks/useRealtimeMessages', () => ({
   useRealtimeMessages: () => ({}),
 }));
 
+// Mock checkIsPremiumUser
+jest.mock('@/lib/subscriptionUtils', () => ({
+  ...jest.requireActual('@/lib/subscriptionUtils'),
+  checkIsPremiumUser: jest.fn().mockResolvedValue(true),
+}));
+
 // Mock Supabase client
 jest.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
+    auth: {
+      getUser: jest.fn().mockResolvedValue({
+        data: { user: { id: 'user1' } },
+        error: null,
+      }),
+    },
     from: () => ({
       select: () => ({
         eq: () => ({
           order: () => Promise.resolve({ data: [], error: null })
         })
       })
-    })
+    }),
+    rpc: jest.fn().mockResolvedValue({ data: true, error: null }),
   }),
 }));
 
@@ -134,9 +147,15 @@ describe('ChatView Summary', () => {
       expect(elements.length).toBeGreaterThan(0);
     });
 
-    // Find the summary button by its title
+    // Wait for premium check to complete
+    await waitFor(() => {
+      const summaryBtn = screen.getByTitle('Resumir chat con IA');
+      expect(summaryBtn).toBeInTheDocument();
+      expect(summaryBtn).not.toBeDisabled();
+    });
+
+    // Find the summary button - ahora puede tener título diferente si es premium o no
     const summaryBtn = screen.getByTitle('Resumir chat con IA');
-    expect(summaryBtn).toBeInTheDocument();
 
     fireEvent.click(summaryBtn);
 
@@ -184,6 +203,12 @@ describe('ChatView Summary', () => {
     await waitFor(() => {
       const elements = screen.getAllByText('General');
       expect(elements.length).toBeGreaterThan(0);
+    });
+
+    // Wait for premium check to complete
+    await waitFor(() => {
+      const summaryBtn = screen.getByTitle('Resumir chat con IA');
+      expect(summaryBtn).not.toBeDisabled();
     });
 
     const summaryBtn = screen.getByTitle('Resumir chat con IA');

@@ -1,6 +1,7 @@
 import { ai } from '@/lib/gemini';
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { checkIsPremiumUser } from '@/lib/subscriptionUtils';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,6 +12,21 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = await createClient();
+
+    // Verificar autenticación
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Verificar que el usuario sea premium
+    const isPremium = await checkIsPremiumUser(supabase, user.id);
+    if (!isPremium) {
+      return NextResponse.json(
+        { error: 'Esta función está disponible solo para usuarios Pro' },
+        { status: 403 }
+      );
+    }
 
     // 1. Obtener detalles del recurso
     const { data: resource, error } = await supabase

@@ -12,7 +12,7 @@ import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { MessageContent } from '@/components/ui/MessageContent';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
-import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check, Reply, ChevronDown, ChevronUp, FileText, Sparkles } from 'lucide-react';
+import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check, Reply, ChevronDown, ChevronUp, FileText, Sparkles, Lock } from 'lucide-react';
 import useGemini from '@/hooks/useGemini';
 import { formatTime } from '@/lib/utils';
 import clsx from 'clsx';
@@ -21,6 +21,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useNotificationStore } from '@/store/notificationStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
+import { checkIsPremiumUser } from '@/lib/subscriptionUtils';
 
 interface MessageFormData {
   content: string;
@@ -51,6 +52,18 @@ export const ChatView: React.FC = () => {
   const [summaryResult, setSummaryResult] = useState('');
   const [summaryError, setSummaryError] = useState('');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+
+  // Verificar si el usuario es premium
+  useEffect(() => {
+    const checkPremium = async () => {
+      if (user?.id) {
+        const premium = await checkIsPremiumUser(supabase, user.id);
+        setIsPremium(premium);
+      }
+    };
+    checkPremium();
+  }, [user, supabase]);
 
   const openSummaryModal = () => {
     const end = new Date();
@@ -592,14 +605,22 @@ export const ChatView: React.FC = () => {
                   </p>
                 </div>
                 {/* Summary Button */}
-                <Button
-                  variant="ghost"
-                  onClick={openSummaryModal}
-                  title="Resumir chat con IA"
-                  className="mr-2 text-[var(--text-secondary)] hover:text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/10"
-                >
-                  <Sparkles className="h-5 w-5" />
-                </Button>
+                <div className="relative group">
+                  <Button
+                    variant="ghost"
+                    onClick={openSummaryModal}
+                    disabled={!isPremium}
+                    title={!isPremium ? "Función disponible solo en Plan Pro" : "Resumir chat con IA"}
+                    className="mr-2 text-[var(--text-secondary)] hover:text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/10"
+                  >
+                    {!isPremium ? <Lock className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
+                  </Button>
+                  {!isPremium && (
+                    <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
+                      <p>Función disponible solo en Plan Pro</p>
+                    </div>
+                  )}
+                </div>
 
                 {/* Notification Toggle */}
                 {isSupported && (

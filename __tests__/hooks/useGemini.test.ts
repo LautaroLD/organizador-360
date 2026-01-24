@@ -27,6 +27,11 @@ import useGemini from '@/hooks/useGemini';
 describe('useGemini', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Mock fetch para devolver respuestas exitosas por defecto
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ description: 'Test description', checklist: [] }),
+    } as Response);
   });
 
   describe('generateTaskDescription', () => {
@@ -39,6 +44,7 @@ describe('useGemini', () => {
       };
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve(mockResponse),
       });
 
@@ -80,6 +86,7 @@ describe('useGemini', () => {
       };
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve(mockResponse),
       });
 
@@ -132,6 +139,7 @@ describe('useGemini', () => {
       };
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve(mockResponse),
       });
 
@@ -164,6 +172,7 @@ describe('useGemini', () => {
       };
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve(mockResponse),
       });
 

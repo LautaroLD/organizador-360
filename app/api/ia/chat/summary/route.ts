@@ -1,8 +1,27 @@
 import { ai } from '@/lib/gemini';
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { checkIsPremiumUser } from '@/lib/subscriptionUtils';
 
 export async function POST(req: NextRequest) {
   try {
+    // Verificar que el usuario esté autenticado
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    }
+
+    // Verificar que el usuario sea premium
+    const isPremium = await checkIsPremiumUser(supabase, user.id);
+    if (!isPremium) {
+      return NextResponse.json(
+        { error: 'Esta función está disponible solo para usuarios Pro' },
+        { status: 403 }
+      );
+    }
+
     const { messages, startDate, endDate, channelName } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
