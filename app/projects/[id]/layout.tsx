@@ -46,7 +46,7 @@ export default function ProjectLayout({
           .eq('id', projectId)
           .single();
 
-        if (projectError || !projectData) {
+        if (projectError || !projectData || !projectData.enabled) {
           router.push('/dashboard');
           return;
         }
@@ -78,7 +78,10 @@ export default function ProjectLayout({
   if (!currentProject) {
     return null;
   }
-
+  if (!currentProject.enabled) {
+    router.push('/dashboard');
+    return null;
+  }
   return (
     <div className="min-h-dvh bg-[var(--bg-primary)] flex flex-col">
       <Sidebar />
