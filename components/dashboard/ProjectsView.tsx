@@ -288,7 +288,7 @@ export const ProjectsView: React.FC = () => {
     <div className='px-6 space-y-6'>
       {/* Alert for disabled projects */}
       {!isPremium && disabledProjectsCount > 0 && (
-        <div className=' bg-[var(--accent-warning)]/10 border border-[var(--accent-warning)] rounded-lg p-4'>
+        <div className=' bg-[var(--bg-secondary)] border border-[var(--accent-warning)] rounded-lg p-4'>
           <div className='flex items-start gap-3'>
             <Lock className='h-5 w-5 text-[var(--accent-warning)]  flex-shrink-0 mt-0.5' />
             <div className='flex-1'>
@@ -328,7 +328,7 @@ export const ProjectsView: React.FC = () => {
           {projects.map((project) => (
             <Card
               key={project.id}
-              className={`${!project.enabled ? 'cursor-not-allowed opacity-80' : 'cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] group'}`}
+              className={`${!project.enabled ? 'cursor-not-allowed opacity-80 border-0' : 'cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] group border-[var(--accent-primary)]'} `}
               onClick={() => project.enabled && selectProject(project.id)}
             >
               <CardHeader>
