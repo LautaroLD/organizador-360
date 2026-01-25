@@ -46,7 +46,7 @@ export default async function DashboardPage() {
         subtitle={subtitleText}
       />
       {!isPro && (
-        <div className="m-6 p-2 bg-[var(--accent-warning)]/10 border border-[var(--accent-warning)] rounded-md">
+        <div className="m-6 p-2 bg-[var(--bg-secondary)] border border-[var(--accent-warning)] rounded-md">
           <p className="text-[var(--accent-warning)] text-sm">
             Estás limitado a 3 proyectos.
             <a href="/settings/subscription" className="font-bold underline ml-1">¡Pásate a Pro!</a>
