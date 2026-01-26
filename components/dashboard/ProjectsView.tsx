@@ -155,9 +155,10 @@ export const ProjectsView: React.FC = () => {
       );
       const enabledProjects = projectsCountRes.count || 0;
 
-      // 2. LÓGICA DE NEGOCIO: Límite de 3 proyectos habilitados para usuarios gratuitos
-      if (!isPremium && enabledProjects >= 3) {
-        throw new Error('Has alcanzado el límite de 3 proyectos habilitados. Actualiza a Pro para crear proyectos ilimitados.');
+      // 2. LÓGICA DE NEGOCIO: Límite de proyectos habilitados según plan
+      const maxProjects = isPremium ? SUBSCRIPTION_LIMITS.PRO.MAX_PROJECTS : SUBSCRIPTION_LIMITS.FREE.MAX_PROJECTS;
+      if (enabledProjects >= maxProjects) {
+        throw new Error(`Has alcanzado el límite de ${maxProjects} proyectos habilitados. Actualiza tu plan o desactiva proyectos para crear más.`);
       }
 
       // 3. PROCESO DE CREACIÓN (Tu código anterior corregido)
@@ -287,7 +288,7 @@ export const ProjectsView: React.FC = () => {
   return (
     <div className='space-y-6'>
       {/* Alert for disabled projects */}
-      {!isPremium && disabledProjectsCount > 0 && (
+      {disabledProjectsCount > 0 && (
         <div className=' bg-[var(--bg-secondary)] border border-[var(--accent-warning)] rounded-lg p-4'>
           <div className='flex items-start gap-3'>
             <Lock className='h-5 w-5 text-[var(--accent-warning)]  flex-shrink-0 mt-0.5' />
@@ -296,7 +297,9 @@ export const ProjectsView: React.FC = () => {
                 Proyectos Deshabilitados
               </h3>
               <p className='text-sm text-[var(--accent-warning)] mb-2'>
-                Los usuarios con plan gratuito solo pueden tener 3 proyectos habilitados simultáneamente.
+                {isPremium
+                  ? `Los usuarios Pro solo pueden tener ${SUBSCRIPTION_LIMITS.PRO.MAX_PROJECTS} proyectos habilitados simultáneamente.`
+                  : `Los usuarios con plan gratuito solo pueden tener ${SUBSCRIPTION_LIMITS.FREE.MAX_PROJECTS} proyectos habilitados simultáneamente.`}
               </p>
               <div className='flex gap-2 flex-wrap'>
                 <p className='text-xs text-[var(--accent-warning)]  self-center'>

@@ -7,11 +7,13 @@ import { SupabaseClient } from '@supabase/supabase-js';
 
 export const SUBSCRIPTION_LIMITS = {
   FREE: {
+    MAX_PROJECTS: 3,
     MAX_MEMBERS_PER_PROJECT: 10,
     MAX_STORAGE_BYTES: 100 * 1024 * 1024, // 100 MB
     AI_FEATURES_ENABLED: false, // Sin acceso a funciones de IA
   },
   PRO: {
+    MAX_PROJECTS: 10,
     MAX_MEMBERS_PER_PROJECT: 20,
     MAX_STORAGE_BYTES: 5 * 1024 * 1024 * 1024, // 5 GB
     AI_FEATURES_ENABLED: true, // Acceso completo a IA
