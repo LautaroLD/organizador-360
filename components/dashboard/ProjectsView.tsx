@@ -285,7 +285,7 @@ export const ProjectsView: React.FC = () => {
   }
 
   return (
-    <div className='px-6 space-y-6'>
+    <div className='space-y-6'>
       {/* Alert for disabled projects */}
       {!isPremium && disabledProjectsCount > 0 && (
         <div className=' bg-[var(--bg-secondary)] border border-[var(--accent-warning)] rounded-lg p-4'>
