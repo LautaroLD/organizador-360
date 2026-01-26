@@ -185,7 +185,7 @@ export const SubscriptionView: React.FC = () => {
       icon: <Star className='h-8 w-8' />,
       popular: true,
       features: [
-        'Proyectos ilimitados',
+        'Hasta 10 proyectos',
         'Canales y chat ilimitados',
         'Hasta 5 GB de recursos',
         'Hasta 20 miembros por proyecto',

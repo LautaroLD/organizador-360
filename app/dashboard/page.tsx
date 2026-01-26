@@ -45,15 +45,16 @@ export default async function DashboardPage() {
         title="Mis Proyectos"
         subtitle={subtitleText}
       />
-      {!isPro && (
-        <div className="m-6 p-2 bg-[var(--bg-secondary)] border border-[var(--accent-warning)] rounded-md">
-          <p className="text-[var(--accent-warning)] text-sm">
-            Estás limitado a 3 proyectos.
-            <a href="/settings/subscription" className="font-bold underline ml-1">¡Pásate a Pro!</a>
-          </p>
-        </div>
-      )}
-      <main>
+
+      <main className='m-6 space-y-6'>
+        {!isPro && (
+          <div className="p-2 bg-[var(--bg-secondary)] border border-[var(--accent-warning)] rounded-md">
+            <p className="text-[var(--accent-warning)] text-sm">
+              Estás limitado a 3 proyectos.
+              <a href="/settings/subscription" className="font-bold underline ml-1">¡Pásate a Pro!</a>
+            </p>
+          </div>
+        )}
         {/* Sincroniza la suscripción al volver de Stripe con session_id */}
         <SubscriptionSync />
         <InvitationsWidget />
