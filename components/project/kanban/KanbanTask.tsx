@@ -6,6 +6,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { Task } from '@/models';
 import { Card } from '@/components/ui/Card';
 import { CheckSquare, ImageIcon } from 'lucide-react';
+import clsx from 'clsx';
 
 interface KanbanTaskProps {
   task: Task;
@@ -35,7 +36,7 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, onEdit }) => {
       onClick={onEdit}
       className="cursor-pointer touch-none"
     >
-      <Card className="p-3 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)] transition-colors border border-[var(--border-color)]">
+      <Card className="p-3 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)] transition-colors border-2 border-[var(--border-color)]">
         <h4 className="font-medium text-[var(--text-primary)] mb-2 text-ellipsis overflow-hidden whitespace-nowrap w-full">{task.title}</h4>
 
         {task.tags && task.tags.length > 0 && (
@@ -55,6 +56,11 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, onEdit }) => {
         {task.description && (
           <p className="text-sm text-[var(--text-secondary)] line-clamp-2 mb-3 text-ellipsis overflow-hidden whitespace-nowrap w-full">
             {task.description}
+          </p>
+        )}
+        {task.priority && (
+          <p className={clsx("text-xs font-bold text-[var(--text-secondary)] line-clamp-2 mb-3 text-ellipsis uppercase border-2 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] w-fit", task.priority === 'alta' ? 'text-red-500' : task.priority === 'media' ? 'text-yellow-500' : 'text-green-500')}>
+            {task.priority}
           </p>
         )}
 

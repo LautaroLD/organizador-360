@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       // Tareas recientes (limitado a 100 para tener contexto suficiente)
       supabase
         .from('tasks')
-        .select('title, status, description, created_at')
+        .select('*')
         .eq('project_id', projectId)
         .order('created_at', { ascending: false })
         .limit(100),
@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
     const members = membersResult.data || [];
     const resources = resourcesResult.data || [];
     const events = eventsResult.data || [];
+console.log(tasks.map(t => `- (Titulo: ${t.title}) - (Prioridad: ${t.priority || 'Sin prioridad'}) - (Estado: ${t.status}) - (Descripcion: ${t.description || 'Sin descripción'})`).join('\n'));
 
     // 4. Construir el contexto limitado y relevante
     const contextText = `
@@ -130,21 +131,8 @@ export async function POST(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       events.map((e: any) => `- [${new Date(e.start_date).toLocaleString()} - ${new Date(e.end_date).toLocaleTimeString()}] ${e.title}: ${e.description || 'Sin descripción'}`).join('\n')}
 
-    TAREAS DEL PROYECTO (Agrupadas por estado):
-    ${(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tasksByStatus = tasks.reduce((acc: any, task: any) => {
-        const status = task.status || 'Sin estado';
-        if (!acc[status]) acc[status] = [];
-        acc[status].push(task);
-        return acc;
-      }, {});
-      
-      return Object.entries(tasksByStatus).map(([status, list]) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return `ESTADO: ${status.toUpperCase()}\n${(list as any[]).map((t: any) => `- ${t.title}`).join('\n')}`;
-      }).join('\n\n');
-    })()}
+    TAREAS DEL PROYECTO:
+    ${tasks.map(t => `* (Titulo: ${t.title}) - (Prioridad: ${t.priority || 'Sin prioridad'}) - (Estado: ${t.status}) - (Descripcion: ${t.description || 'Sin descripción'})`).join('\n')}
 
     ÚLTIMOS MENSAJES DE CHAT (Contexto de conversación):
     ${
