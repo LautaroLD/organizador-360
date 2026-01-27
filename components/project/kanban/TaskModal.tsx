@@ -280,6 +280,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       // Si estamos creando
       const createData: CreateTaskDTO = {
         ...data as CreateTaskDTO,
+        priority: data.priority?.length ? data.priority : null,
         checklist: localChecklist.length > 0 ? localChecklist.map(({ content, is_completed }) => ({ content, is_completed })) : undefined,
         images: localImages.length > 0 ? localImages.map(img => img.file) : undefined,
       };
@@ -308,6 +309,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
       const updateData: UpdateTaskDTO = {
         ...data as UpdateTaskDTO,
+        priority: data.priority?.length ? data.priority : null,
         checklistToAdd: checklistToAdd.length > 0 ? checklistToAdd : undefined,
         checklistToUpdate: checklistToUpdate.length > 0 ? checklistToUpdate : undefined,
         checklistToDelete: checklistToDelete.length > 0 ? checklistToDelete : undefined,
@@ -385,7 +387,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 {!isPremium ? <Lock size={16} /> : <Sparkles size={16} />}
               </Button>
               {!isPremium && (
-                <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
+                <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--text-secondary)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
                   <p>Función disponible solo en Plan Pro</p>
                 </div>
               )}
@@ -394,7 +396,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           <textarea
             {...register('description')}
             placeholder="Descripción detallada..."
-            className="w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] min-h-[100px]"
+            className="w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] min-h-[100px]"
           />
         </div>
 
@@ -487,21 +489,36 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             </Button>
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Estado
+            </label>
+            <select
+              {...register('status')}
+              className="w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+            >
+              <option value="todo">Por hacer</option>
+              <option value="in-progress">En progreso</option>
+              <option value="done">Completado</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Prioridad
+            </label>
 
-        <div>
-          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-            Estado
-          </label>
-          <select
-            {...register('status')}
-            className="w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
-          >
-            <option value="todo">Por hacer</option>
-            <option value="in-progress">En progreso</option>
-            <option value="done">Completado</option>
-          </select>
+            <select
+              {...register('priority')}
+              className="w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+            >
+              <option value="">No definido</option>
+              <option value="baja">Baja</option>
+              <option value="media">Media</option>
+              <option value="alta">Alta</option>
+            </select>
+          </div>
         </div>
-
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
             Tags
@@ -525,7 +542,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   }}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${isSelected
                     ? 'border-transparent text-white shadow-sm'
-                    : 'bg-transparent border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
+                    : 'bg-transparent border-[var(--text-secondary)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
                     }`}
                   style={{
                     backgroundColor: isSelected ? tag.color : 'transparent',
@@ -557,7 +574,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   <img
                     src={image.url}
                     alt={image.file_name}
-                    className="w-full h-20 object-cover rounded-md border border-[var(--border-color)] cursor-pointer hover:opacity-80 transition-opacity"
+                    className="w-full h-20 object-cover rounded-md border border-[var(--text-secondary)] cursor-pointer hover:opacity-80 transition-opacity"
                     onClick={() => setFullscreenImage(image.url)}
                   />
                   <button
@@ -583,7 +600,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   <img
                     src={image.preview}
                     alt={image.file.name}
-                    className="w-full h-20 object-cover rounded-md border border-[var(--border-color)] cursor-pointer hover:opacity-80 transition-opacity"
+                    className="w-full h-20 object-cover rounded-md border border-[var(--text-secondary)] cursor-pointer hover:opacity-80 transition-opacity"
                     onClick={() => setFullscreenImage(image.preview)}
                   />
                   <button
@@ -614,7 +631,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             variant="ghost"
             size="sm"
             onClick={() => fileInputRef.current?.click()}
-            className="w-full border border-dashed border-[var(--border-color)] hover:border-[var(--accent-primary)]"
+            className="w-full border border-dashed border-[var(--text-secondary)] hover:border-[var(--accent-primary)]"
           >
             <ImageIcon className="w-4 h-4 mr-2" />
             Agregar imagen
