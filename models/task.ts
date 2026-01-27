@@ -81,5 +81,5 @@ export interface UpdateTaskDTO {
   // Image changes
   imagesToAdd?: File[];
   imagesToDelete?: Array<{ imageId: string; imageUrl: string; }>;
-  priority: 'baja' | 'media' | 'alta' | null;
+  priority?: 'baja' | 'media' | 'alta' | null;
 }
