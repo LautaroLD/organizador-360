@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 'use client';
 
 import React, { useState } from 'react';
@@ -25,17 +25,41 @@ import {
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { Modal } from '../ui/Modal';
+import { useRouter } from 'next/navigation';
+import { Freehand } from 'next/font/google';
+import PlanCard from '../ui/PlanCard';
+import clsx from 'clsx';
 
 interface PricingPlan {
-  name: string;
-  price: number;
-  billing: string;
-  description: string;
-  features: string[];
-  icon: React.ReactNode;
-  popular?: boolean;
-  id: 'free' | 'pro';
+  reason: string;
+  status: string;
+  subscribed: number;
+  back_url: string;
+  auto_recurring: AutoRecurring;
+  collector_id: number;
+  init_point: string;
+  date_created: Date;
+  id: string;
+  last_modified: Date;
+  external_reference: string;
+  application_id: number;
 }
+
+interface AutoRecurring {
+  frequency: number;
+  currency_id: string;
+  transaction_amount: number;
+  frequency_type: string;
+  free_trial: FreeTrial;
+  billing_day: number;
+}
+
+interface FreeTrial {
+  frequency: number;
+  frequency_type: string;
+}
+
+
 
 interface MercadoPagoDetails {
   id: string;
@@ -72,7 +96,7 @@ export const SubscriptionView: React.FC = () => {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const [loadingCheckout, setLoadingCheckout] = useState(false);
-
+  const router = useRouter();
   // Fetch subscription data from local DB
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({
     queryKey: ['subscription', user?.id],
@@ -132,58 +156,27 @@ export const SubscriptionView: React.FC = () => {
       toast.error(error.message || 'Error al cancelar');
     },
   });
-
-  const handleSubscribe = async () => {
+  const handleSubscribe = async (init_point: string) => {
     setLoadingCheckout(true);
-    try {
-      const response = await fetch('/api/checkout/mercadopago', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          planId: 'pro',
-          payerEmail: user?.email
-        })
-      });
-      const result = await response.json();
-
-      if (!response.ok) throw new Error(result.error || 'Error iniciando pago');
-
-      if (result.init_point) {
-        window.location.href = result.init_point;
-      } else {
-        throw new Error('No se recibió enlace de pago');
-      }
-    } catch (err: any) {
-      console.error('Error checkout:', err);
-      toast.error(err.message || 'Error iniciando pago');
-      setLoadingCheckout(false);
-    }
+    router.push(init_point);
   };
 
-  const plans: PricingPlan[] = [
-    {
-      id: 'free',
-      name: 'Gratuito',
-      price: 0,
-      billing: 'siempre',
-      description: 'Perfecto para comenzar',
+  // Configuración dinámica de features e íconos por tipo de plan
+  const planFeatures: Record<string, { icon: React.ReactNode; description: string; features: string[]; }> = {
+    free: {
       icon: <Zap className='h-8 w-8' />,
+      description: 'Perfecto para comenzar',
       features: [
         'Hasta 3 proyectos',
         'Canales y chat ilimitados',
         'Hasta 100 MB de recursos',
         'Hasta 10 miembros por proyecto',
         'Soporte por email',
-      ],
+      ]
     },
-    {
-      id: 'pro',
-      name: 'Pro',
-      price: 2000,
-      billing: '/mes',
-      description: 'Para equipos en crecimiento',
+    pro: {
       icon: <Star className='h-8 w-8' />,
-      popular: true,
+      description: 'Para usuarios avanzados',
       features: [
         'Hasta 10 proyectos',
         'Canales y chat ilimitados',
@@ -196,9 +189,29 @@ export const SubscriptionView: React.FC = () => {
         'Soporte prioritario',
         'Integraciones avanzadas',
         'Exportar datos',
-      ],
+      ]
     },
-  ];
+  };
+
+  // Asignar tipo de plan (free/pro/otro) según el nombre o id
+  function getPlanType(plan: PricingPlan) {
+    if (plan.reason === 'free' || plan.reason.toLowerCase().includes('free')) return 'free';
+    // Puedes mejorar esta lógica para detectar otros tipos de planes
+    return 'pro';
+  }
+  const { data: mercadopagoPlans, isLoading: mercadopagoPlansLoading } = useQuery({
+    queryKey: ['mercadopago-plans'],
+    queryFn: async () => {
+      const response = await fetch('/api/mercadopago/plan');
+      if (!response.ok) throw new Error('Error fetching plans');
+      const data = await response.json();
+      console.log(data);
+      return data as PricingPlan[];
+    }
+  });
+  console.log(mercadopagoPlans);
+
+  const plans: PricingPlan[] | undefined = !mercadopagoPlansLoading ? mercadopagoPlans : [];
 
   // Determinar si es Pro: Status activo O (status cancelado Y fecha fin futura)
   const isCanceled = subscription?.status === 'canceled' || subscription?.status === 'cancelled';
@@ -221,7 +234,8 @@ export const SubscriptionView: React.FC = () => {
       </div>
     );
   }
-
+  const pro_mensual_id = process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '';
+  const pro_anual_id = process.env.NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID ?? '';
   return (
     <div className='p-6 max-w-6xl mx-auto'>
       {/* Encabezado */}
@@ -348,52 +362,35 @@ export const SubscriptionView: React.FC = () => {
       )}
 
       {/* Grid de planes */}
-      <div className='grid md:grid-cols-2 gap-6 mb-8'>
-        {plans.map((plan) => (
-          <div key={plan.id} className='relative'>
-            {plan.popular && (
-              <div className='absolute -top-4 left-1/2 transform -translate-x-1/2'>
-                <span className='bg-[var(--accent-primary)] text-white text-xs font-bold px-4 py-1 rounded-full'>
-                  MÁS POPULAR
-                </span>
-              </div>
-            )}
-
-            <Card
-              className={`h-full flex flex-col ${plan.popular
-                ? 'border-[var(--accent-primary)]/50 bg-[var(--accent-primary)]/5'
-                : ''
-                }`}
-            >
+      <div className='gap-6 mb-8'>
+        {mercadopagoPlansLoading && (
+          <div className='col-span-2 flex items-center justify-center p-12'>
+            <div className='text-center'>
+              <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent-primary)] mx-auto mb-4'></div>
+              <p className='text-[var(--text-secondary)]'>Cargando planes...</p>
+            </div>
+          </div>
+        )}
+        <div className='flex overflow-auto gap-6 mb-8 p-4'>
+          <div className='relative w-80 flex-shrink-0'>
+            <Card className='h-full flex flex-col border-[var(--accent-primary)]'>
               <CardHeader>
-                <div className='flex items-start justify-between mb-4'>
-                  <div className='text-[var(--accent-primary)]'>{plan.icon}</div>
-                  {isPro && plan.id === 'pro' && (
-                    <div className={`text-xs font-bold px-2 py-1 rounded ${isCanceled ? 'bg-[var(--accent-danger)]/20 text-[var(--accent-danger)]' : 'bg-green-500/20 text-green-700'}`}>
-                      {isCanceled ? 'CANCELADO (ACTIVO)' : 'ACTUAL'}
-                    </div>
-                  )}
+                <div className='flex items-start justify-between mb-2'>
+                  <div className='text-[var(--accent-primary)] mx-auto flex gap-2'>{planFeatures.free.icon}</div>
                 </div>
-
-                <CardTitle className='text-2xl'>{plan.name}</CardTitle>
-                <CardDescription>{plan.description}</CardDescription>
-
-                <div className='mt-4'>
+                <CardTitle className='text-2xl uppercase'>FREE</CardTitle>
+                <CardDescription>{planFeatures.free.description}</CardDescription>
+                <div className='mt-2'>
                   <div className='flex items-baseline gap-1'>
-                    <span className='text-4xl font-bold text-[var(--text-primary)]'>
-                      ${plan.price}
-                    </span>
-                    <span className='text-[var(--text-secondary)]'>
-                      {plan.billing}
+                    <span className='text-2xl font-bold text-[var(--text-primary)]'>
+                      $0
                     </span>
                   </div>
                 </div>
               </CardHeader>
-
               <CardContent className='flex-1 flex flex-col'>
-                {/* Features */}
                 <div className='space-y-3 mb-6 flex-1'>
-                  {plan.features.map((feature) => (
+                  {planFeatures.free.features.map((feature) => (
                     <div
                       key={feature}
                       className='flex items-start gap-3 text-sm text-[var(--text-secondary)]'
@@ -403,33 +400,93 @@ export const SubscriptionView: React.FC = () => {
                     </div>
                   ))}
                 </div>
-
-                {/* Button */}
-                <Button
-                  className='w-full'
-                  disabled={
-                    (isPro && plan.id === 'pro' && !isCanceled) || loadingCheckout
-                  }
-                  onClick={() => {
-                    if (plan.id === 'pro') {
-                      handleSubscribe();
-                    }
-                  }}
-                  variant={plan.popular ? 'primary' : 'secondary'}
-                >
-                  {loadingCheckout && plan.id === 'pro' ? 'Redirigiendo...' :
-                    isPro && plan.id === 'pro' ? (
-                      isCanceled ? 'Reactivar Suscripción' : 'Plan actual'
-                    ) : plan.id === 'free' ? (
-                      'Ya estás aquí'
-                    ) : (
-                      'Actualizar a Pro'
-                    )}
-                </Button>
               </CardContent>
             </Card>
           </div>
-        ))}
+          <div className='space-y-2'>
+            <div className='bg-[var(--bg-secondary)] rounded-full flex items-center'>
+              <span className={clsx('bg-[var(--accent-primary)] w-full rounded-full text-center text-white')}>MENSUAL</span>
+              <span className={clsx('bg-[var(--accent-secondary)] w-full rounded-full text-center text-white')}>ANUAL</span>
+            </div>
+            <PlanCard planId={pro_mensual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === pro_mensual_id} isCanceled={subscription?.cancel_at_period_end || false} />
+            <PlanCard planId={pro_anual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === pro_anual_id} isCanceled={subscription?.cancel_at_period_end || false} />
+          </div>
+          {/* {plans?.map((plan) => {
+            const type = getPlanType(plan);
+            const features = planFeatures[type]?.features || [];
+            const icon = planFeatures[type]?.icon || <Star className='h-8 w-8' />;
+            const description = planFeatures[type]?.description || '';
+            // Determinar si este plan es el actual
+            const isCurrent = isPro && subscription && plan.reason !== 'free' && (mpDetails?.reason === plan.reason || subscription.mercadopago_plan_id === plan.reason);
+            const isFree = plan.reason === 'free';
+            return (
+              <div key={plan.reason} className='relative w-80 flex-shrink-0'>
+                <Card className='h-full flex flex-col border-[var(--accent-primary)]'>
+                  <CardHeader>
+                    <div className='flex items-start justify-between mb-2'>
+                      <div className='text-[var(--accent-primary)] mx-auto flex gap-2'>{plan.external_reference === 'PRO_ANUAL' ? <>{icon} {icon}</> : icon}</div>
+                      {isCurrent && (
+                        <div className={`text-xs font-bold px-2 py-1 rounded ${isCanceled ? 'bg-[var(--accent-danger)]/20 text-[var(--accent-danger)]' : 'bg-green-500/20 text-green-700'}`}>
+                          {isCanceled ? 'CANCELADO (ACTIVO)' : 'ACTUAL'}
+                        </div>
+                      )}
+                    </div>
+                    <CardTitle className='text-2xl uppercase'>{plan.reason}</CardTitle>
+                    <CardDescription>{description}</CardDescription>
+                    {plan.auto_recurring.free_trial &&
+                      <div className='w-full mt-2'>
+                        <span className='border text-sm border-[var(--accent-success)] bg-[var(--accent-success)]/10 w-full rounded-2xl py-2 inline-block text-center text-[var(--accent-success)]  font-medium uppercase'>
+                          {`${plan.auto_recurring.free_trial.frequency} días`} de prueba gratuita
+                        </span>
+                      </div>
+                    }
+                    <div className='mt-2'>
+                      <div className='flex items-baseline gap-1'>
+                        <span className='text-2xl font-bold text-[var(--text-primary)]'>
+                          ${plan.auto_recurring.transaction_amount.toLocaleString()}
+                        </span>
+                        <span className='text-[var(--text-secondary)]'>
+                          {plan.reason !== 'free' && (plan.auto_recurring.frequency_type === 'months' && plan.auto_recurring.frequency === 12 ? '/anual' : '/mensual')}
+                        </span>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className='flex-1 flex flex-col'>
+                    <div className='space-y-3 mb-6 flex-1'>
+                      {features.map((feature) => (
+                        <div
+                          key={feature}
+                          className='flex items-start gap-3 text-sm text-[var(--text-secondary)]'
+                        >
+                          <Check className='h-5 w-5 text-green-500 flex-shrink-0 mt-0.5' />
+                          <span>{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <Button
+                      className='w-full'
+                      disabled={
+                        (isCurrent && !isCanceled) || loadingCheckout || isFree
+                      }
+                      onClick={() => {
+                        if (!isFree) handleSubscribe(plan.init_point);
+                      }}
+                      variant={isCurrent ? 'primary' : 'secondary'}
+                    >
+                      {isFree
+                        ? 'Ya estás aquí'
+                        : loadingCheckout && isCurrent
+                          ? 'Redirigiendo...'
+                          : isCurrent
+                            ? (isCanceled ? 'Reactivar Suscripción' : 'Plan actual')
+                            : 'Actualizar'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })} */}
+        </div>
       </div>
 
       {/* FAQ / Información adicional */}
@@ -514,6 +571,6 @@ export const SubscriptionView: React.FC = () => {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </div >
   );
 };
