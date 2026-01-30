@@ -1,5 +1,5 @@
 // Polyfill global fetch para entorno de test Node.js
-import fetch from 'node-fetch';
+import fetch from 'cross-fetch';
 if (!global.fetch) {
   global.fetch = fetch as any;
 }
