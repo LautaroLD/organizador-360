@@ -119,13 +119,15 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
 
   return (
     <div className='relative min-w-96 max-w-96 h-full bg-[var(--bg-secondary)] border-[var(--accent-primary)] border rounded-lg'>
-      {
-        !isLoading && error && (
-          <div className='absolute top-2 right-2 bg-[var(--accent-danger)]/20 text-[var(--accent-danger)] text-xs px-2 py-1 rounded z-10'>
-            Error cargando datos del plan
+      {/* Error visual si no hay plan */}
+      {!isLoading && (!plan || error) && (
+        <div className='flex items-center justify-center h-full p-8'>
+          <div className='text-center w-full'>
+            <div className='text-[var(--accent-danger)] font-bold mb-2'>No se pudo cargar el plan</div>
+            <div className='text-[var(--text-secondary)] text-xs'>Intenta recargar la página o contacta soporte.</div>
           </div>
-        )
-      }
+        </div>
+      )}
       {isLoading && (
         <div className='flex items-center justify-center h-full p-12'>
           <div className='text-center'>
@@ -136,7 +138,7 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
           </div>
         </div>
       )}
-      {!isLoading && !error && (
+      {!isLoading && plan && !error && (
         <Card className='h-full flex flex-col border-0'>
           <CardHeader>
             <div className='flex items-start justify-between mb-2'>
