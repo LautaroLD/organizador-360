@@ -50,6 +50,9 @@ const config = {
   },
 
   // Transform configuration
+  transform: {
+    '^.+\\.(ts|tsx)$': 'ts-jest',
+  },
   transformIgnorePatterns: [
     '/node_modules/',
     '^.+\\.module\\.(css|sass|scss)$',
