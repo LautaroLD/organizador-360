@@ -1,3 +1,8 @@
+// Polyfill global fetch para entorno de test Node.js
+import fetch from 'node-fetch';
+if (!global.fetch) {
+  global.fetch = fetch as any;
+}
 // Learn more: https://github.com/testing-library/jest-dom
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import '@testing-library/jest-dom';

@@ -147,7 +147,9 @@ export async function GET() {
       });
 
       } catch (mpError) {
-      console.error('Error obteniendo suscripción de MP:', mpError);
+      if (process.env.NODE_ENV !== 'test') {
+        console.error('Error obteniendo suscripción de MP:', mpError);
+      }
       
       // Devolver datos de la BD si no podemos obtener de MP
       
@@ -172,7 +174,9 @@ export async function GET() {
     }
 
   } catch (error: unknown) {
-    console.error('Error obteniendo detalles de suscripción:', error);
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Error obteniendo detalles de suscripción:', error);
+    }
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
     
     return NextResponse.json(
