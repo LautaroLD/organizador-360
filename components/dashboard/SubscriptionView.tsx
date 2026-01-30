@@ -1,6 +1,4 @@
-
 'use client';
-
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
@@ -24,26 +22,9 @@ import {
   Lock,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
-import { Modal } from '../ui/Modal';
-import { useRouter } from 'next/navigation';
-import { Freehand } from 'next/font/google';
 import PlanCard from '../ui/PlanCard';
 import clsx from 'clsx';
 
-interface PricingPlan {
-  reason: string;
-  status: string;
-  subscribed: number;
-  back_url: string;
-  auto_recurring: AutoRecurring;
-  collector_id: number;
-  init_point: string;
-  date_created: Date;
-  id: string;
-  last_modified: Date;
-  external_reference: string;
-  application_id: number;
-}
 
 interface AutoRecurring {
   frequency: number;
@@ -95,8 +76,9 @@ export const SubscriptionView: React.FC = () => {
   const supabase = createClient();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
-  const [loadingCheckout, setLoadingCheckout] = useState(false);
-  const router = useRouter();
+  const [tabPro, setTabPro] = useState<'mensual' | 'anual'>('mensual');
+  const [tabStarter, setTabStarter] = useState<'mensual' | 'anual'>('mensual');
+  const [tabEnterprise, setTabEnterprise] = useState<'mensual' | 'anual'>('mensual');
   // Fetch subscription data from local DB
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({
     queryKey: ['subscription', user?.id],
@@ -116,7 +98,7 @@ export const SubscriptionView: React.FC = () => {
   });
 
   // Fetch detailed subscription info from MercadoPago
-  const { data: mpData } = useQuery({
+  const { data: mpData, isLoading: mpLoading } = useQuery({
     queryKey: ['subscription-details', user?.id],
     queryFn: async () => {
       const response = await fetch('/api/mercadopago/subscription-details');
@@ -156,10 +138,6 @@ export const SubscriptionView: React.FC = () => {
       toast.error(error.message || 'Error al cancelar');
     },
   });
-  const handleSubscribe = async (init_point: string) => {
-    setLoadingCheckout(true);
-    router.push(init_point);
-  };
 
   // Configuración dinámica de features e íconos por tipo de plan
   const planFeatures: Record<string, { icon: React.ReactNode; description: string; features: string[]; }> = {
@@ -174,44 +152,7 @@ export const SubscriptionView: React.FC = () => {
         'Soporte por email',
       ]
     },
-    pro: {
-      icon: <Star className='h-8 w-8' />,
-      description: 'Para usuarios avanzados',
-      features: [
-        'Hasta 10 proyectos',
-        'Canales y chat ilimitados',
-        'Hasta 5 GB de recursos',
-        'Hasta 20 miembros por proyecto',
-        'Asistente IA con Gemini',
-        'Generar tareas con IA',
-        'Resúmenes de chat con IA',
-        'Almacenamiento prioritario',
-        'Soporte prioritario',
-        'Integraciones avanzadas',
-        'Exportar datos',
-      ]
-    },
   };
-
-  // Asignar tipo de plan (free/pro/otro) según el nombre o id
-  function getPlanType(plan: PricingPlan) {
-    if (plan.reason === 'free' || plan.reason.toLowerCase().includes('free')) return 'free';
-    // Puedes mejorar esta lógica para detectar otros tipos de planes
-    return 'pro';
-  }
-  const { data: mercadopagoPlans, isLoading: mercadopagoPlansLoading } = useQuery({
-    queryKey: ['mercadopago-plans'],
-    queryFn: async () => {
-      const response = await fetch('/api/mercadopago/plan');
-      if (!response.ok) throw new Error('Error fetching plans');
-      const data = await response.json();
-      console.log(data);
-      return data as PricingPlan[];
-    }
-  });
-  console.log(mercadopagoPlans);
-
-  const plans: PricingPlan[] | undefined = !mercadopagoPlansLoading ? mercadopagoPlans : [];
 
   // Determinar si es Pro: Status activo O (status cancelado Y fecha fin futura)
   const isCanceled = subscription?.status === 'canceled' || subscription?.status === 'cancelled';
@@ -222,7 +163,7 @@ export const SubscriptionView: React.FC = () => {
   // Lógica mejorada: Usar flag del servidor si está disponible, sino fallback a local
   const isPro = mpData?.isPro ?? ((subscription?.status === 'active' || subscription?.status === 'authorized' || subscription?.status === 'trialing') || (isCanceled && hasActivePeriod));
 
-  if (subscriptionLoading) {
+  if (subscriptionLoading || mpLoading) {
     return (
       <div className='flex items-center justify-center h-full p-12'>
         <div className='text-center'>
@@ -236,8 +177,12 @@ export const SubscriptionView: React.FC = () => {
   }
   const pro_mensual_id = process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '';
   const pro_anual_id = process.env.NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID ?? '';
+  const starter_mensual_id = process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '';
+  const starter_anual_id = process.env.NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID ?? '';
+  const enterprise_mensual_id = process.env.NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID ?? '';
+  const enterprise_anual_id = process.env.NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID ?? '';
   return (
-    <div className='p-6 max-w-6xl mx-auto'>
+    <div className='p-6  mx-auto'>
       {/* Encabezado */}
       <div className='mb-8'>
         <h1 className='text-3xl font-bold text-[var(--text-primary)] mb-2'>
@@ -362,24 +307,16 @@ export const SubscriptionView: React.FC = () => {
       )}
 
       {/* Grid de planes */}
-      <div className='gap-6 mb-8'>
-        {mercadopagoPlansLoading && (
-          <div className='col-span-2 flex items-center justify-center p-12'>
-            <div className='text-center'>
-              <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent-primary)] mx-auto mb-4'></div>
-              <p className='text-[var(--text-secondary)]'>Cargando planes...</p>
-            </div>
-          </div>
-        )}
-        <div className='flex overflow-auto gap-6 mb-8 p-4'>
-          <div className='relative w-80 flex-shrink-0'>
+      <div className=''>
+        <div className='flex gap-6 overflow-x-auto  pb-2 pt-14'>
+          <div className='min-w-100 max-w-100 relative'>
             <Card className='h-full flex flex-col border-[var(--accent-primary)]'>
               <CardHeader>
                 <div className='flex items-start justify-between mb-2'>
                   <div className='text-[var(--accent-primary)] mx-auto flex gap-2'>{planFeatures.free.icon}</div>
                 </div>
-                <CardTitle className='text-2xl uppercase'>FREE</CardTitle>
-                <CardDescription>{planFeatures.free.description}</CardDescription>
+                <CardTitle className='text-2xl uppercase text-center' >FREE</CardTitle>
+                <CardDescription className='text-center'>{planFeatures.free.description}</CardDescription>
                 <div className='mt-2'>
                   <div className='flex items-baseline gap-1'>
                     <span className='text-2xl font-bold text-[var(--text-primary)]'>
@@ -393,9 +330,9 @@ export const SubscriptionView: React.FC = () => {
                   {planFeatures.free.features.map((feature) => (
                     <div
                       key={feature}
-                      className='flex items-start gap-3 text-sm text-[var(--text-secondary)]'
+                      className='flex items-start gap-3 text-xs text-[var(--text-secondary)]'
                     >
-                      <Check className='h-5 w-5 text-green-500 flex-shrink-0 mt-0.5' />
+                      <Check className='h-4 w-4 text-green-500 flex-shrink-0 mt-0.5' />
                       <span>{feature}</span>
                     </div>
                   ))}
@@ -403,94 +340,53 @@ export const SubscriptionView: React.FC = () => {
               </CardContent>
             </Card>
           </div>
-          <div className='space-y-2'>
-            <div className='bg-[var(--bg-secondary)] rounded-full flex items-center'>
-              <span className={clsx('bg-[var(--accent-primary)] w-full rounded-full text-center text-white')}>MENSUAL</span>
-              <span className={clsx('bg-[var(--accent-secondary)] w-full rounded-full text-center text-white')}>ANUAL</span>
+          { /* Starter Plan Cards */}
+          <div className='space-y-2 relative'>
+            <div className='bg-[var(--bg-secondary)] rounded-full flex items-center absolute -top-12 z-10 w-full'>
+              <span onClick={() => setTabStarter('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabStarter === 'mensual' ? 'bg-[var(--accent-primary)] text-white' : '')}>MENSUAL</span>
+              <span onClick={() => setTabStarter('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabStarter === 'anual' ? 'bg-[var(--accent-primary)] text-white' : '')}>ANUAL</span>
             </div>
-            <PlanCard planId={pro_mensual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === pro_mensual_id} isCanceled={subscription?.cancel_at_period_end || false} />
-            <PlanCard planId={pro_anual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === pro_anual_id} isCanceled={subscription?.cancel_at_period_end || false} />
+            {
+              tabStarter === 'mensual' &&
+              <PlanCard planId={starter_mensual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === starter_mensual_id} isCanceled={subscription?.cancel_at_period_end || false} plan_reference="STARTER_MENSUAL" />
+            }
+            {tabStarter === 'anual' &&
+              <PlanCard planId={starter_anual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === starter_anual_id} isCanceled={subscription?.cancel_at_period_end || false} plan_reference="STARTER_ANUAL" />
+            }
           </div>
-          {/* {plans?.map((plan) => {
-            const type = getPlanType(plan);
-            const features = planFeatures[type]?.features || [];
-            const icon = planFeatures[type]?.icon || <Star className='h-8 w-8' />;
-            const description = planFeatures[type]?.description || '';
-            // Determinar si este plan es el actual
-            const isCurrent = isPro && subscription && plan.reason !== 'free' && (mpDetails?.reason === plan.reason || subscription.mercadopago_plan_id === plan.reason);
-            const isFree = plan.reason === 'free';
-            return (
-              <div key={plan.reason} className='relative w-80 flex-shrink-0'>
-                <Card className='h-full flex flex-col border-[var(--accent-primary)]'>
-                  <CardHeader>
-                    <div className='flex items-start justify-between mb-2'>
-                      <div className='text-[var(--accent-primary)] mx-auto flex gap-2'>{plan.external_reference === 'PRO_ANUAL' ? <>{icon} {icon}</> : icon}</div>
-                      {isCurrent && (
-                        <div className={`text-xs font-bold px-2 py-1 rounded ${isCanceled ? 'bg-[var(--accent-danger)]/20 text-[var(--accent-danger)]' : 'bg-green-500/20 text-green-700'}`}>
-                          {isCanceled ? 'CANCELADO (ACTIVO)' : 'ACTUAL'}
-                        </div>
-                      )}
-                    </div>
-                    <CardTitle className='text-2xl uppercase'>{plan.reason}</CardTitle>
-                    <CardDescription>{description}</CardDescription>
-                    {plan.auto_recurring.free_trial &&
-                      <div className='w-full mt-2'>
-                        <span className='border text-sm border-[var(--accent-success)] bg-[var(--accent-success)]/10 w-full rounded-2xl py-2 inline-block text-center text-[var(--accent-success)]  font-medium uppercase'>
-                          {`${plan.auto_recurring.free_trial.frequency} días`} de prueba gratuita
-                        </span>
-                      </div>
-                    }
-                    <div className='mt-2'>
-                      <div className='flex items-baseline gap-1'>
-                        <span className='text-2xl font-bold text-[var(--text-primary)]'>
-                          ${plan.auto_recurring.transaction_amount.toLocaleString()}
-                        </span>
-                        <span className='text-[var(--text-secondary)]'>
-                          {plan.reason !== 'free' && (plan.auto_recurring.frequency_type === 'months' && plan.auto_recurring.frequency === 12 ? '/anual' : '/mensual')}
-                        </span>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className='flex-1 flex flex-col'>
-                    <div className='space-y-3 mb-6 flex-1'>
-                      {features.map((feature) => (
-                        <div
-                          key={feature}
-                          className='flex items-start gap-3 text-sm text-[var(--text-secondary)]'
-                        >
-                          <Check className='h-5 w-5 text-green-500 flex-shrink-0 mt-0.5' />
-                          <span>{feature}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <Button
-                      className='w-full'
-                      disabled={
-                        (isCurrent && !isCanceled) || loadingCheckout || isFree
-                      }
-                      onClick={() => {
-                        if (!isFree) handleSubscribe(plan.init_point);
-                      }}
-                      variant={isCurrent ? 'primary' : 'secondary'}
-                    >
-                      {isFree
-                        ? 'Ya estás aquí'
-                        : loadingCheckout && isCurrent
-                          ? 'Redirigiendo...'
-                          : isCurrent
-                            ? (isCanceled ? 'Reactivar Suscripción' : 'Plan actual')
-                            : 'Actualizar'}
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-            );
-          })} */}
+          { /* Pro Plan Cards */}
+          <div className='space-y-2 relative'>
+            <div className='bg-[var(--bg-secondary)] rounded-full flex items-center absolute -top-12 z-10 w-full'>
+              <span onClick={() => setTabPro('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabPro === 'mensual' ? 'bg-[var(--accent-primary)] text-white' : '')}>MENSUAL</span>
+              <span onClick={() => setTabPro('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabPro === 'anual' ? 'bg-[var(--accent-primary)] text-white' : '')}>ANUAL</span>
+            </div>
+            {
+              tabPro === 'mensual' &&
+              <PlanCard planId={pro_mensual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === pro_mensual_id} isCanceled={subscription?.cancel_at_period_end || false} plan_reference="PRO_MENSUAL" />
+            }
+            {tabPro === 'anual' &&
+              <PlanCard planId={pro_anual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === pro_anual_id} isCanceled={subscription?.cancel_at_period_end || false} plan_reference="PRO_ANUAL" />
+            }
+          </div>
+          { /* Enterprise Plan Cards */}
+          <div className='space-y-2 relative'>
+            <div className='bg-[var(--bg-secondary)] rounded-full flex items-center absolute -top-12 z-10 w-full'>
+              <span onClick={() => setTabEnterprise('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabEnterprise === 'mensual' ? 'bg-[var(--accent-primary)] text-white' : '')}>MENSUAL</span>
+              <span onClick={() => setTabEnterprise('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabEnterprise === 'anual' ? 'bg-[var(--accent-primary)] text-white' : '')}>ANUAL</span>
+            </div>
+            {
+              tabEnterprise === 'mensual' &&
+              <PlanCard planId={enterprise_mensual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === enterprise_mensual_id} isCanceled={subscription?.cancel_at_period_end || false} plan_reference="ENTERPRISE_MENSUAL" />
+            }
+            {tabEnterprise === 'anual' &&
+              <PlanCard planId={enterprise_anual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === enterprise_anual_id} isCanceled={subscription?.cancel_at_period_end || false} plan_reference="ENTERPRISE_ANUAL" />
+            }
+          </div>
         </div>
       </div>
 
       {/* FAQ / Información adicional */}
-      <div className='grid md:grid-cols-2 gap-6'>
+      <div className='grid md:grid-cols-2 gap-6 md:px-10 py-5'>
         <Card>
           <CardHeader>
             <CardTitle className='flex items-center gap-2'>
