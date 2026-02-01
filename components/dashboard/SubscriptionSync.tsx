@@ -9,8 +9,10 @@ export default function SubscriptionSync() {
 
   useEffect(() => {
     const preapprovalId = searchParams.get('preapproval_id');
+    const syncKey = `mp_sync_${preapprovalId ?? 'fallback'}`;
 
-    if (!preapprovalId || syncedRef.current) return;
+    if (syncedRef.current) return;
+    if (typeof window !== 'undefined' && sessionStorage.getItem(syncKey)) return;
 
     async function sync() {
       try {
@@ -21,17 +23,40 @@ export default function SubscriptionSync() {
 
           if (data.success) {
             syncedRef.current = true;
+            sessionStorage.setItem(syncKey, '1');
             // Recargar la página completamente sin los parámetros para mostrar el nuevo estado
             window.location.href = window.location.pathname;
             return;
           } else {
             console.error('[SYNC] Error en la respuesta:', data.error);
           }
+        } else {
+          // Fallback: si ya hay suscripción en MP pero la BD no refleja el plan
+          const detailsRes = await fetch('/api/mercadopago/subscription-details');
+          if (!detailsRes.ok) return;
+          const details = await detailsRes.json();
+
+          if (details?.hasSubscription && details?.internalPlanId && details.internalPlanId !== 'free') {
+            const mpId = details?.details?.id as string | undefined;
+            if (mpId) {
+              const syncRes = await fetch(`/api/mercadopago/sync-preapproval?preapproval_id=${encodeURIComponent(mpId)}`);
+              const syncData = await syncRes.json();
+              if (syncData.success) {
+                syncedRef.current = true;
+                sessionStorage.setItem(syncKey, '1');
+                window.location.reload();
+                return;
+              }
+            }
+          }
         }
       } catch (error) {
         console.error('[SYNC] Error:', error);
       } finally {
         syncedRef.current = true;
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(syncKey, '1');
+        }
         // Limpia los query params sin recargar (fallback si no se recargó antes)
         const url = new URL(window.location.href);
         url.searchParams.delete('session_id');

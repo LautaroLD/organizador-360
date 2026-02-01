@@ -11,6 +11,7 @@ export interface Project {
   created_at: string;
   updated_at: string;
   is_premium?: boolean;
+  plan_tier?: 'free' | 'starter' | 'pro' | 'enterprise';
   userRole?: string;
   storage_used?: number;
   enabled: boolean;

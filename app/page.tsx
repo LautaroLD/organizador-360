@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { createClient } from '@/lib/supabase/client';
-import { Code2, MessageSquare, FolderKanban, Calendar, Sparkles } from 'lucide-react';
+import { Code2, MessageSquare, FolderKanban, Calendar, Sparkles, Bell, BarChart3, ShieldCheck, Users } from 'lucide-react';
 import Image from 'next/image';
 import Logo from '@/components/ui/Logo';
 
@@ -49,6 +49,57 @@ export default function HomePage() {
       icon: <Sparkles className="h-8 w-8" />,
       title: 'Asistente IA',
       description: 'Obtén resúmenes automáticos y respuestas inteligentes sobre tu proyecto.',
+    },
+  ];
+
+  const capabilities = [
+    {
+      icon: <FolderKanban className="h-6 w-6" />,
+      title: 'Kanban y tareas',
+      description: 'Flujos de trabajo claros con estados y responsables.',
+      badge: 'Disponible',
+    },
+    {
+      icon: <Users className="h-6 w-6" />,
+      title: 'Roles y permisos',
+      description: 'Owner, Admin y Member con control por proyecto.',
+      badge: 'Disponible',
+    },
+    {
+      icon: <Code2 className="h-6 w-6" />,
+      title: 'Base de conocimiento',
+      description: 'Documentos, enlaces y recursos centralizados.',
+      badge: 'Disponible',
+    },
+    {
+      icon: <Calendar className="h-6 w-6" />,
+      title: 'Google Calendar',
+      description: 'Sincronización de eventos en tiempo real.',
+      badge: 'Disponible',
+    },
+    {
+      icon: <Bell className="h-6 w-6" />,
+      title: 'Notificaciones',
+      description: 'Alertas de actividad y cambios clave.',
+      badge: 'Disponible',
+    },
+    {
+      icon: <BarChart3 className="h-6 w-6" />,
+      title: 'Analítica con IA',
+      description: 'Métricas avanzadas y recomendaciones inteligentes.',
+      badge: 'Enterprise',
+    },
+    {
+      icon: <Sparkles className="h-6 w-6" />,
+      title: 'IA de productividad',
+      description: 'Generación de tareas y resúmenes automáticos.',
+      badge: 'Pro/Enterprise',
+    },
+    {
+      icon: <ShieldCheck className="h-6 w-6" />,
+      title: 'Seguridad',
+      description: 'Buenas prácticas y protección de datos.',
+      badge: 'Disponible',
     },
   ];
 
@@ -106,6 +157,41 @@ export default function HomePage() {
               </h4>
               <p className="text-[var(--text-secondary)]">
                 {feature.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Prestaciones actuales */}
+      <section className="container mx-auto px-4 py-16">
+        <div className="max-w-3xl mx-auto text-center mb-10">
+          <h3 className="text-3xl font-bold text-[var(--text-primary)] mb-3">
+            Prestaciones actuales de Veenzo
+          </h3>
+          <p className="text-[var(--text-secondary)]">
+            Conoce lo que ya está disponible hoy, y qué incluye cada plan.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {capabilities.map((item, index) => (
+            <div
+              key={index}
+              className="p-5 rounded-lg border border-[var(--text-secondary)] bg-[var(--bg-secondary)]"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="text-[var(--accent-primary)]">
+                  {item.icon}
+                </div>
+                <span className="text-xs px-2 py-1 rounded-full bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]">
+                  {item.badge}
+                </span>
+              </div>
+              <h4 className="text-lg font-semibold text-[var(--text-primary)] mt-3">
+                {item.title}
+              </h4>
+              <p className="text-sm text-[var(--text-secondary)] mt-2">
+                {item.description}
               </p>
             </div>
           ))}

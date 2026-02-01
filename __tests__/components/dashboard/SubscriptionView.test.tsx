@@ -76,6 +76,15 @@ describe('SubscriptionView', () => {
       if (options.queryKey[0] === 'subscription-details') {
         return { data: null, isLoading: false };
       }
+      if (options.queryKey[0] === 'plan') {
+        return {
+          data: {
+            reason: 'pro',
+            auto_recurring: { transaction_amount: 2000, frequency_type: 'months', frequency: 1 },
+          },
+          isLoading: false,
+        };
+      }
       return { data: null, isLoading: false };
     });
 
@@ -125,6 +134,15 @@ describe('SubscriptionView', () => {
           isLoading: false
         };
       }
+      if (options.queryKey[0] === 'plan') {
+        return {
+          data: {
+            reason: 'pro',
+            auto_recurring: { transaction_amount: 2000, frequency_type: 'months', frequency: 1 },
+          },
+          isLoading: false,
+        };
+      }
       return { data: null, isLoading: false };
     });
 
@@ -171,6 +189,15 @@ describe('SubscriptionView', () => {
             internalPlanId: 'pro'
           },
           isLoading: false
+        };
+      }
+      if (options.queryKey[0] === 'plan') {
+        return {
+          data: {
+            reason: 'pro',
+            auto_recurring: { transaction_amount: 2000, frequency_type: 'months', frequency: 1 },
+          },
+          isLoading: false,
         };
       }
       return { data: null, isLoading: false };

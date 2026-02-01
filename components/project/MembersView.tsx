@@ -16,6 +16,7 @@ import { MemberTagsModal } from '@/components/members/MemberTagsModal';
 import { ProjectTagsModal } from '@/components/members/ProjectTagsModal';
 import type { InviteFormData, TagFormData, Member, ProjectTag } from '@/models';
 import { PostgrestSingleResponse } from '@supabase/supabase-js';
+import { getPlanLimits } from '@/lib/subscriptionUtils';
 
 export const MembersView: React.FC = () => {
   const supabase = createClient();
@@ -23,6 +24,9 @@ export const MembersView: React.FC = () => {
   const { currentProject, setCurrentProject } = useProjectStore();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const projectTier = currentProject?.plan_tier === 'starter' || currentProject?.plan_tier === 'pro' || currentProject?.plan_tier === 'enterprise'
+    ? currentProject.plan_tier
+    : (currentProject?.is_premium ? 'pro' : 'free');
 
   // State for modals
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -83,26 +87,6 @@ export const MembersView: React.FC = () => {
       return data as ProjectTag[];
     },
     enabled: !!currentProject?.id,
-  });
-
-  // Check subscription limits
-  const { data: subscriptionInfo } = useQuery({
-    queryKey: ['subscription-limits', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-
-      const { data, error } = await supabase.rpc('is_premium_user', {
-        p_user_id: user.id,
-      });
-
-      if (error) {
-        console.error('Error checking premium status:', error);
-        return { isPremium: false };
-      }
-
-      return { isPremium: data as boolean };
-    },
-    enabled: !!user?.id,
   });
 
   // Invite user mutation
@@ -396,16 +380,26 @@ export const MembersView: React.FC = () => {
             </h2>
             <p className='text-sm md:text-base text-[var(--text-secondary)] mt-1'>
               {members?.length || 0} miembro(s) en el equipo
-              {!currentProject?.is_premium && (
-                <span className='ml-2 text-xs text-orange-500 font-medium'>
-                  (Plan FREE: máx. 10 miembros)
-                </span>
-              )}
-              {currentProject?.is_premium && (
-                <span className='ml-2 text-xs text-[var(--accent-primary)] font-medium inline-flex items-center gap-1'>
-                  <Crown className='h-3 w-3' /> PRO - máx. 20 miembros
-                </span>
-              )}
+              {(() => {
+                const tier = currentProject?.plan_tier === 'starter' || currentProject?.plan_tier === 'pro' || currentProject?.plan_tier === 'enterprise'
+                  ? currentProject.plan_tier
+                  : (currentProject?.is_premium ? 'pro' : 'free');
+                const limit = getPlanLimits(tier).MAX_MEMBERS_PER_PROJECT;
+
+                if (limit === null) {
+                  return (
+                    <span className='ml-2 text-xs text-[var(--accent-primary)] font-medium inline-flex items-center gap-1'>
+                      <Crown className='h-3 w-3' /> ENTERPRISE - miembros ilimitados
+                    </span>
+                  );
+                }
+
+                return (
+                  <span className={`ml-2 text-xs font-medium ${tier === 'free' ? 'text-orange-500' : 'text-[var(--accent-primary)]'}`}>
+                    {`Plan ${tier.toUpperCase()}: máx. ${limit} miembros`}
+                  </span>
+                );
+              })()}
             </p>
           </div>
           <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
@@ -484,8 +478,12 @@ export const MembersView: React.FC = () => {
         isLoading={inviteUserMutation.isPending}
         projectName={currentProject?.name}
         currentMemberCount={members?.length}
-        memberLimit={!subscriptionInfo?.isPremium ? 10 : undefined}
-        isPremium={subscriptionInfo?.isPremium}
+        memberLimit={(() => {
+          const limit = getPlanLimits(projectTier ?? 'free').MAX_MEMBERS_PER_PROJECT;
+          return limit === null ? undefined : limit;
+        })()}
+        isPremium={projectTier !== 'free'}
+        planTier={projectTier}
       />
 
       <ManageMemberModal

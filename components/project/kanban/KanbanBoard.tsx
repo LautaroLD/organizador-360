@@ -24,7 +24,7 @@ import { useMutation } from '@tanstack/react-query';
 import useGemini from '@/hooks/useGemini';
 import SuggestionsModal from './SuggestionsModal';
 import { createClient } from '@/lib/supabase/client';
-import { checkIsPremiumUser } from '@/lib/subscriptionUtils';
+import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 
 interface KanbanBoardProps {
   projectId: string;
@@ -45,13 +45,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   const { generateSuggestedTasks } = useGemini();
   const supabase = createClient();
 
-  // Verificar si el usuario es premium
+  // Verificar si el usuario puede usar IA
   React.useEffect(() => {
     const checkPremium = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const premium = await checkIsPremiumUser(supabase, user.id);
-        setIsPremium(premium);
+        const allowed = await canUseAIFeatures(supabase, user.id);
+        setIsPremium(allowed);
       }
     };
     checkPremium();
@@ -166,7 +166,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
               className='text-[var(--accent-primary)]'
               onClick={() => generateSuggestions.mutate()}
               disabled={generateSuggestions.isPending || !isPremium}
-              title={!isPremium ? 'Función disponible solo en Plan Pro' : ''}
+              title={!isPremium ? 'Función disponible solo en Plan Pro o Enterprise' : ''}
             >
               <p className='hidden md:flex md:mr-2'>
                 {generateSuggestions.isPending ? 'Generando...' : 'Sugerir tareas con IA'}
@@ -175,7 +175,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             </Button>
             {!isPremium && (
               <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
-                <p>Función disponible solo en Plan Pro</p>
+                <p>Función disponible solo en Plan Pro o Enterprise</p>
               </div>
             )}
           </div>

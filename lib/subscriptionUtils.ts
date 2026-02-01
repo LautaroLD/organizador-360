@@ -5,22 +5,51 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 
+export type PlanTier = 'free' | 'starter' | 'pro' | 'enterprise';
+
 export const SUBSCRIPTION_LIMITS = {
   FREE: {
     MAX_PROJECTS: 3,
     MAX_MEMBERS_PER_PROJECT: 10,
     MAX_STORAGE_BYTES: 100 * 1024 * 1024, // 100 MB
-    AI_FEATURES_ENABLED: false, // Sin acceso a funciones de IA
+    AI_FEATURES_ENABLED: false,
+  },
+  STARTER: {
+    MAX_PROJECTS: 5,
+    MAX_MEMBERS_PER_PROJECT: 15,
+    MAX_STORAGE_BYTES: 1024 * 1024 * 1024, // 1 GB
+    AI_FEATURES_ENABLED: false,
   },
   PRO: {
     MAX_PROJECTS: 10,
     MAX_MEMBERS_PER_PROJECT: 20,
     MAX_STORAGE_BYTES: 5 * 1024 * 1024 * 1024, // 5 GB
-    AI_FEATURES_ENABLED: true, // Acceso completo a IA
+    AI_FEATURES_ENABLED: true,
+  },
+  ENTERPRISE: {
+    MAX_PROJECTS: null as number | null,
+    MAX_MEMBERS_PER_PROJECT: null as number | null,
+    MAX_STORAGE_BYTES: null as number | null,
+    AI_FEATURES_ENABLED: true,
   },
 } as const;
 
-export function formatBytes(bytes: number, decimals = 2) {
+export function getPlanLimits(tier: PlanTier) {
+  switch (tier) {
+    case 'starter':
+      return SUBSCRIPTION_LIMITS.STARTER;
+    case 'pro':
+      return SUBSCRIPTION_LIMITS.PRO;
+    case 'enterprise':
+      return SUBSCRIPTION_LIMITS.ENTERPRISE;
+    case 'free':
+    default:
+      return SUBSCRIPTION_LIMITS.FREE;
+  }
+}
+
+export function formatBytes(bytes: number | null, decimals = 2) {
+  if (bytes === null) return 'Ilimitado';
   if (!+bytes) return '0 Bytes';
 
   const k = 1024;
@@ -35,25 +64,45 @@ export function formatBytes(bytes: number, decimals = 2) {
 /**
  * Verifica si un usuario es premium
  */
-export async function checkIsPremiumUser(
+export async function getUserPlanTier(
   supabase: SupabaseClient,
   userId: string
-): Promise<boolean> {
+): Promise<PlanTier> {
   try {
-    const { data, error } = await supabase.rpc('is_premium_user', {
+    const { data, error } = await supabase.rpc('get_user_plan', {
       p_user_id: userId,
     });
 
     if (error) {
-      console.error('Error checking premium status:', error);
-      return false;
+      console.error('Error getting user plan:', error);
+      return 'free';
     }
 
-    return data as boolean;
+    const tier = (data as string | null)?.toLowerCase();
+    if (tier === 'starter' || tier === 'pro' || tier === 'enterprise') {
+      return tier;
+    }
+    return 'free';
   } catch (error) {
-    console.error('Error checking premium status:', error);
-    return false;
+    console.error('Error getting user plan:', error);
+    return 'free';
   }
+}
+
+export async function checkIsPremiumUser(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<boolean> {
+  const tier = await getUserPlanTier(supabase, userId);
+  return tier !== 'free';
+}
+
+export async function canUseAIFeatures(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<boolean> {
+  const tier = await getUserPlanTier(supabase, userId);
+  return tier === 'pro' || tier === 'enterprise';
 }
 
 /**
@@ -88,7 +137,7 @@ export async function canAddMemberToProject(
   supabase: SupabaseClient,
   projectId: string,
   ownerId: string
-): Promise<{ canAdd: boolean; reason?: string; currentCount?: number; limit?: number }> {
+): Promise<{ canAdd: boolean; reason?: string; currentCount?: number; limit?: number | null; plan?: PlanTier }> {
   try {
     // Try to use the database function first (more efficient)
     try {
@@ -111,26 +160,24 @@ export async function canAddMemberToProject(
 
     // Fallback to client-side logic
     // Verificar si el dueño es premium
-    const isPremium = await checkIsPremiumUser(supabase, ownerId);
-
-    // Obtener límite según el plan
-    const limit = isPremium 
-      ? SUBSCRIPTION_LIMITS.PRO.MAX_MEMBERS_PER_PROJECT 
-      : SUBSCRIPTION_LIMITS.FREE.MAX_MEMBERS_PER_PROJECT;
+    const tier = await getUserPlanTier(supabase, ownerId);
+    const limits = getPlanLimits(tier);
+    const limit = limits.MAX_MEMBERS_PER_PROJECT;
 
     // Verificar el límite
     const currentCount = await getProjectMemberCount(supabase, projectId);
 
-    if (currentCount >= limit) {
+    if (limit !== null && currentCount >= limit) {
       return {
         canAdd: false,
-        reason: `Has alcanzado el límite de ${limit} miembros para usuarios ${isPremium ? 'Pro' : 'Free'}.`,
+        reason: `Has alcanzado el límite de ${limit} miembros para el plan ${tier.toUpperCase()}.`,
         currentCount,
         limit,
+        plan: tier,
       };
     }
 
-    return { canAdd: true, currentCount, limit };
+    return { canAdd: true, currentCount, limit, plan: tier };
   } catch (error) {
     console.error('Error checking if can add member:', error);
     return {
@@ -147,12 +194,12 @@ export async function checkStorageLimit(
   supabase: SupabaseClient,
   projectId: string,
   newBytes: number
-): Promise<{ canAdd: boolean; reason?: string; currentUsed?: number; limit?: number }> {
+): Promise<{ canAdd: boolean; reason?: string; currentUsed?: number; limit?: number | null; plan?: PlanTier }> {
   try {
     // Obtener proyecto para ver si es premium y uso actual
     const { data: project, error } = await supabase
       .from('projects')
-      .select('is_premium, storage_used')
+      .select('owner_id, storage_used')
       .eq('id', projectId)
       .single();
 
@@ -161,22 +208,22 @@ export async function checkStorageLimit(
       return { canAdd: false, reason: 'Error al verificar proyecto' };
     }
 
-    const isPremium = project.is_premium;
+    const tier = await getUserPlanTier(supabase, project.owner_id);
+    const limits = getPlanLimits(tier);
     const currentUsed = project.storage_used || 0;
-    const limit = isPremium 
-      ? SUBSCRIPTION_LIMITS.PRO.MAX_STORAGE_BYTES 
-      : SUBSCRIPTION_LIMITS.FREE.MAX_STORAGE_BYTES;
+    const limit = limits.MAX_STORAGE_BYTES;
 
-    if (currentUsed + newBytes > limit) {
+    if (limit !== null && currentUsed + newBytes > limit) {
       return {
         canAdd: false,
         reason: `No hay suficiente espacio. Límite: ${formatBytes(limit)}, Usado: ${formatBytes(currentUsed)}, Intentando agregar: ${formatBytes(newBytes)}`,
         currentUsed,
-        limit
+        limit,
+        plan: tier,
       };
     }
 
-    return { canAdd: true, currentUsed, limit };
+    return { canAdd: true, currentUsed, limit, plan: tier };
   } catch (error) {
     console.error('Error checking storage limit:', error);
     return { canAdd: false, reason: 'Error interno al verificar almacenamiento' };
@@ -190,10 +237,13 @@ export async function getUserSubscriptionLimits(
   supabase: SupabaseClient,
   userId: string
 ) {
-  const isPremium = await checkIsPremiumUser(supabase, userId);
+  const tier = await getUserPlanTier(supabase, userId);
+  const limits = getPlanLimits(tier);
+  const isPaid = tier !== 'free';
 
   return {
-    isPremium,
-    limits: isPremium ? SUBSCRIPTION_LIMITS.PRO : SUBSCRIPTION_LIMITS.FREE,
+    tier,
+    isPaid,
+    limits,
   };
 }

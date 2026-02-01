@@ -26,22 +26,6 @@ import PlanCard from '../ui/PlanCard';
 import clsx from 'clsx';
 
 
-interface AutoRecurring {
-  frequency: number;
-  currency_id: string;
-  transaction_amount: number;
-  frequency_type: string;
-  free_trial: FreeTrial;
-  billing_day: number;
-}
-
-interface FreeTrial {
-  frequency: number;
-  frequency_type: string;
-}
-
-
-
 interface MercadoPagoDetails {
   id: string;
   status: string;
@@ -76,9 +60,9 @@ export const SubscriptionView: React.FC = () => {
   const supabase = createClient();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
-  const [tabPro, setTabPro] = useState<'mensual' | 'anual'>('mensual');
-  const [tabStarter, setTabStarter] = useState<'mensual' | 'anual'>('mensual');
-  const [tabEnterprise, setTabEnterprise] = useState<'mensual' | 'anual'>('mensual');
+  const [tabPro, setTabPro] = useState<'mensual' | 'anual'>('anual');
+  const [tabStarter, setTabStarter] = useState<'mensual' | 'anual'>('anual');
+  const [tabEnterprise, setTabEnterprise] = useState<'mensual' | 'anual'>('anual');
   // Fetch subscription data from local DB
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({
     queryKey: ['subscription', user?.id],
@@ -152,16 +136,95 @@ export const SubscriptionView: React.FC = () => {
         'Soporte por email',
       ]
     },
+    starter: {
+      icon: <Star className='h-8 w-8' />,
+      description: 'Para usuarios intermedios',
+      features: [
+        'Hasta 5 proyectos',
+        'Canales y chat ilimitados',
+        'Hasta 1 GB de recursos',
+        'Hasta 15 miembros por proyecto',
+        'Soporte prioritario',
+      ]
+    },
+    pro: {
+      icon: <>
+        <Star className='h-8 w-8' />
+        <Star className='h-8 w-8' />
+      </>,
+      description: 'Para usuarios avanzados',
+      features: [
+        'Hasta 10 proyectos',
+        'Canales y chat ilimitados',
+        'Hasta 5 GB de recursos',
+        'Hasta 20 miembros por proyecto',
+        'Asistente IA con Gemini',
+        'Generar tareas con IA',
+        'Resúmenes de chat con IA',
+        'Almacenamiento prioritario',
+        'Soporte prioritario',
+        'Integraciones avanzadas',
+        'Exportar datos',
+        'Analítica avanzada de proyectos con IA',
+      ]
+    },
+    enterprise: {
+      icon: <>
+        <Star className='h-8 w-8' />
+        <Star className='h-8 w-8' />
+        <Star className='h-8 w-8' />
+      </>,
+      description: 'Para grandes equipos y empresas',
+      features: [
+        'Proyectos ilimitados',
+        'Canales y chat ilimitados',
+        'Recursos ilimitados',
+        'Miembros ilimitados por proyecto',
+        'Asistente IA con Gemini',
+        'Generar tareas con IA',
+        'Resúmenes de chat con IA',
+        'Analítica avanzada de proyectos con IA',
+        'Almacenamiento prioritario',
+        'Soporte 24/7',
+        'Integraciones avanzadas',
+        'Exportar datos',
+        'Gestión de cuentas dedicada',
+      ]
+    },
   };
 
   // Determinar si es Pro: Status activo O (status cancelado Y fecha fin futura)
-  const isCanceled = subscription?.status === 'canceled' || subscription?.status === 'cancelled';
-  const hasActivePeriod = subscription?.current_period_end
-    ? new Date(subscription.current_period_end) > new Date()
-    : false;
+  const planIdMap: Record<string, string[]> = {
+    starter: [
+      process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '',
+      process.env.NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID ?? ''
+    ],
+    pro: [
+      process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '',
+      process.env.NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID ?? ''
+    ],
+    enterprise: [
+      process.env.NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID ?? '',
+      process.env.NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID ?? ''
+    ],
+  };
 
-  // Lógica mejorada: Usar flag del servidor si está disponible, sino fallback a local
-  const isPro = mpData?.isPro ?? ((subscription?.status === 'active' || subscription?.status === 'authorized' || subscription?.status === 'trialing') || (isCanceled && hasActivePeriod));
+  const mapPlanIdToTier = (planId?: string | null) => {
+    if (!planId) return 'free';
+    if (planIdMap.starter.includes(planId)) return 'starter';
+    if (planIdMap.pro.includes(planId)) return 'pro';
+    if (planIdMap.enterprise.includes(planId)) return 'enterprise';
+    return 'free';
+  };
+
+  const currentPlanTier = mpData?.internalPlanId ?? mapPlanIdToTier(subscription?.price_id ?? null);
+  const isPaid = currentPlanTier !== 'free' && (mpData?.details?.isActive ?? true);
+  const isCanceled = Boolean(
+    subscription?.cancel_at_period_end ||
+    subscription?.status === 'canceled' ||
+    subscription?.status === 'cancelled'
+  );
+  const isFreeCurrent = currentPlanTier === 'free';
 
   if (subscriptionLoading || mpLoading) {
     return (
@@ -194,7 +257,7 @@ export const SubscriptionView: React.FC = () => {
       </div>
 
       {/* Estado actual de suscripción */}
-      {isPro && subscription && (
+      {isPaid && subscription && (
         <Card className='mb-8 border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/5'>
           <CardHeader>
             <div className='flex items-center justify-between'>
@@ -337,6 +400,9 @@ export const SubscriptionView: React.FC = () => {
                     </div>
                   ))}
                 </div>
+                <Button className='w-full mt-auto' variant='secondary' disabled={!isFreeCurrent}>
+                  Ya estás aquí
+                </Button>
               </CardContent>
             </Card>
           </div>
@@ -348,10 +414,10 @@ export const SubscriptionView: React.FC = () => {
             </div>
             {
               tabStarter === 'mensual' &&
-              <PlanCard planId={starter_mensual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === starter_mensual_id} isCanceled={subscription?.cancel_at_period_end || false} plan_reference="STARTER_MENSUAL" />
+              <PlanCard planId={starter_mensual_id} isCurrent={currentPlanTier === 'starter'} isCanceled={isCanceled} plan_reference="STARTER_MENSUAL" />
             }
             {tabStarter === 'anual' &&
-              <PlanCard planId={starter_anual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === starter_anual_id} isCanceled={subscription?.cancel_at_period_end || false} plan_reference="STARTER_ANUAL" />
+              <PlanCard planId={starter_anual_id} isCurrent={currentPlanTier === 'starter'} isCanceled={isCanceled} plan_reference="STARTER_ANUAL" />
             }
           </div>
           { /* Pro Plan Cards */}
@@ -362,10 +428,10 @@ export const SubscriptionView: React.FC = () => {
             </div>
             {
               tabPro === 'mensual' &&
-              <PlanCard planId={pro_mensual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === pro_mensual_id} isCanceled={subscription?.cancel_at_period_end || false} plan_reference="PRO_MENSUAL" />
+              <PlanCard planId={pro_mensual_id} isCurrent={currentPlanTier === 'pro'} isCanceled={isCanceled} plan_reference="PRO_MENSUAL" />
             }
             {tabPro === 'anual' &&
-              <PlanCard planId={pro_anual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === pro_anual_id} isCanceled={subscription?.cancel_at_period_end || false} plan_reference="PRO_ANUAL" />
+              <PlanCard planId={pro_anual_id} isCurrent={currentPlanTier === 'pro'} isCanceled={isCanceled} plan_reference="PRO_ANUAL" />
             }
           </div>
           { /* Enterprise Plan Cards */}
@@ -376,10 +442,10 @@ export const SubscriptionView: React.FC = () => {
             </div>
             {
               tabEnterprise === 'mensual' &&
-              <PlanCard planId={enterprise_mensual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === enterprise_mensual_id} isCanceled={subscription?.cancel_at_period_end || false} plan_reference="ENTERPRISE_MENSUAL" />
+              <PlanCard planId={enterprise_mensual_id} isCurrent={currentPlanTier === 'enterprise'} isCanceled={isCanceled} plan_reference="ENTERPRISE_MENSUAL" />
             }
             {tabEnterprise === 'anual' &&
-              <PlanCard planId={enterprise_anual_id} isCurrent={isPro && subscription?.mercadopago_plan_id === enterprise_anual_id} isCanceled={subscription?.cancel_at_period_end || false} plan_reference="ENTERPRISE_ANUAL" />
+              <PlanCard planId={enterprise_anual_id} isCurrent={currentPlanTier === 'enterprise'} isCanceled={isCanceled} plan_reference="ENTERPRISE_ANUAL" />
             }
           </div>
         </div>
@@ -399,7 +465,13 @@ export const SubscriptionView: React.FC = () => {
               <strong>Gratuito:</strong> Hasta 100 MB por proyecto
             </p>
             <p>
+              <strong>Starter:</strong> Hasta 1 GB por proyecto
+            </p>
+            <p>
               <strong>Pro:</strong> Hasta 5 GB por proyecto
+            </p>
+            <p>
+              <strong>Enterprise:</strong> Ilimitado
             </p>
             <p className='text-xs mt-4'>
               El almacenamiento se calcula a partir de tus recursos y archivos
@@ -420,7 +492,13 @@ export const SubscriptionView: React.FC = () => {
               <strong>Gratuito:</strong> Hasta 10 miembros por proyecto
             </p>
             <p>
+              <strong>Starter:</strong> Hasta 15 miembros por proyecto
+            </p>
+            <p>
               <strong>Pro:</strong> Hasta 20 miembros por proyecto
+            </p>
+            <p>
+              <strong>Enterprise:</strong> Ilimitado
             </p>
             <p className='text-xs mt-4'>
               Invita a tu equipo a colaborar en proyectos. Los permisos se

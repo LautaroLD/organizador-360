@@ -11,26 +11,16 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
   const { data: plan, isLoading, error } = useQuery({
     queryKey: ['plan', planId],
     queryFn: async () => {
-      try {
-        console.log(planId);
-
-        const res = await fetch(`/api/mercadopago/plan/${planId}`);
-        if (!res.ok) {
-          throw new Error('Error fetching plan data');
-        }
-        const data = await res.json();
-        console.log(data);
-
-        return data;
-      } catch (error) {
-        console.log(error);
-
+      const res = await fetch(`/api/mercadopago/plan/${planId}`);
+      if (!res.ok) {
+        throw new Error('Error fetching plan data');
       }
+      return res.json();
     },
     enabled: !!planId,
   });
-
-  console.log(plan);
+  const isPlanIdMissing = !planId;
+  const isLoadingState = isLoading || isPlanIdMissing;
 
   const planFeatures: Record<string, { icon: React.ReactNode; description: string; features: string[]; }> = {
     free: {
@@ -75,6 +65,7 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
         'Soporte prioritario',
         'Integraciones avanzadas',
         'Exportar datos',
+        'Analítica avanzada de proyectos con IA',
       ]
     },
     enterprise: {
@@ -92,6 +83,7 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
         'Asistente IA con Gemini',
         'Generar tareas con IA',
         'Resúmenes de chat con IA',
+        'Analítica avanzada de proyectos con IA',
         'Almacenamiento prioritario',
         'Soporte 24/7',
         'Integraciones avanzadas',
@@ -100,19 +92,26 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
       ]
     }
   };
-  function getPlanType(plan_reason: string): string {
-    if (plan_reason === 'free' || plan_reason.toLowerCase().includes('free')) return 'free';
-    if (plan_reason === 'starter' || plan_reason.toLowerCase().includes('starter')) return 'starter';
-    if (plan_reason === 'enterprise' || plan_reason.toLowerCase().includes('enterprise')) return 'enterprise';
-    // Puedes mejorar esta lógica para detectar otros tipos de planes
+  function getPlanType(planReason: string, planRef: string): string {
+    const ref = planRef.toLowerCase();
+    if (ref.includes('free')) return 'free';
+    if (ref.includes('starter')) return 'starter';
+    if (ref.includes('enterprise')) return 'enterprise';
+    if (ref.includes('pro')) return 'pro';
+
+    const reason = planReason.toLowerCase();
+    if (reason.includes('free')) return 'free';
+    if (reason.includes('starter')) return 'starter';
+    if (reason.includes('enterprise')) return 'enterprise';
     return 'pro';
   }
-  const type = getPlanType(!isLoading && plan ? plan.reason : '');
+  const planReason = (!isLoadingState && plan && typeof plan.reason === 'string') ? plan.reason : '';
+  const type = getPlanType(planReason, plan_reference);
   const features = planFeatures[type]?.features || [];
   const icon = planFeatures[type]?.icon || <Star className='h-8 w-8' />;
   const description = planFeatures[type]?.description || '';
 
-  const isFree = !isLoading && plan ? plan.reason === 'free' : false;
+  const isFree = type === 'free';
   const handleSubscribe = async (init_point: string) => {
     router.push(init_point);
   };
@@ -120,7 +119,7 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
   return (
     <div className='relative min-w-96 max-w-96 h-full bg-[var(--bg-secondary)] border-[var(--accent-primary)] border rounded-lg'>
       {/* Error visual si no hay plan */}
-      {!isLoading && (!plan || error) && (
+      {!isLoadingState && (!plan || error) && (
         <div className='flex items-center justify-center h-full p-8'>
           <div className='text-center w-full'>
             <div className='text-[var(--accent-danger)] font-bold mb-2'>No se pudo cargar el plan</div>
@@ -128,7 +127,7 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
           </div>
         </div>
       )}
-      {isLoading && (
+      {isLoadingState && (
         <div className='flex items-center justify-center h-full p-12'>
           <div className='text-center'>
             <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent-primary)] mx-auto mb-4'></div>
@@ -138,7 +137,7 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
           </div>
         </div>
       )}
-      {!isLoading && plan && !error && (
+      {!isLoadingState && plan && !error && (
         <Card className='h-full flex flex-col border-0'>
           <CardHeader>
             <div className='flex items-start justify-between mb-2'>
@@ -149,9 +148,9 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
                 </div>
               )}
             </div>
-            <CardTitle className='text-2xl uppercase text-center'>{plan.reason}</CardTitle>
+            <CardTitle className='text-2xl uppercase text-center'>{planReason || 'Plan'}</CardTitle>
             <CardDescription className='text-center'>{description}</CardDescription>
-            {plan.auto_recurring.free_trial &&
+            {plan.auto_recurring?.free_trial &&
               <div className='w-full mt-2'>
                 <span className='border border-[var(--accent-success)] bg-[var(--accent-success)]/10 w-full rounded-2xl py-1 inline-block text-center text-[var(--accent-success)]  font-medium uppercase'>
                   {`${plan.auto_recurring.free_trial.frequency} días`} de prueba gratuita
@@ -161,10 +160,10 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
             <div className='mt-2'>
               <div className='flex items-baseline gap-1'>
                 <span className='text-2xl font-bold text-[var(--text-primary)]'>
-                  ${plan.auto_recurring.transaction_amount.toLocaleString()}
+                  ${plan.auto_recurring?.transaction_amount?.toLocaleString() ?? '0'}
                 </span>
                 <span className='text-[var(--text-secondary)]'>
-                  {plan.reason !== 'free' && (plan.auto_recurring.frequency_type === 'months' && plan.auto_recurring.frequency === 12 ? '/anual' : '/mensual')}
+                  {planReason !== 'free' && (plan.auto_recurring?.frequency_type === 'months' && plan.auto_recurring?.frequency === 12 ? '/año' : '/mes')}
                 </span>
               </div>
             </div>
@@ -184,7 +183,7 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
             <Button
               className='w-full mt-auto'
               disabled={
-                (isCurrent && !isCanceled) || isLoading || isFree
+                (isCurrent && !isCanceled) || isLoadingState || isFree
               }
               onClick={() => {
                 if (!isFree) handleSubscribe(plan.init_point);
@@ -193,7 +192,7 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
             >
               {isFree
                 ? 'Ya estás aquí'
-                : isLoading && isCurrent
+                : isLoadingState && isCurrent
                   ? 'Redirigiendo...'
                   : isCurrent
                     ? (isCanceled ? 'Reactivar Suscripción' : 'Plan actual')

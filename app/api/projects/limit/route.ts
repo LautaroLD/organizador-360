@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data?.[0] || {
       can_enable: false,
       enabled_count: 0,
-      limit: 3,
+      max_limit: 3,
       is_premium: false
     });
 

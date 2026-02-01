@@ -3,12 +3,12 @@ import { formatBytes } from '@/lib/subscriptionUtils';
 
 interface StorageIndicatorProps {
   used: number;
-  limit: number;
+  limit: number | null;
   className?: string;
 }
 
 export function StorageIndicator({ used, limit, className = '' }: StorageIndicatorProps) {
-  const percentage = Math.min(Math.round((used / limit) * 100), 100);
+  const percentage = limit ? Math.min(Math.round((used / limit) * 100), 100) : 0;
   const isNearLimit = percentage >= 80;
   const isOverLimit = percentage >= 100;
 
@@ -22,16 +22,20 @@ export function StorageIndicator({ used, limit, className = '' }: StorageIndicat
         <span>Almacenamiento</span>
         <span>{formatBytes(used)} / {formatBytes(limit)}</span>
       </div>
-      <div className="w-full bg-[var(--bg-primary)] border border-gray-500 rounded-full h-2.5  overflow-hidden">
-        <div
-          className={`h-2.5 rounded-full ${colorClass} transition-all duration-500`}
-          style={{ width: `${percentage}%` }}
-        ></div>
-      </div>
-      {isOverLimit && (
-        <p className="text-xs text-red-500 mt-1">
-          Has alcanzado el límite de almacenamiento.
-        </p>
+      {limit !== null && (
+        <>
+          <div className="w-full bg-[var(--bg-primary)] border border-gray-500 rounded-full h-2.5  overflow-hidden">
+            <div
+              className={`h-2.5 rounded-full ${colorClass} transition-all duration-500`}
+              style={{ width: `${percentage}%` }}
+            ></div>
+          </div>
+          {isOverLimit && (
+            <p className="text-xs text-red-500 mt-1">
+              Has alcanzado el límite de almacenamiento.
+            </p>
+          )}
+        </>
       )}
     </div>
   );

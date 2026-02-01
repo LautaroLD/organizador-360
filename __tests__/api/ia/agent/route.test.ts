@@ -19,7 +19,7 @@ jest.mock('@/lib/gemini', () => ({
 }));
 
 jest.mock('@/lib/subscriptionUtils', () => ({
-  checkIsPremiumUser: jest.fn().mockResolvedValue(true),
+  canUseAIFeatures: jest.fn().mockResolvedValue(true),
 }));
 
 describe('API Route: /api/ia/agent', () => {
