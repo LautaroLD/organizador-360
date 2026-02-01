@@ -44,6 +44,24 @@ const queryClient = new QueryClient({
 });
 
 describe('SubscriptionView', () => {
+  const originalEnv = process.env;
+
+  beforeAll(() => {
+    process.env = {
+      ...originalEnv,
+      NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID: 'starter-month',
+      NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID: 'starter-year',
+      NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID: 'pro-month',
+      NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID: 'pro-year',
+      NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID: 'enterprise-month',
+      NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID: 'enterprise-year',
+    };
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseMutation.mockReturnValue({ mutate: jest.fn(), isPending: false });
