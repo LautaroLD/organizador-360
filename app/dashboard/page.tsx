@@ -22,7 +22,11 @@ export default async function DashboardPage() {
     .eq('user_id', user.id)
     .single();
 
-  const isPro = subscription?.status === 'active' || subscription?.status === 'trialing';
+  const { data: planTierRaw } = await supabase.rpc('get_user_plan', {
+    p_user_id: user.id,
+  });
+  const planTier = (typeof planTierRaw === 'string' ? planTierRaw : 'free');
+  const isPaid = planTier !== 'free';
 
   // Calcular días restantes si la cancelación está programada
   let daysRemaining: number | null = null;
@@ -33,10 +37,10 @@ export default async function DashboardPage() {
     daysRemaining = Math.ceil(diff / (1000 * 60 * 60 * 24));
   }
 
-  const subtitleText = isPro
+  const subtitleText = isPaid
     ? daysRemaining && daysRemaining > 0
-      ? `Plan Pro Activo - ${daysRemaining} día${daysRemaining === 1 ? '' : 's'} restante${daysRemaining === 1 ? '' : 's'}`
-      : 'Plan Pro Activo'
+      ? `Plan ${planTier.toUpperCase()} Activo - ${daysRemaining} día${daysRemaining === 1 ? '' : 's'} restante${daysRemaining === 1 ? '' : 's'}`
+      : `Plan ${planTier.toUpperCase()} Activo`
     : 'Plan Gratuito';
 
   return (
@@ -47,11 +51,11 @@ export default async function DashboardPage() {
       />
 
       <main className='m-6 space-y-6'>
-        {!isPro && (
+        {planTier === 'free' && (
           <div className="p-2 bg-[var(--bg-secondary)] border border-[var(--accent-warning)] rounded-md">
             <p className="text-[var(--accent-warning)] text-sm">
               Estás limitado a 3 proyectos.
-              <a href="/settings/subscription" className="font-bold underline ml-1">¡Pásate a Pro!</a>
+              <a href="/settings/subscription" className="font-bold underline ml-1">Ver planes</a>
             </p>
           </div>
         )}

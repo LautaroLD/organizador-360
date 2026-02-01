@@ -52,7 +52,12 @@ export async function GET(_request: NextRequest) {
 
     const isActivePremium = (isPremiumStatus || isCancelProgrammed) && isGracePeriodValid;
 
-    // 3. Retornar diagnóstico completo
+    // 3. Obtener plan actual desde la función
+    const { data: planTier } = await supabaseAdmin.rpc('get_user_plan', {
+      p_user_id: user.id,
+    });
+
+    // 4. Retornar diagnóstico completo
     return NextResponse.json({
       user_id: user.id,
       subscription: {
@@ -64,6 +69,7 @@ export async function GET(_request: NextRequest) {
         current_period_start: subscription.current_period_start,
         created: subscription.created,
       },
+      plan_tier: planTier ?? 'free',
       evaluation: {
         now: now.toISOString(),
         isPremiumStatus: isPremiumStatus ? `status es ${status}` : `status ${status} no es premium`,

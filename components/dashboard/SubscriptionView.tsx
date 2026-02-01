@@ -1,6 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
-
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
@@ -24,18 +22,9 @@ import {
   Lock,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
-import { Modal } from '../ui/Modal';
+import PlanCard from '../ui/PlanCard';
+import clsx from 'clsx';
 
-interface PricingPlan {
-  name: string;
-  price: number;
-  billing: string;
-  description: string;
-  features: string[];
-  icon: React.ReactNode;
-  popular?: boolean;
-  id: 'free' | 'pro';
-}
 
 interface MercadoPagoDetails {
   id: string;
@@ -71,8 +60,9 @@ export const SubscriptionView: React.FC = () => {
   const supabase = createClient();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
-  const [loadingCheckout, setLoadingCheckout] = useState(false);
-
+  const [tabPro, setTabPro] = useState<'mensual' | 'anual'>('anual');
+  const [tabStarter, setTabStarter] = useState<'mensual' | 'anual'>('anual');
+  const [tabEnterprise, setTabEnterprise] = useState<'mensual' | 'anual'>('anual');
   // Fetch subscription data from local DB
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({
     queryKey: ['subscription', user?.id],
@@ -92,7 +82,7 @@ export const SubscriptionView: React.FC = () => {
   });
 
   // Fetch detailed subscription info from MercadoPago
-  const { data: mpData } = useQuery({
+  const { data: mpData, isLoading: mpLoading } = useQuery({
     queryKey: ['subscription-details', user?.id],
     queryFn: async () => {
       const response = await fetch('/api/mercadopago/subscription-details');
@@ -133,57 +123,36 @@ export const SubscriptionView: React.FC = () => {
     },
   });
 
-  const handleSubscribe = async () => {
-    setLoadingCheckout(true);
-    try {
-      const response = await fetch('/api/checkout/mercadopago', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          planId: 'pro',
-          payerEmail: user?.email
-        })
-      });
-      const result = await response.json();
-
-      if (!response.ok) throw new Error(result.error || 'Error iniciando pago');
-
-      if (result.init_point) {
-        window.location.href = result.init_point;
-      } else {
-        throw new Error('No se recibió enlace de pago');
-      }
-    } catch (err: any) {
-      console.error('Error checkout:', err);
-      toast.error(err.message || 'Error iniciando pago');
-      setLoadingCheckout(false);
-    }
-  };
-
-  const plans: PricingPlan[] = [
-    {
-      id: 'free',
-      name: 'Gratuito',
-      price: 0,
-      billing: 'siempre',
-      description: 'Perfecto para comenzar',
+  // Configuración dinámica de features e íconos por tipo de plan
+  const planFeatures: Record<string, { icon: React.ReactNode; description: string; features: string[]; }> = {
+    free: {
       icon: <Zap className='h-8 w-8' />,
+      description: 'Perfecto para comenzar',
       features: [
         'Hasta 3 proyectos',
         'Canales y chat ilimitados',
         'Hasta 100 MB de recursos',
         'Hasta 10 miembros por proyecto',
         'Soporte por email',
-      ],
+      ]
     },
-    {
-      id: 'pro',
-      name: 'Pro',
-      price: 2000,
-      billing: '/mes',
-      description: 'Para equipos en crecimiento',
+    starter: {
       icon: <Star className='h-8 w-8' />,
-      popular: true,
+      description: 'Para usuarios intermedios',
+      features: [
+        'Hasta 5 proyectos',
+        'Canales y chat ilimitados',
+        'Hasta 1 GB de recursos',
+        'Hasta 15 miembros por proyecto',
+        'Soporte prioritario',
+      ]
+    },
+    pro: {
+      icon: <>
+        <Star className='h-8 w-8' />
+        <Star className='h-8 w-8' />
+      </>,
+      description: 'Para usuarios avanzados',
       features: [
         'Hasta 10 proyectos',
         'Canales y chat ilimitados',
@@ -196,20 +165,68 @@ export const SubscriptionView: React.FC = () => {
         'Soporte prioritario',
         'Integraciones avanzadas',
         'Exportar datos',
-      ],
+        'Analítica avanzada de proyectos con IA',
+      ]
     },
-  ];
+    enterprise: {
+      icon: <>
+        <Star className='h-8 w-8' />
+        <Star className='h-8 w-8' />
+        <Star className='h-8 w-8' />
+      </>,
+      description: 'Para grandes equipos y empresas',
+      features: [
+        'Proyectos ilimitados',
+        'Canales y chat ilimitados',
+        'Recursos ilimitados',
+        'Miembros ilimitados por proyecto',
+        'Asistente IA con Gemini',
+        'Generar tareas con IA',
+        'Resúmenes de chat con IA',
+        'Analítica avanzada de proyectos con IA',
+        'Almacenamiento prioritario',
+        'Soporte 24/7',
+        'Integraciones avanzadas',
+        'Exportar datos',
+        'Gestión de cuentas dedicada',
+      ]
+    },
+  };
 
   // Determinar si es Pro: Status activo O (status cancelado Y fecha fin futura)
-  const isCanceled = subscription?.status === 'canceled' || subscription?.status === 'cancelled';
-  const hasActivePeriod = subscription?.current_period_end
-    ? new Date(subscription.current_period_end) > new Date()
-    : false;
+  const planIdMap: Record<string, string[]> = {
+    starter: [
+      process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '',
+      process.env.NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID ?? ''
+    ],
+    pro: [
+      process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '',
+      process.env.NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID ?? ''
+    ],
+    enterprise: [
+      process.env.NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID ?? '',
+      process.env.NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID ?? ''
+    ],
+  };
 
-  // Lógica mejorada: Usar flag del servidor si está disponible, sino fallback a local
-  const isPro = mpData?.isPro ?? ((subscription?.status === 'active' || subscription?.status === 'authorized' || subscription?.status === 'trialing') || (isCanceled && hasActivePeriod));
+  const mapPlanIdToTier = (planId?: string | null) => {
+    if (!planId) return 'free';
+    if (planIdMap.starter.includes(planId)) return 'starter';
+    if (planIdMap.pro.includes(planId)) return 'pro';
+    if (planIdMap.enterprise.includes(planId)) return 'enterprise';
+    return 'free';
+  };
 
-  if (subscriptionLoading) {
+  const currentPlanTier = mpData?.internalPlanId ?? mapPlanIdToTier(subscription?.price_id ?? null);
+  const isPaid = currentPlanTier !== 'free' && (mpData?.details?.isActive ?? true);
+  const isCanceled = Boolean(
+    subscription?.cancel_at_period_end ||
+    subscription?.status === 'canceled' ||
+    subscription?.status === 'cancelled'
+  );
+  const isFreeCurrent = currentPlanTier === 'free';
+
+  if (subscriptionLoading || mpLoading) {
     return (
       <div className='flex items-center justify-center h-full p-12'>
         <div className='text-center'>
@@ -221,9 +238,14 @@ export const SubscriptionView: React.FC = () => {
       </div>
     );
   }
-
+  const pro_mensual_id = process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '';
+  const pro_anual_id = process.env.NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID ?? '';
+  const starter_mensual_id = process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '';
+  const starter_anual_id = process.env.NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID ?? '';
+  const enterprise_mensual_id = process.env.NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID ?? '';
+  const enterprise_anual_id = process.env.NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID ?? '';
   return (
-    <div className='p-6 max-w-6xl mx-auto'>
+    <div className='p-6  mx-auto'>
       {/* Encabezado */}
       <div className='mb-8'>
         <h1 className='text-3xl font-bold text-[var(--text-primary)] mb-2'>
@@ -235,7 +257,7 @@ export const SubscriptionView: React.FC = () => {
       </div>
 
       {/* Estado actual de suscripción */}
-      {isPro && subscription && (
+      {isPaid && subscription && (
         <Card className='mb-8 border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/5'>
           <CardHeader>
             <div className='flex items-center justify-between'>
@@ -348,92 +370,89 @@ export const SubscriptionView: React.FC = () => {
       )}
 
       {/* Grid de planes */}
-      <div className='grid md:grid-cols-2 gap-6 mb-8'>
-        {plans.map((plan) => (
-          <div key={plan.id} className='relative'>
-            {plan.popular && (
-              <div className='absolute -top-4 left-1/2 transform -translate-x-1/2'>
-                <span className='bg-[var(--accent-primary)] text-white text-xs font-bold px-4 py-1 rounded-full'>
-                  MÁS POPULAR
-                </span>
-              </div>
-            )}
-
-            <Card
-              className={`h-full flex flex-col ${plan.popular
-                ? 'border-[var(--accent-primary)]/50 bg-[var(--accent-primary)]/5'
-                : ''
-                }`}
-            >
+      <div className=''>
+        <div className='flex gap-6 overflow-x-auto  pb-2 pt-14'>
+          <div className='min-w-100 max-w-100 relative'>
+            <Card className='h-full flex flex-col border-[var(--accent-primary)]'>
               <CardHeader>
-                <div className='flex items-start justify-between mb-4'>
-                  <div className='text-[var(--accent-primary)]'>{plan.icon}</div>
-                  {isPro && plan.id === 'pro' && (
-                    <div className={`text-xs font-bold px-2 py-1 rounded ${isCanceled ? 'bg-[var(--accent-danger)]/20 text-[var(--accent-danger)]' : 'bg-green-500/20 text-green-700'}`}>
-                      {isCanceled ? 'CANCELADO (ACTIVO)' : 'ACTUAL'}
-                    </div>
-                  )}
+                <div className='flex items-start justify-between mb-2'>
+                  <div className='text-[var(--accent-primary)] mx-auto flex gap-2'>{planFeatures.free.icon}</div>
                 </div>
-
-                <CardTitle className='text-2xl'>{plan.name}</CardTitle>
-                <CardDescription>{plan.description}</CardDescription>
-
-                <div className='mt-4'>
+                <CardTitle className='text-2xl uppercase text-center' >FREE</CardTitle>
+                <CardDescription className='text-center'>{planFeatures.free.description}</CardDescription>
+                <div className='mt-2'>
                   <div className='flex items-baseline gap-1'>
-                    <span className='text-4xl font-bold text-[var(--text-primary)]'>
-                      ${plan.price}
-                    </span>
-                    <span className='text-[var(--text-secondary)]'>
-                      {plan.billing}
+                    <span className='text-2xl font-bold text-[var(--text-primary)]'>
+                      $0
                     </span>
                   </div>
                 </div>
               </CardHeader>
-
               <CardContent className='flex-1 flex flex-col'>
-                {/* Features */}
                 <div className='space-y-3 mb-6 flex-1'>
-                  {plan.features.map((feature) => (
+                  {planFeatures.free.features.map((feature) => (
                     <div
                       key={feature}
-                      className='flex items-start gap-3 text-sm text-[var(--text-secondary)]'
+                      className='flex items-start gap-3 text-xs text-[var(--text-secondary)]'
                     >
-                      <Check className='h-5 w-5 text-green-500 flex-shrink-0 mt-0.5' />
+                      <Check className='h-4 w-4 text-green-500 flex-shrink-0 mt-0.5' />
                       <span>{feature}</span>
                     </div>
                   ))}
                 </div>
-
-                {/* Button */}
-                <Button
-                  className='w-full'
-                  disabled={
-                    (isPro && plan.id === 'pro' && !isCanceled) || loadingCheckout
-                  }
-                  onClick={() => {
-                    if (plan.id === 'pro') {
-                      handleSubscribe();
-                    }
-                  }}
-                  variant={plan.popular ? 'primary' : 'secondary'}
-                >
-                  {loadingCheckout && plan.id === 'pro' ? 'Redirigiendo...' :
-                    isPro && plan.id === 'pro' ? (
-                      isCanceled ? 'Reactivar Suscripción' : 'Plan actual'
-                    ) : plan.id === 'free' ? (
-                      'Ya estás aquí'
-                    ) : (
-                      'Actualizar a Pro'
-                    )}
+                <Button className='w-full mt-auto' variant='secondary' disabled={!isFreeCurrent}>
+                  Ya estás aquí
                 </Button>
               </CardContent>
             </Card>
           </div>
-        ))}
+          { /* Starter Plan Cards */}
+          <div className='space-y-2 relative'>
+            <div className='bg-[var(--bg-secondary)] rounded-full flex items-center absolute -top-12 z-10 w-full'>
+              <span onClick={() => setTabStarter('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabStarter === 'mensual' ? 'bg-[var(--accent-primary)] text-white' : '')}>MENSUAL</span>
+              <span onClick={() => setTabStarter('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabStarter === 'anual' ? 'bg-[var(--accent-primary)] text-white' : '')}>ANUAL</span>
+            </div>
+            {
+              tabStarter === 'mensual' &&
+              <PlanCard planId={starter_mensual_id} isCurrent={currentPlanTier === 'starter'} isCanceled={isCanceled} plan_reference="STARTER_MENSUAL" />
+            }
+            {tabStarter === 'anual' &&
+              <PlanCard planId={starter_anual_id} isCurrent={currentPlanTier === 'starter'} isCanceled={isCanceled} plan_reference="STARTER_ANUAL" />
+            }
+          </div>
+          { /* Pro Plan Cards */}
+          <div className='space-y-2 relative'>
+            <div className='bg-[var(--bg-secondary)] rounded-full flex items-center absolute -top-12 z-10 w-full'>
+              <span onClick={() => setTabPro('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabPro === 'mensual' ? 'bg-[var(--accent-primary)] text-white' : '')}>MENSUAL</span>
+              <span onClick={() => setTabPro('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabPro === 'anual' ? 'bg-[var(--accent-primary)] text-white' : '')}>ANUAL</span>
+            </div>
+            {
+              tabPro === 'mensual' &&
+              <PlanCard planId={pro_mensual_id} isCurrent={currentPlanTier === 'pro'} isCanceled={isCanceled} plan_reference="PRO_MENSUAL" />
+            }
+            {tabPro === 'anual' &&
+              <PlanCard planId={pro_anual_id} isCurrent={currentPlanTier === 'pro'} isCanceled={isCanceled} plan_reference="PRO_ANUAL" />
+            }
+          </div>
+          { /* Enterprise Plan Cards */}
+          <div className='space-y-2 relative'>
+            <div className='bg-[var(--bg-secondary)] rounded-full flex items-center absolute -top-12 z-10 w-full'>
+              <span onClick={() => setTabEnterprise('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabEnterprise === 'mensual' ? 'bg-[var(--accent-primary)] text-white' : '')}>MENSUAL</span>
+              <span onClick={() => setTabEnterprise('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabEnterprise === 'anual' ? 'bg-[var(--accent-primary)] text-white' : '')}>ANUAL</span>
+            </div>
+            {
+              tabEnterprise === 'mensual' &&
+              <PlanCard planId={enterprise_mensual_id} isCurrent={currentPlanTier === 'enterprise'} isCanceled={isCanceled} plan_reference="ENTERPRISE_MENSUAL" />
+            }
+            {tabEnterprise === 'anual' &&
+              <PlanCard planId={enterprise_anual_id} isCurrent={currentPlanTier === 'enterprise'} isCanceled={isCanceled} plan_reference="ENTERPRISE_ANUAL" />
+            }
+          </div>
+        </div>
       </div>
 
       {/* FAQ / Información adicional */}
-      <div className='grid md:grid-cols-2 gap-6'>
+      <div className='grid md:grid-cols-2 gap-6 md:px-10 py-5'>
         <Card>
           <CardHeader>
             <CardTitle className='flex items-center gap-2'>
@@ -446,7 +465,13 @@ export const SubscriptionView: React.FC = () => {
               <strong>Gratuito:</strong> Hasta 100 MB por proyecto
             </p>
             <p>
+              <strong>Starter:</strong> Hasta 1 GB por proyecto
+            </p>
+            <p>
               <strong>Pro:</strong> Hasta 5 GB por proyecto
+            </p>
+            <p>
+              <strong>Enterprise:</strong> Ilimitado
             </p>
             <p className='text-xs mt-4'>
               El almacenamiento se calcula a partir de tus recursos y archivos
@@ -467,7 +492,13 @@ export const SubscriptionView: React.FC = () => {
               <strong>Gratuito:</strong> Hasta 10 miembros por proyecto
             </p>
             <p>
+              <strong>Starter:</strong> Hasta 15 miembros por proyecto
+            </p>
+            <p>
               <strong>Pro:</strong> Hasta 20 miembros por proyecto
+            </p>
+            <p>
+              <strong>Enterprise:</strong> Ilimitado
             </p>
             <p className='text-xs mt-4'>
               Invita a tu equipo a colaborar en proyectos. Los permisos se
@@ -514,6 +545,6 @@ export const SubscriptionView: React.FC = () => {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </div >
   );
 };

@@ -35,10 +35,10 @@ jest.mock('@/hooks/useRealtimeMessages', () => ({
   useRealtimeMessages: () => ({}),
 }));
 
-// Mock checkIsPremiumUser
+// Mock canUseAIFeatures
 jest.mock('@/lib/subscriptionUtils', () => ({
   ...jest.requireActual('@/lib/subscriptionUtils'),
-  checkIsPremiumUser: jest.fn().mockResolvedValue(true),
+  canUseAIFeatures: jest.fn().mockResolvedValue(true),
 }));
 
 // Mock Supabase client

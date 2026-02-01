@@ -11,7 +11,7 @@ import { createClient } from '@/lib/supabase/client';
 
 import { CheckSquare, Plus, Trash2, ImageIcon, X, Sparkles, Lock } from 'lucide-react';
 import useGemini from '@/hooks/useGemini';
-import { checkIsPremiumUser } from '@/lib/subscriptionUtils';
+import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -53,13 +53,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
   const supabase = createClient();
 
-  // Verificar si el usuario es premium
+  // Verificar si el usuario puede usar IA
   useEffect(() => {
     const checkPremium = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const premium = await checkIsPremiumUser(supabase, user.id);
-        setIsPremium(premium);
+        const allowed = await canUseAIFeatures(supabase, user.id);
+        setIsPremium(allowed);
       }
     };
     if (isOpen) {
@@ -322,6 +322,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const generateDescription = useMutation({
     mutationFn: async () => {
       isGeneratingWithAI.current = true;
+      // eslint-disable-next-line react-hooks/incompatible-library
       return await generateTaskDescription({ title_task: watch('title'), current_checklist: initialData?.checklist });
     },
     onSuccess: (data) => {
@@ -381,14 +382,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 className='text-[var(--accent-primary)] gap-1'
                 onClick={() => generateDescription.mutate()}
                 disabled={generateDescription.isPending || !isPremium}
-                title={!isPremium ? 'Función disponible solo en Plan Pro' : ''}
+                title={!isPremium ? 'Función disponible solo en Plan Pro o Enterprise' : ''}
               >
                 {generateDescription.isPending ? 'Generando...' : 'Generar con IA'}
                 {!isPremium ? <Lock size={16} /> : <Sparkles size={16} />}
               </Button>
               {!isPremium && (
                 <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--text-secondary)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
-                  <p>Función disponible solo en Plan Pro</p>
+                  <p>Función disponible solo en Plan Pro o Enterprise</p>
                 </div>
               )}
             </div>
@@ -571,6 +572,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <div className="grid grid-cols-3 gap-2 mb-3">
               {editImages.filter(img => !img.isDeleted).map((image) => (
                 <div key={image.id} className="relative group">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={image.url}
                     alt={image.file_name}
@@ -597,6 +599,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <div className="grid grid-cols-3 gap-2 mb-3">
               {localImages.map((image) => (
                 <div key={image.tempId} className="relative group">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={image.preview}
                     alt={image.file.name}
@@ -699,6 +702,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           >
             <X className="w-8 h-8" />
           </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={fullscreenImage}
             alt="Vista completa"

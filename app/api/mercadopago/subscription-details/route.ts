@@ -35,6 +35,29 @@ export async function GET() {
       });
     }
 
+    const planIdMap: Record<string, string[]> = {
+      starter: [
+        process.env.MP_STARTER_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '',
+        process.env.MP_STARTER_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID ?? ''
+      ],
+      pro: [
+        process.env.MP_PRO_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '',
+        process.env.MP_PRO_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID ?? ''
+      ],
+      enterprise: [
+        process.env.MP_ENTERPRISE_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID ?? '',
+        process.env.MP_ENTERPRISE_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID ?? ''
+      ],
+    };
+
+    const getInternalPlanId = (planId?: string | null) => {
+      if (!planId) return 'free';
+      if (planIdMap.starter.includes(planId)) return 'starter';
+      if (planIdMap.pro.includes(planId)) return 'pro';
+      if (planIdMap.enterprise.includes(planId)) return 'enterprise';
+      return 'free';
+    };
+
     // Obtener detalles de MercadoPago
     try {
       const mpSubscription = await preapproval.get({ 
@@ -131,32 +154,30 @@ export async function GET() {
       };
 
       // DETERMINAR PLAN (Lógica del Servidor)
-      const proPlanId = process.env.MP_PRO_PLAN_ID;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const subscriptionPlanId = (mpSubscription as any).preapproval_plan_id;
-      
-      // Si el precio/plan coincide con la variable de entorno, es PRO.
-      const internalPlanId = subscriptionPlanId === proPlanId ? 'pro' : 'free';
+      const subscriptionPlanId = (mpSubscription as any).preapproval_plan_id as string | undefined;
+      const internalPlanId = getInternalPlanId(subscriptionPlanId);
 
       return NextResponse.json({
         hasSubscription: true,
-        isPro: internalPlanId === 'pro',
+        isPro: internalPlanId === 'pro' || internalPlanId === 'enterprise',
         internalPlanId,
         source: 'mercadopago',
         details: mpDetails
       });
 
       } catch (mpError) {
-      console.error('Error obteniendo suscripción de MP:', mpError);
+      if (process.env.NODE_ENV !== 'test') {
+        console.error('Error obteniendo suscripción de MP:', mpError);
+      }
       
       // Devolver datos de la BD si no podemos obtener de MP
       
-      const proPlanId = process.env.MP_PRO_PLAN_ID;
-      const internalPlanId = subscription.price_id === proPlanId ? 'pro' : 'free';
+      const internalPlanId = subscription.plan_tier ? subscription.plan_tier : getInternalPlanId(subscription.price_id);
 
       return NextResponse.json({
         hasSubscription: true,
-        isPro: internalPlanId === 'pro',
+        isPro: internalPlanId === 'pro' || internalPlanId === 'enterprise',
         internalPlanId,
         source: 'database',
         details: {
@@ -172,7 +193,9 @@ export async function GET() {
     }
 
   } catch (error: unknown) {
-    console.error('Error obteniendo detalles de suscripción:', error);
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Error obteniendo detalles de suscripción:', error);
+    }
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
     
     return NextResponse.json(

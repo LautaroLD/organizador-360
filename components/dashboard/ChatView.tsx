@@ -21,7 +21,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useNotificationStore } from '@/store/notificationStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
-import { checkIsPremiumUser } from '@/lib/subscriptionUtils';
+import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 
 interface MessageFormData {
   content: string;
@@ -54,12 +54,12 @@ export const ChatView: React.FC = () => {
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
 
-  // Verificar si el usuario es premium
+  // Verificar si el usuario puede usar IA
   useEffect(() => {
     const checkPremium = async () => {
       if (user?.id) {
-        const premium = await checkIsPremiumUser(supabase, user.id);
-        setIsPremium(premium);
+        const allowed = await canUseAIFeatures(supabase, user.id);
+        setIsPremium(allowed);
       }
     };
     checkPremium();
@@ -610,14 +610,14 @@ export const ChatView: React.FC = () => {
                     variant="ghost"
                     onClick={openSummaryModal}
                     disabled={!isPremium}
-                    title={!isPremium ? "Función disponible solo en Plan Pro" : "Resumir chat con IA"}
+                    title={!isPremium ? "Función disponible solo en Plan Pro o Enterprise" : "Resumir chat con IA"}
                     className="mr-2 text-[var(--text-secondary)] hover:text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/10"
                   >
                     {!isPremium ? <Lock className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
                   </Button>
                   {!isPremium && (
                     <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
-                      <p>Función disponible solo en Plan Pro</p>
+                      <p>Función disponible solo en Plan Pro o Enterprise</p>
                     </div>
                   )}
                 </div>

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Bot, Send, User, Sparkles, Loader2, Lock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { checkIsPremiumUser } from '@/lib/subscriptionUtils';
+import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import Link from 'next/link';
@@ -123,12 +123,12 @@ export default function AgentPage() {
   const { user } = useAuthStore();
   const [isPremium, setIsPremium] = useState(false);
 
-  // Verificar si el usuario es premium
+  // Verificar si el usuario puede usar IA
   useEffect(() => {
     const checkPremium = async () => {
       if (user?.id) {
-        const premium = await checkIsPremiumUser(supabase, user.id);
-        setIsPremium(premium);
+        const allowed = await canUseAIFeatures(supabase, user.id);
+        setIsPremium(allowed);
       }
     };
     checkPremium();
@@ -147,11 +147,11 @@ export default function AgentPage() {
           </div>
         </div>
         <div className="flex-1 flex flex-col justify-center items-center p-4">
-          <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-4">Función disponible solo en Plan Pro</h2>
+          <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-4">Función disponible solo en Plan Pro o Enterprise</h2>
           <Lock size={48} className="text-[var(--text-secondary)] mb-4" />
-          <p className="text-[var(--text-secondary)] mb-6 text-center">Para acceder al asistente IA de proyectos, por favor actualiza a un plan Pro.</p>
+          <p className="text-[var(--text-secondary)] mb-6 text-center">Para acceder al asistente IA de proyectos, por favor actualiza a un plan Pro o Enterprise.</p>
           <Link className='bg-[var(--accent-primary)] px-2 py-1 rounded-lg' href="/settings/subscription">
-            Actualizar a Pro
+            Ver planes
           </Link>
         </div>
       </main>

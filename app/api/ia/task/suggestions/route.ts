@@ -1,7 +1,7 @@
 import { ai } from '@/lib/gemini';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { checkIsPremiumUser } from '@/lib/subscriptionUtils';
+import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,10 +14,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Verificar que el usuario sea premium
-    const isPremium = await checkIsPremiumUser(supabase, user.id);
-    if (!isPremium) {
+    const canUseAI = await canUseAIFeatures(supabase, user.id);
+    if (!canUseAI) {
       return NextResponse.json(
-        { error: 'Esta función está disponible solo para usuarios Pro' },
+        { error: 'Esta función está disponible solo para planes Pro o Enterprise' },
         { status: 403 }
       );
     }

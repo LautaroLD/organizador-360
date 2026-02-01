@@ -2,7 +2,7 @@
  * Tests para el modelo Task y funcionalidades de imágenes
  */
 
-import { Task, TaskImage, CreateTaskDTO, TaskChecklistItem, TaskAssignment } from '@/models/task';
+import { Task, TaskImage, CreateTaskDTO } from '@/models/task';
 
 describe('Task Model', () => {
   describe('Task interface', () => {

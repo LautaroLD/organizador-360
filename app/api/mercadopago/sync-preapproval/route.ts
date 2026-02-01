@@ -69,8 +69,32 @@ export async function GET(request: NextRequest) {
       ? new Date(mpSubscription.next_payment_date)
       : new Date(now.setMonth(now.getMonth() + 1));
 
-    // Nota: No guardamos el preapproval_plan_id en price_id porque tiene FK a tabla prices (Stripe)
-    // El plan de MP se guarda implícitamente via mercadopago_subscription_id
+    const planIdMap: Record<string, string[]> = {
+      starter: [
+        process.env.MP_STARTER_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '',
+        process.env.MP_STARTER_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID ?? ''
+      ],
+      pro: [
+        process.env.MP_PRO_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '',
+        process.env.MP_PRO_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID ?? ''
+      ],
+      enterprise: [
+        process.env.MP_ENTERPRISE_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID ?? '',
+        process.env.MP_ENTERPRISE_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID ?? ''
+      ],
+    };
+
+    const getInternalPlanId = (planId?: string | null) => {
+      if (!planId) return 'free';
+      if (planIdMap.starter.includes(planId)) return 'starter';
+      if (planIdMap.pro.includes(planId)) return 'pro';
+      if (planIdMap.enterprise.includes(planId)) return 'enterprise';
+      return 'free';
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mpPlanId = (mpSubscription as any).preapproval_plan_id as string | undefined;
+    const planTier = getInternalPlanId(mpPlanId);
 
     // Upsert en la tabla de subscriptions
     const { error: upsertError } = await supabaseAdmin
@@ -82,6 +106,7 @@ export async function GET(request: NextRequest) {
           mercadopago_subscription_id: preapprovalId,
           status: dbStatus,
           price_id: null, // No usamos price_id para MercadoPago (FK a prices de Stripe)
+          plan_tier: planTier,
           current_period_start: mpSubscription.date_created || new Date().toISOString(),
           current_period_end: nextPaymentDate.toISOString(),
           cancel_at_period_end: false,

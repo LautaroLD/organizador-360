@@ -10,6 +10,7 @@ export interface Task {
   created_by?: string;
   created_at: string;
   updated_at: string;
+  done_at?: string | null;
   assignments?: TaskAssignment[];
   checklist?: TaskChecklistItem[];
   tags?: TaskTagAssociation[];

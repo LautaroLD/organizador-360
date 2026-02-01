@@ -6,7 +6,7 @@ export default function useGemini() {
 
   const handlePremiumError = (error: unknown) => {
     if (error instanceof Response && error.status === 403) {
-      toast.error('Esta función está disponible solo para usuarios Pro. ¡Actualiza tu plan!');
+      toast.error('Esta función está disponible solo para planes Pro o Enterprise. ¡Actualiza tu plan!');
       return;
     }
     throw error;
@@ -28,7 +28,7 @@ export default function useGemini() {
       });
 
       if (res.status === 403) {
-        toast.error('Esta función está disponible solo para usuarios Pro. ¡Actualiza tu plan!');
+        toast.error('Esta función está disponible solo para planes Pro o Enterprise. ¡Actualiza tu plan!');
         return null;
       }
 
@@ -58,7 +58,7 @@ export default function useGemini() {
       });
 
       if (res.status === 403) {
-        toast.error('Esta función está disponible solo para usuarios Pro. ¡Actualiza tu plan!');
+        toast.error('Esta función está disponible solo para planes Pro o Enterprise. ¡Actualiza tu plan!');
         return null;
       }
 
@@ -90,7 +90,7 @@ export default function useGemini() {
       });
 
       if (res.status === 403) {
-        toast.error('Esta función está disponible solo para usuarios Pro. ¡Actualiza tu plan!');
+        toast.error('Esta función está disponible solo para planes Pro o Enterprise. ¡Actualiza tu plan!');
         return null;
       }
 

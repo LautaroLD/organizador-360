@@ -31,7 +31,7 @@ import {
 import { formatDate } from '@/lib/utils';
 import type { ProjectFormData, InviteFormData, Project } from '@/models';
 import { StorageIndicator } from './StorageIndicator';
-import { SUBSCRIPTION_LIMITS } from '@/lib/subscriptionUtils';
+import { getPlanLimits, getUserPlanTier } from '@/lib/subscriptionUtils';
 
 export const ProjectsView: React.FC = () => {
   const supabase = createClient();
@@ -96,68 +96,53 @@ export const ProjectsView: React.FC = () => {
     enabled: !!user?.id,
   });
 
-  // Check subscription status
-  const { data: subscription } = useQuery({
-    queryKey: ['subscription', user?.id],
+  // Check plan tier
+  const { data: planTier } = useQuery({
+    queryKey: ['plan-tier', user?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('subscriptions')
-        .select('status, current_period_end')
-        .eq('user_id', user!.id)
-        .maybeSingle();
-      return data;
+      if (!user?.id) return 'free';
+      return getUserPlanTier(supabase, user.id);
     },
     enabled: !!user?.id,
   });
 
   // Calculate disabled projects count
   const disabledProjectsCount = projects?.filter(p => !p.enabled && p.userRole === 'Owner').length || 0;
-  const isPremium = subscription &&
-    ['active', 'trialing', 'past_due'].includes(subscription.status) &&
-    new Date(subscription.current_period_end) > new Date();
+  const currentTier = planTier ?? 'free';
+  const currentLimits = getPlanLimits(currentTier);
+
+  const getProjectTier = (project: Project) => {
+    const tier = (project as Project & { plan_tier?: string; }).plan_tier;
+    if (tier === 'starter' || tier === 'pro' || tier === 'enterprise') {
+      return tier;
+    }
+    return project.is_premium ? 'pro' : 'free';
+  };
 
   // Create project mutation
   const createProjectMutation = useMutation({
     mutationFn: async (data: ProjectFormData) => {
       // 1. OBTENER ESTADO DE SUSCRIPCIÓN Y CONTEO ACTUAL
       // Consultamos los proyectos habilitados del usuario y su estado premium en paralelo
-      const [projectsCountRes, subscriptionRes] = await Promise.all([
+      const [projectsCountRes, tierRes] = await Promise.all([
         supabase
           .from('projects')
           .select('*', { count: 'exact', head: true })
           .eq('owner_id', user!.id)
           .eq('enabled', true), // Solo contar proyectos habilitados
-        supabase
-          .from('subscriptions')
-          .select('status,cancel_at_period_end,current_period_end,canceled_at')
-          .eq('user_id', user!.id)
-          .maybeSingle()
+        getUserPlanTier(supabase, user!.id)
       ]);
 
       // Validar errores en las queries
       if (projectsCountRes.error) {
         throw new Error(`Error al verificar proyectos: ${projectsCountRes.error.message}`);
       }
-      if (subscriptionRes.error && subscriptionRes.error.code !== 'PGRST116') {
-        // PGRST116 = no rows returned, es esperado para nuevos usuarios
-        throw new Error(`Error al verificar suscripción: ${subscriptionRes.error.message}`);
-      }
-
-      const sub = subscriptionRes.data;
-      const now = new Date();
-      const currentPeriodEnd = sub?.current_period_end ? new Date(sub.current_period_end) : null;
-      const isPremium = !!sub && (
-        (['active', 'trialing', 'past_due'].includes(sub.status ?? '') &&
-          (
-            sub.cancel_at_period_end !== true ||
-            (currentPeriodEnd && now < currentPeriodEnd)
-          ))
-      );
+      const tier = tierRes ?? 'free';
       const enabledProjects = projectsCountRes.count || 0;
 
       // 2. LÓGICA DE NEGOCIO: Límite de proyectos habilitados según plan
-      const maxProjects = isPremium ? SUBSCRIPTION_LIMITS.PRO.MAX_PROJECTS : SUBSCRIPTION_LIMITS.FREE.MAX_PROJECTS;
-      if (enabledProjects >= maxProjects) {
+      const maxProjects = getPlanLimits(tier).MAX_PROJECTS;
+      if (maxProjects !== null && enabledProjects >= maxProjects) {
         throw new Error(`Has alcanzado el límite de ${maxProjects} proyectos habilitados. Actualiza tu plan o desactiva proyectos para crear más.`);
       }
 
@@ -297,9 +282,9 @@ export const ProjectsView: React.FC = () => {
                 Proyectos Deshabilitados
               </h3>
               <p className='text-sm text-[var(--accent-warning)] mb-2'>
-                {isPremium
-                  ? `Los usuarios Pro solo pueden tener ${SUBSCRIPTION_LIMITS.PRO.MAX_PROJECTS} proyectos habilitados simultáneamente.`
-                  : `Los usuarios con plan gratuito solo pueden tener ${SUBSCRIPTION_LIMITS.FREE.MAX_PROJECTS} proyectos habilitados simultáneamente.`}
+                {currentLimits.MAX_PROJECTS === null
+                  ? 'Tu plan permite proyectos ilimitados.'
+                  : `Tu plan ${currentTier.toUpperCase()} permite hasta ${currentLimits.MAX_PROJECTS} proyectos habilitados simultáneamente.`}
               </p>
               <div className='flex gap-2 flex-wrap'>
                 <p className='text-xs text-[var(--accent-warning)]  self-center'>
@@ -366,7 +351,7 @@ export const ProjectsView: React.FC = () => {
                 <div className='mb-4'>
                   <StorageIndicator
                     used={project.storage_used || 0}
-                    limit={project.is_premium ? SUBSCRIPTION_LIMITS.PRO.MAX_STORAGE_BYTES : SUBSCRIPTION_LIMITS.FREE.MAX_STORAGE_BYTES}
+                    limit={getPlanLimits(getProjectTier(project)).MAX_STORAGE_BYTES}
                   />
                 </div>
                 <div className='flex items-center justify-between text-sm text-[var(--text-secondary)] mb-3'>
@@ -613,7 +598,7 @@ export const ProjectsView: React.FC = () => {
                 if (error) {
                   // Check if it's the limit error (ERRCODE P0002)
                   if (error.code === 'P0002') {
-                    toast.error('Límite de proyectos habilitados alcanzado. Los usuarios gratuitos pueden tener máximo 3 proyectos habilitados. Actualiza a Plan Pro para proyectos ilimitados.', {
+                    toast.error('Límite de proyectos habilitados alcanzado. Revisa tu plan para aumentar el límite o desactiva proyectos.', {
                       autoClose: 5000
                     });
                   } else {

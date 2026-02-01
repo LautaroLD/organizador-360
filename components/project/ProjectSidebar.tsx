@@ -15,12 +15,11 @@ import {
   ArrowLeft,
   Hash,
   Users,
-  Code2,
   Layout,
   Sparkles,
+  BarChart3,
 } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Project } from '@/models';
 import Logo from '../ui/Logo';
 const SidebarContent = ({ handleBackToDashboard, currentProject, menuItems, pathname, setIsOpen, user }: { handleBackToDashboard: () => void, currentProject: Project | null, menuItems: { id: string; icon: React.ReactNode; label: string; path: string; }[], pathname: string, setIsOpen: (isOpen: boolean) => void, user: { id: string; email?: string; } | null; }) => (
@@ -144,6 +143,23 @@ export const Sidebar: React.FC = () => {
       path: `/projects/${projectId}/calendar`
     }
   ];
+
+  const projectTier = currentProject?.plan_tier === 'enterprise'
+    ? 'enterprise'
+    : (currentProject?.plan_tier === 'pro' || currentProject?.plan_tier === 'starter'
+      ? currentProject?.plan_tier
+      : (currentProject?.is_premium ? 'pro' : 'free'));
+
+  const canSeeAnalytics = projectTier === 'enterprise' && (currentProject?.userRole === 'Owner' || currentProject?.userRole === 'Admin');
+
+  if (canSeeAnalytics) {
+    menuItems.push({
+      id: 'analytics',
+      icon: <BarChart3 className="h-5 w-5" />,
+      label: 'Analíticas',
+      path: `/projects/${projectId}/analytics`
+    });
+  }
 
   if (currentProject?.owner_id === user?.id) {
     menuItems.push({

@@ -34,6 +34,29 @@ export async function POST(request: NextRequest) {
       const userId = subscription.external_reference;
       const status = subscription.status;
 
+      const planIdMap: Record<string, string[]> = {
+        starter: [
+          process.env.MP_STARTER_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '',
+          process.env.MP_STARTER_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID ?? ''
+        ],
+        pro: [
+          process.env.MP_PRO_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '',
+          process.env.MP_PRO_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID ?? ''
+        ],
+        enterprise: [
+          process.env.MP_ENTERPRISE_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID ?? '',
+          process.env.MP_ENTERPRISE_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID ?? ''
+        ],
+      };
+
+      const getInternalPlanId = (planId?: string | null) => {
+        if (!planId) return 'free';
+        if (planIdMap.starter.includes(planId)) return 'starter';
+        if (planIdMap.pro.includes(planId)) return 'pro';
+        if (planIdMap.enterprise.includes(planId)) return 'enterprise';
+        return 'free';
+      };
+
       // Mapear estado o usar directamente si la migración se aplicó
       // Estados MP: authorized, paused, cancelled, pending
       
@@ -46,6 +69,10 @@ export async function POST(request: NextRequest) {
 
         // Upsert para manejar tanto creación como actualización
         // Esto corrige el problema de "no carga como pro" si el checkout inicial falló en guardar la BD
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mpPlanId = (subscription as any).preapproval_plan_id as string | undefined;
+        const planTier = getInternalPlanId(mpPlanId);
+
         const { error } = await supabaseAdmin
           .from('subscriptions')
           .upsert({
@@ -53,11 +80,10 @@ export async function POST(request: NextRequest) {
             mercadopago_subscription_id: subscription.id, // Redundante pero seguro
             user_id: userId,
             status: status,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            price_id: (subscription as any).preapproval_plan_id,
+            price_id: null, // No usamos price_id para MercadoPago
+            plan_tier: planTier,
             current_period_end: subscription.next_payment_date ? new Date(subscription.next_payment_date).toISOString() : undefined,
             // Mantener fecha de creación original si existe, o usar now
-            updated_at: new Date().toISOString() // Si tienes columna updated_at
           }, { onConflict: 'mercadopago_subscription_id' }); // O 'id' si es PK
 
         if (error) {
