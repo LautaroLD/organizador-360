@@ -322,6 +322,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const generateDescription = useMutation({
     mutationFn: async () => {
       isGeneratingWithAI.current = true;
+      // eslint-disable-next-line react-hooks/incompatible-library
       return await generateTaskDescription({ title_task: watch('title'), current_checklist: initialData?.checklist });
     },
     onSuccess: (data) => {
@@ -571,6 +572,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <div className="grid grid-cols-3 gap-2 mb-3">
               {editImages.filter(img => !img.isDeleted).map((image) => (
                 <div key={image.id} className="relative group">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={image.url}
                     alt={image.file_name}
@@ -597,6 +599,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <div className="grid grid-cols-3 gap-2 mb-3">
               {localImages.map((image) => (
                 <div key={image.tempId} className="relative group">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={image.preview}
                     alt={image.file.name}
@@ -699,6 +702,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           >
             <X className="w-8 h-8" />
           </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={fullscreenImage}
             alt="Vista completa"

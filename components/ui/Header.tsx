@@ -5,12 +5,11 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuthStore } from '@/store/authStore';
 import { createClient } from '@/lib/supabase/client';
-import { Settings, LogOut, ChevronDown, Home, Code2 } from 'lucide-react';
+import { Settings, LogOut, ChevronDown, Home } from 'lucide-react';
 import { toast } from 'react-toastify';
 import Link from 'next/link';
 import clsx from 'clsx';
 import Image from 'next/image';
-import { useThemeStore } from '@/store/themeStore';
 import Logo from './Logo';
 
 interface HeaderProps {
@@ -26,7 +25,6 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   const router = useRouter();
   const path = usePathname();
   const location = { pathname: path };
-  const { theme } = useThemeStore();
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

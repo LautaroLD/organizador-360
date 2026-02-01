@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/Button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { createClient } from '@/lib/supabase/client';
 import { Code2, MessageSquare, FolderKanban, Calendar, Sparkles, Bell, BarChart3, ShieldCheck, Users } from 'lucide-react';
-import Image from 'next/image';
 import Logo from '@/components/ui/Logo';
 
 export default function HomePage() {

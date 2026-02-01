@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { SubscriptionView } from '@/components/dashboard/SubscriptionView';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 

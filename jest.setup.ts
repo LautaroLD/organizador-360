@@ -1,10 +1,9 @@
 // Polyfill global fetch para entorno de test Node.js
 import fetch from 'cross-fetch';
 if (!global.fetch) {
-  global.fetch = fetch as any;
+  global.fetch = fetch as typeof global.fetch;
 }
 // Learn more: https://github.com/testing-library/jest-dom
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import '@testing-library/jest-dom';
 import React from 'react';
 import { TextEncoder, TextDecoder } from 'util';
@@ -20,14 +19,14 @@ if (typeof Request === 'undefined') {
         url: string;
         method: string;
         headers: Headers;
-        body: any;
-        constructor(input: string | Request, init?: any) {
+    body: unknown;
+    constructor(input: string | Request, init?: RequestInit) {
             this.url = typeof input === 'string' ? input : input.url;
             this.method = init?.method || 'GET';
             this.headers = new Headers(init?.headers);
             this.body = init?.body;
         }
-        json() { return Promise.resolve(JSON.parse(this.body)); }
+    json() { return Promise.resolve(JSON.parse(String(this.body))); }
     };
 }
 
@@ -37,9 +36,9 @@ if (typeof Response === 'undefined') {
         status: number;
         statusText: string;
         headers: Headers;
-        body: any;
+    body: unknown;
         ok: boolean;
-        constructor(body?: any, init?: any) {
+    constructor(body?: unknown, init?: ResponseInit) {
             this.status = init?.status || 200;
             this.statusText = init?.statusText || '';
             this.headers = new Headers(init?.headers);
@@ -56,7 +55,7 @@ if (typeof Headers === 'undefined') {
     // @ts-expect-error Polyfill for Headers
     global.Headers = class Headers {
         map: Map<string, string>;
-        constructor(init?: any) {
+    constructor(init?: Record<string, string>) {
             this.map = new Map();
             if (init) {
                 Object.keys(init).forEach(key => this.map.set(key, init[key]));
@@ -67,7 +66,9 @@ if (typeof Headers === 'undefined') {
         get(key: string) { return this.map.get(key) || null; }
         has(key: string) { return this.map.has(key); }
         set(key: string, value: string) { this.map.set(key, value); }
-        forEach(callback: any) { this.map.forEach(callback); }
+    forEach(callback: (value: string, key: string, parent: Headers) => void) {
+      this.map.forEach((value, key) => callback(value, key, this));
+    }
     };
 }
 
@@ -75,7 +76,7 @@ if (typeof Headers === 'undefined') {
 jest.mock('next/image', () => ({
   __esModule: true,
    
-  default: (props: any) => {
+  default: (props: React.ComponentProps<'img'>) => {
     return React.createElement('img', props);
   },
 }));

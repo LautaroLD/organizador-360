@@ -15,13 +15,11 @@ import {
   ArrowLeft,
   Hash,
   Users,
-  Code2,
   Layout,
   Sparkles,
   BarChart3,
 } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Project } from '@/models';
 import Logo from '../ui/Logo';
 const SidebarContent = ({ handleBackToDashboard, currentProject, menuItems, pathname, setIsOpen, user }: { handleBackToDashboard: () => void, currentProject: Project | null, menuItems: { id: string; icon: React.ReactNode; label: string; path: string; }[], pathname: string, setIsOpen: (isOpen: boolean) => void, user: { id: string; email?: string; } | null; }) => (
