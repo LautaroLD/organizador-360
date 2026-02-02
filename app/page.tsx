@@ -121,14 +121,18 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-20 text-center">
-        <h2 className="text-5xl font-bold text-[var(--text-primary)] mb-6">
+        <h1 className="text-5xl font-bold text-[var(--text-primary)] mb-6">
           Colaboración Todo-en-Uno
           <br />
           <span className="text-[var(--accent-primary)]">para Equipos de Desarrollo</span>
-        </h2>
+        </h1>
         <p className="text-xl text-[var(--text-secondary)] mb-8 max-w-2xl mx-auto">
           Deja de cambiar entre múltiples herramientas. Veenzo centraliza el chat,
           proyectos, documentación y calendario en un solo lugar.
+        </p>
+        <p className="text-base text-[var(--text-secondary)] mb-10 max-w-3xl mx-auto">
+          Veenzo es una aplicación de gestión de equipos y proyectos con Kanban,
+          tareas, calendario compartido y comunicación en tiempo real.
         </p>
         <div className="flex items-center justify-center space-x-4">
           <Button size="lg" onClick={() => router.push('/auth')}>
