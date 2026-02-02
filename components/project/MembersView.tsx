@@ -33,6 +33,7 @@ export const MembersView: React.FC = () => {
   const [isTagManagementOpen, setIsTagManagementOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [selectedMemberForTags, setSelectedMemberForTags] = useState<Member | null>(null);
+  const [generatedInviteLink, setGeneratedInviteLink] = useState<string | null>(null);
 
   // Fetch members with tags directamente desde Supabase (RLS permite visibilidad a todos los miembros)
   const { data: members, isLoading } = useQuery({
@@ -96,7 +97,14 @@ export const MembersView: React.FC = () => {
         data: { session },
       } = await supabase.auth.getSession();
 
-      if (!session) throw new Error('No estás autenticado');
+      if (!session?.access_token) throw new Error('Sesión inválida');
+
+      if (!currentProject?.id) {
+        throw new Error('Proyecto no seleccionado');
+      }
+
+      const resolvedInviteType = data.inviteType ?? 'email';
+      const resolvedRole = data.role ?? 'Collaborator';
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/send-invitation`,
@@ -107,9 +115,10 @@ export const MembersView: React.FC = () => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            projectId: currentProject?.id,
-            inviteeEmail: data.email,
-            role: data.role,
+            projectId: currentProject.id,
+            inviteeEmail: resolvedInviteType === 'email' ? data.email : null,
+            role: resolvedRole,
+            inviteType: resolvedInviteType,
           }),
         }
       );
@@ -120,14 +129,20 @@ export const MembersView: React.FC = () => {
       }
       return result;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['project-members'] });
-      toast.success(
-        data.isNewUser
-          ? '¡Invitación enviada! El usuario deberá crear una cuenta primero.'
-          : '¡Invitación enviada! El usuario recibirá un email para aceptarla.'
-      );
-      setIsInviteModalOpen(false);
+      if (variables.inviteType === 'link') {
+        setGeneratedInviteLink(data.invitationUrl ?? null);
+        toast.success('Enlace de invitación generado');
+      } else {
+        toast.success(
+          data.isNewUser
+            ? '¡Invitación enviada! El usuario deberá crear una cuenta primero.'
+            : '¡Invitación enviada! El usuario recibirá un email para aceptarla.'
+        );
+        setIsInviteModalOpen(false);
+        setGeneratedInviteLink(null);
+      }
     },
     onError: (error) => {
       toast.error(error.message || 'Error al enviar invitación');
@@ -351,10 +366,22 @@ export const MembersView: React.FC = () => {
         return;
       }
 
+      setGeneratedInviteLink(null);
       setIsInviteModalOpen(true);
     } catch (error) {
       console.error('Error validating invitation:', error);
       toast.error('Error al validar invitación');
+    }
+  };
+
+  const handleCopyInviteLink = async () => {
+    if (!generatedInviteLink) return;
+    try {
+      await navigator.clipboard.writeText(generatedInviteLink);
+      toast.success('Enlace copiado al portapapeles');
+    } catch (error) {
+      console.error('Error copying invitation link:', error);
+      toast.error('No se pudo copiar el enlace');
     }
   };
 
@@ -473,7 +500,10 @@ export const MembersView: React.FC = () => {
       {/* Modals */}
       <InviteMemberModal
         isOpen={isInviteModalOpen}
-        onClose={() => setIsInviteModalOpen(false)}
+        onClose={() => {
+          setIsInviteModalOpen(false);
+          setGeneratedInviteLink(null);
+        }}
         onSubmit={(data) => inviteUserMutation.mutate(data)}
         isLoading={inviteUserMutation.isPending}
         projectName={currentProject?.name}
@@ -484,6 +514,8 @@ export const MembersView: React.FC = () => {
         })()}
         isPremium={projectTier !== 'free'}
         planTier={projectTier}
+        generatedLink={generatedInviteLink}
+        onCopyLink={handleCopyInviteLink}
       />
 
       <ManageMemberModal

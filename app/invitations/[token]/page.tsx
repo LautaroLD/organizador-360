@@ -15,7 +15,8 @@ interface Invitation {
   id: string;
   project_id: string;
   inviter_id: string;
-  invitee_email: string;
+  invitee_email?: string | null;
+  invite_type?: 'email' | 'link';
   role: string;
   status: string;
   created_at: string;
@@ -55,7 +56,7 @@ export default function InvitationPage() {
   useEffect(() => {
     // Si el usuario se autentica y la invitación está cargada
     if (user && invitation && !authLoading) {
-      if (user.email === invitation.invitee_email) {
+      if (!invitation.invitee_email || user.email === invitation.invitee_email) {
         setNeedsRegistration(false);
         // Si venía del registro, mostrar mensaje
         const wasRegistering = typeof window !== 'undefined'
@@ -66,7 +67,7 @@ export default function InvitationPage() {
           toast.success('¡Cuenta creada! Ahora puedes aceptar la invitación.');
           localStorage.removeItem('just_registered');
         }
-      } else {
+      } else if (invitation.invitee_email) {
         setError(`Esta invitación es para ${invitation.invitee_email}. Has iniciado sesión con ${user.email}. Por favor, cierra sesión y crea una cuenta con el email correcto.`);
       }
     }
@@ -77,26 +78,20 @@ export default function InvitationPage() {
       setIsLoading(true);
       setError(null);
 
-      const { data, error } = await supabase
-        .from('project_invitations')
-        .select(`
-    *,
-    project:projects (
-      name,
-      description
-    ),
-    inviter:users (
-      name,
-      email
-    )
-  `)
-        .eq('token', token)
-        .maybeSingle(); // <--- IMPORTANTE: No explota si no hay datos
+      const response = await fetch('/api/invitations/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
 
-      if (error || !data) {
-        setError('Invitación no encontrada');
+      const result = await response.json();
+
+      if (!response.ok || !result.invitation) {
+        setError(result.error || 'Invitación no encontrada');
         return;
       }
+
+      const data = result.invitation as Invitation;
 
       // Check if expired
       if (new Date(data.expires_at) < new Date()) {
@@ -120,7 +115,7 @@ export default function InvitationPage() {
       // Check if user needs to register
       if (!user) {
         setNeedsRegistration(true);
-      } else if (user.email !== data.invitee_email) {
+      } else if (data.invitee_email && user.email !== data.invitee_email) {
         setError(`Esta invitación es para ${data.invitee_email}. Has iniciado sesión con ${user.email}. Por favor, cierra sesión y crea una cuenta con el email correcto.`);
       }
 
@@ -138,7 +133,10 @@ export default function InvitationPage() {
       localStorage.setItem('pending_invitation', token);
       localStorage.setItem('just_registered', 'true');
     }
-    router.push(`/auth?mode=signup&email=${encodeURIComponent(invitation?.invitee_email || '')}`);
+    const emailParam = invitation?.invitee_email
+      ? `&email=${encodeURIComponent(invitation.invitee_email)}`
+      : '';
+    router.push(`/auth?mode=signup${emailParam}`);
   };
 
   const handleLoginClick = () => {
@@ -189,15 +187,17 @@ export default function InvitationPage() {
 
     setIsProcessing(true);
     try {
-      const { error } = await supabase
-        .from('project_invitations')
-        .update({
-          status: 'rejected',
-          responded_at: new Date().toISOString()
-        })
-        .eq('id', invitation.id);
+      if (invitation.invite_type !== 'link') {
+        const { error } = await supabase
+          .from('project_invitations')
+          .update({
+            status: 'rejected',
+            responded_at: new Date().toISOString()
+          })
+          .eq('id', invitation.id);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       // Clear stored invitation token
       if (typeof window !== 'undefined') {
@@ -356,13 +356,17 @@ export default function InvitationPage() {
                     Necesitas crear una cuenta
                   </h4>
                   <p className='text-sm text-[var(--text-secondary)] mb-3'>
-                    Para aceptar esta invitación, primero debes crear tu cuenta con el email:
+                    {invitation.invitee_email
+                      ? 'Para aceptar esta invitación, primero debes crear tu cuenta con el email:'
+                      : 'Para aceptar esta invitación, primero debes crear una cuenta o iniciar sesión.'}
                   </p>
-                  <div className='bg-[var(--bg-secondary)] px-3 py-2 rounded-lg border border-[var(--accent-primary)]/30 inline-block'>
-                    <span className='text-sm font-mono font-medium text-[var(--accent-primary)]'>
-                      {invitation.invitee_email}
-                    </span>
-                  </div>
+                  {invitation.invitee_email && (
+                    <div className='bg-[var(--bg-secondary)] px-3 py-2 rounded-lg border border-[var(--accent-primary)]/30 inline-block'>
+                      <span className='text-sm font-mono font-medium text-[var(--accent-primary)]'>
+                        {invitation.invitee_email}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

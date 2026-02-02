@@ -354,7 +354,8 @@ export type Database = {
           created_at: string | null
           expires_at: string | null
           id: string
-          invitee_email: string
+          invitee_email: string | null
+          invite_type: string
           inviter_id: string
           project_id: string
           responded_at: string | null
@@ -366,7 +367,8 @@ export type Database = {
           created_at?: string | null
           expires_at?: string | null
           id?: string
-          invitee_email: string
+          invitee_email?: string | null
+          invite_type?: string
           inviter_id: string
           project_id: string
           responded_at?: string | null
@@ -378,7 +380,8 @@ export type Database = {
           created_at?: string | null
           expires_at?: string | null
           id?: string
-          invitee_email?: string
+          invitee_email?: string | null
+          invite_type?: string
           inviter_id?: string
           project_id?: string
           responded_at?: string | null
