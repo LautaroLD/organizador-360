@@ -39,6 +39,7 @@ export const ProjectsView: React.FC = () => {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [selectedProjectForInvite, setSelectedProjectForInvite] =
     useState<Project | null>(null);
+  const [generatedInviteLink, setGeneratedInviteLink] = useState<string | null>(null);
   const [isActiveModalOpen, setIsActiveModalOpen] = useState(false);
   const [selectedProjectForActive, setSelectedProjectForActive] =
     useState<Project | null>(null);
@@ -57,11 +58,15 @@ export const ProjectsView: React.FC = () => {
     handleSubmit: handleSubmitInvite,
     formState: { errors: inviteErrors },
     reset: resetInvite,
+    watch: watchInvite,
   } = useForm<InviteFormData>({
     defaultValues: {
       role: 'Collaborator',
+      inviteType: 'email',
     },
   });
+
+  const inviteType = watchInvite('inviteType');
 
   // Fetch projects
   const { data: projects, isLoading } = useQuery({
@@ -193,9 +198,16 @@ export const ProjectsView: React.FC = () => {
       // Get current session
       const { data: { session } } = await supabase.auth.getSession();
 
-      if (!session) {
-        throw new Error('No estás autenticado');
+      if (!session?.access_token) {
+        throw new Error('Sesión inválida');
       }
+
+      if (!selectedProjectForInvite?.id) {
+        throw new Error('Proyecto no seleccionado');
+      }
+
+      const resolvedInviteType = data.inviteType ?? 'email';
+      const resolvedRole = data.role ?? 'Collaborator';
 
       // Call Edge Function to send invitation email
       const response = await fetch(
@@ -207,9 +219,10 @@ export const ProjectsView: React.FC = () => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            projectId: selectedProjectForInvite?.id,
-            inviteeEmail: data.email,
-            role: data.role,
+            projectId: selectedProjectForInvite.id,
+            inviteeEmail: resolvedInviteType === 'email' ? data.email : null,
+            role: resolvedRole,
+            inviteType: resolvedInviteType,
           }),
         }
       );
@@ -222,18 +235,24 @@ export const ProjectsView: React.FC = () => {
 
       return result;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
-      if (data.isNewUser) {
-        toast.success('¡Invitación enviada! El usuario deberá crear una cuenta primero.', {
-          autoClose: 5000
-        });
+      if (variables.inviteType === 'link') {
+        setGeneratedInviteLink(data.invitationUrl ?? null);
+        toast.success('Enlace de invitación generado');
       } else {
-        toast.success('¡Invitación enviada! El usuario recibirá un email para aceptarla.');
+        if (data.isNewUser) {
+          toast.success('¡Invitación enviada! El usuario deberá crear una cuenta primero.', {
+            autoClose: 5000
+          });
+        } else {
+          toast.success('¡Invitación enviada! El usuario recibirá un email para aceptarla.');
+        }
+        setIsInviteModalOpen(false);
+        setSelectedProjectForInvite(null);
+        setGeneratedInviteLink(null);
+        resetInvite();
       }
-      setIsInviteModalOpen(false);
-      setSelectedProjectForInvite(null);
-      resetInvite();
     },
     onError: (error) => {
       toast.error(error.message || 'Error al enviar invitación');
@@ -247,6 +266,7 @@ export const ProjectsView: React.FC = () => {
   const handleInviteClick = (project: Project, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedProjectForInvite(project);
+    setGeneratedInviteLink(null);
     setIsInviteModalOpen(true);
   };
   const handleActiveClick = (project: Project, e: React.MouseEvent) => {
@@ -257,6 +277,17 @@ export const ProjectsView: React.FC = () => {
 
   const selectProject = (projectId: string) => {
     router.push(`/projects/${projectId}`);
+  };
+
+  const handleCopyInviteLink = async () => {
+    if (!generatedInviteLink) return;
+    try {
+      await navigator.clipboard.writeText(generatedInviteLink);
+      toast.success('Enlace copiado al portapapeles');
+    } catch (error) {
+      console.error('Error copying invitation link:', error);
+      toast.error('No se pudo copiar el enlace');
+    }
   };
 
   if (isLoading) {
@@ -460,6 +491,7 @@ export const ProjectsView: React.FC = () => {
         onClose={() => {
           setIsInviteModalOpen(false);
           setSelectedProjectForInvite(null);
+          setGeneratedInviteLink(null);
           resetInvite();
         }}
         title='Invitar Colaborador'
@@ -477,34 +509,71 @@ export const ProjectsView: React.FC = () => {
             </p>
           </div>
 
+          <div className='bg-[var(--bg-primary)] p-3 rounded-lg mb-4'>
+            <p className='text-xs text-[var(--text-secondary)]'>Método de invitación</p>
+            <div className='mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2'>
+              <label className='flex items-center gap-2 rounded-lg border border-[var(--text-secondary)]/30 bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)]'>
+                <input type='radio' value='email' {...registerInvite('inviteType')} />
+                Email
+              </label>
+              <label className='flex items-center gap-2 rounded-lg border border-[var(--text-secondary)]/30 bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)]'>
+                <input type='radio' value='link' {...registerInvite('inviteType')} />
+                Enlace
+              </label>
+            </div>
+          </div>
+
           <div className='bg-[var(--accent-primary)]/5 border-2 border-[var(--accent-primary)]/30 rounded-lg p-3 mb-4'>
             <div className='flex items-start'>
               <Mail className='h-5 w-5 text-[var(--accent-primary)] mr-2 mt-0.5 flex-shrink-0' />
               <div>
                 <p className='text-sm text-[var(--text-primary)] font-medium'>
-                  Invitación por Email
+                  {inviteType === 'link' ? 'Invitación por Enlace' : 'Invitación por Email'}
                 </p>
                 <p className='text-xs text-[var(--text-secondary)] mt-1'>
-                  Se enviará un correo de invitación. El usuario deberá aceptarla para unirse al proyecto.
+                  {inviteType === 'link'
+                    ? 'Se generará un enlace para compartir. Cualquier usuario con el enlace podrá unirse.'
+                    : 'Se enviará un correo de invitación. El usuario deberá aceptarla para unirse al proyecto.'}
                 </p>
               </div>
             </div>
           </div>
 
-          <Input
-            label='Email del Colaborador'
-            type='email'
-            {...registerInvite('email', {
-              required: 'El email es requerido',
-              pattern: {
-                value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                message: 'Email inválido',
-              },
-            })}
-            error={inviteErrors.email?.message}
-            placeholder='colaborador@ejemplo.com'
-            icon={<Mail className='h-4 w-4' />}
-          />
+          {inviteType === 'email' && (
+            <Input
+              label='Email del Colaborador'
+              type='email'
+              {...registerInvite('email', {
+                validate: (value) => {
+                  if (inviteType !== 'email') return true;
+                  if (!value) return 'El email es requerido';
+                  return /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(value)
+                    ? true
+                    : 'Email inválido';
+                },
+              })}
+              error={inviteErrors.email?.message}
+              placeholder='colaborador@ejemplo.com'
+              icon={<Mail className='h-4 w-4' />}
+            />
+          )}
+
+          {inviteType === 'link' && generatedInviteLink && (
+            <div className='bg-[var(--bg-primary)] p-3 rounded-lg border border-[var(--text-secondary)]/20'>
+              <p className='text-xs text-[var(--text-secondary)] mb-2'>Enlace generado</p>
+              <div className='flex flex-col sm:flex-row gap-2'>
+                <Input
+                  label=''
+                  value={generatedInviteLink}
+                  readOnly
+                  onChange={() => { }}
+                />
+                <Button type='button' variant='secondary' onClick={handleCopyInviteLink}>
+                  Copiar
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className='block text-sm font-medium text-[var(--text-primary)] mb-2'>
@@ -556,6 +625,7 @@ export const ProjectsView: React.FC = () => {
               onClick={() => {
                 setIsInviteModalOpen(false);
                 setSelectedProjectForInvite(null);
+                setGeneratedInviteLink(null);
                 resetInvite();
               }}
             >

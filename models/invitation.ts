@@ -4,9 +4,11 @@
  */
 
 export type MemberRole = 'Admin' | 'Collaborator' | 'Viewer';
+export type InviteType = 'email' | 'link';
 
 export interface InviteFormData {
-  email: string;
+  inviteType: InviteType;
+  email?: string;
   role: MemberRole;
 }
 
@@ -20,4 +22,6 @@ export interface InviteMemberModalProps {
   memberLimit?: number;
   isPremium?: boolean;
   planTier?: 'free' | 'starter' | 'pro' | 'enterprise';
+  generatedLink?: string | null;
+  onCopyLink?: () => void;
 }
