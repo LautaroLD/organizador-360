@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/Button';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import {
   Card,
   CardContent,
@@ -32,6 +33,7 @@ import { formatDate } from '@/lib/utils';
 import type { ProjectFormData, InviteFormData, Project } from '@/models';
 import { StorageIndicator } from './StorageIndicator';
 import { getPlanLimits, getUserPlanTier } from '@/lib/subscriptionUtils';
+import { MessageContent } from '@/components/ui/MessageContent';
 
 export const ProjectsView: React.FC = () => {
   const supabase = createClient();
@@ -51,6 +53,8 @@ export const ProjectsView: React.FC = () => {
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
+    watch,
   } = useForm<ProjectFormData>();
 
   const {
@@ -67,6 +71,9 @@ export const ProjectsView: React.FC = () => {
   });
 
   const inviteType = watchInvite('inviteType');
+  const [useRichTextDescription, setUseRichTextDescription] = useState(false);
+  const [showDescriptionPreview, setShowDescriptionPreview] = useState(false);
+  const descriptionValue = watch('description') || '';
 
   // Fetch projects
   const { data: projects, isLoading } = useQuery({
@@ -375,7 +382,11 @@ export const ProjectsView: React.FC = () => {
                   <ArrowRight className='h-5 w-5 text-[var(--text-secondary)] group-hover:text-[var(--accent-primary)] transition-colors group-hover:translate-x-1 transition-transform' />
                 </CardTitle>
                 <CardDescription className='line-clamp-2'>
-                  {project.description || 'Sin descripción'}
+                  {project.description ? (
+                    <MessageContent content={project.description} />
+                  ) : (
+                    'Sin descripción'
+                  )}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -445,6 +456,7 @@ export const ProjectsView: React.FC = () => {
 
       <Modal
         isOpen={isModalOpen}
+        size='xl'
         onClose={() => setIsModalOpen(false)}
         title='Crear Nuevo Proyecto'
       >
@@ -462,12 +474,47 @@ export const ProjectsView: React.FC = () => {
                 Sugerimos una descripción detallada y clara, esta información será utilizada por los modelos de IA para entender mejor el contexto de tu proyecto.
               </p>
             </label>
-            <textarea
-              {...register('description')}
-              className='flex w-full rounded-lg border border-[var(--text-secondary)]/30 bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] resize-none'
-              rows={4}
-              placeholder='Describe tu proyecto...'
-            />
+            <div className='flex flex-col gap-2 text-xs text-[var(--text-secondary)] mb-2'>
+              <label className='flex items-center gap-2'>
+                <input
+                  type='checkbox'
+                  checked={useRichTextDescription}
+                  onChange={(event) => setUseRichTextDescription(event.target.checked)}
+                />
+                Usar rich text
+              </label>
+              {useRichTextDescription && (
+                <label className='flex items-center gap-2'>
+                  <input
+                    type='checkbox'
+                    checked={showDescriptionPreview}
+                    onChange={(event) => setShowDescriptionPreview(event.target.checked)}
+                  />
+                  Ver preview
+                </label>
+              )}
+            </div>
+            {useRichTextDescription ? (
+              <RichTextEditor
+                rows={15}
+                value={descriptionValue}
+                onChange={(value) => setValue('description', value)}
+                placeholder='Describe tu proyecto...'
+              />
+            ) : (
+              <textarea
+                {...register('description')}
+                className='flex w-full rounded-lg border border-[var(--text-secondary)]/30 bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] resize-none'
+                rows={10}
+                placeholder='Describe tu proyecto...'
+              />
+            )}
+            {useRichTextDescription && showDescriptionPreview && descriptionValue.trim().length > 0 && (
+              <div className='mt-3 rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-3'>
+                <p className='text-xs text-[var(--text-secondary)] mb-2'>Preview</p>
+                <MessageContent content={descriptionValue} />
+              </div>
+            )}
           </div>
           <div className='flex justify-end space-x-2 pt-4'>
             <Button
