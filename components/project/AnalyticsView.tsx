@@ -35,6 +35,8 @@ const getMedian = (values: number[]) => {
   return sorted[mid];
 };
 
+const INITIAL_NOW_MS = Date.now();
+
 
 interface TaskRow {
   id: string;
@@ -214,7 +216,7 @@ export const AnalyticsView: React.FC = () => {
     if (task.status === 'done') return false;
     if (!task.done_estimated_at) return false;
     const estimatedAt = parseDateValue(task.done_estimated_at);
-    return estimatedAt ? estimatedAt.getTime() < Date.now() : false;
+    return estimatedAt ? estimatedAt.getTime() < INITIAL_NOW_MS : false;
   };
 
   const getSortDateValue = (task: TaskRow) => {
