@@ -16,6 +16,7 @@ export interface Task {
   tags?: TaskTagAssociation[];
   images?: TaskImage[];
   priority: 'baja' | 'media' | 'alta' | null;
+  done_estimated_at?: string | null;
 }
 
 export interface TaskImage {
@@ -66,6 +67,7 @@ export interface CreateTaskDTO {
   checklist?: Array<{ content: string; is_completed: boolean; }>;
   images?: File[]; // Array of image files to upload
   priority: 'baja' | 'media' | 'alta' | null;
+  done_estimated_at?: string | null;
 }
 
 export interface UpdateTaskDTO {
@@ -83,4 +85,5 @@ export interface UpdateTaskDTO {
   imagesToAdd?: File[];
   imagesToDelete?: Array<{ imageId: string; imageUrl: string; }>;
   priority?: 'baja' | 'media' | 'alta' | null;
+  done_estimated_at?: string | null;
 }

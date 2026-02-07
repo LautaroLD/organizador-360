@@ -7,6 +7,7 @@ import { Task } from '@/models';
 import { Card } from '@/components/ui/Card';
 import { CheckSquare, ImageIcon } from 'lucide-react';
 import clsx from 'clsx';
+import { formatLocalDate } from '@/lib/utils';
 
 interface KanbanTaskProps {
   task: Task;
@@ -26,6 +27,7 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, onEdit }) => {
     transform: CSS.Transform.toString(transform),
     transition,
   };
+
 
   return (
     <div
@@ -61,6 +63,11 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, onEdit }) => {
         {task.priority && (
           <p className={clsx("text-xs font-bold text-[var(--text-secondary)] line-clamp-2 mb-3 text-ellipsis uppercase border-2 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] w-fit", task.priority === 'alta' ? 'text-red-500' : task.priority === 'media' ? 'text-yellow-500' : 'text-green-500')}>
             {task.priority}
+          </p>
+        )}
+        {task.done_estimated_at && (
+          <p className="text-xs font-bold text-[var(--text-secondary)] line-clamp-2 mb-3 text-ellipsis uppercase border-2 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] w-fit">
+            Cierre estimado: {formatLocalDate(task.done_estimated_at)}
           </p>
         )}
 

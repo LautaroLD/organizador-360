@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client';
 import { CheckSquare, Plus, Trash2, ImageIcon, X, Sparkles, Lock } from 'lucide-react';
 import useGemini from '@/hooks/useGemini';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
+import { set } from 'date-fns';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -113,6 +114,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setValue('title', initialData.title);
       setValue('description', initialData.description || '');
       setValue('status', initialData.status);
+      setValue('priority', initialData.priority || null);
+      setValue('done_estimated_at', initialData.done_estimated_at ? initialData.done_estimated_at.split('T')[0] : '');
       setValue('assigned_to', initialData.assignments?.map(a => a.user_id) || []);
       setValue('tags', initialData.tags?.map(t => t.tag_id) || []);
       setLocalChecklist([]);
@@ -281,6 +284,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       const createData: CreateTaskDTO = {
         ...data as CreateTaskDTO,
         priority: data.priority?.length ? data.priority : null,
+        done_estimated_at: data.done_estimated_at?.length ? data.done_estimated_at : null,
         checklist: localChecklist.length > 0 ? localChecklist.map(({ content, is_completed }) => ({ content, is_completed })) : undefined,
         images: localImages.length > 0 ? localImages.map(img => img.file) : undefined,
       };
@@ -310,6 +314,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       const updateData: UpdateTaskDTO = {
         ...data as UpdateTaskDTO,
         priority: data.priority?.length ? data.priority : null,
+        done_estimated_at: data.done_estimated_at?.length ? data.done_estimated_at : null,
         checklistToAdd: checklistToAdd.length > 0 ? checklistToAdd : undefined,
         checklistToUpdate: checklistToUpdate.length > 0 ? checklistToUpdate : undefined,
         checklistToDelete: checklistToDelete.length > 0 ? checklistToDelete : undefined,
@@ -490,7 +495,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             </Button>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
               Estado
@@ -518,6 +523,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               <option value="media">Media</option>
               <option value="alta">Alta</option>
             </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Cierre estimado
+            </label>
+            <Input
+              type="date"
+              {...register('done_estimated_at')}
+              className="w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+            />
           </div>
         </div>
         <div>

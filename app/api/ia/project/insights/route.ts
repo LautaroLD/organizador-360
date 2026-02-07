@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     const [tasksRes, membersRes] = await Promise.all([
       supabase
         .from('tasks')
-        .select('id,status,created_at,updated_at,done_at,priority')
+        .select('id,title,status,created_at,updated_at,done_at,done_estimated_at,priority')
         .eq('project_id', projectId),
       supabase
         .from('project_members')
@@ -91,18 +91,51 @@ export async function POST(req: NextRequest) {
       })
       .filter((v): v is number => v !== null);
 
+    const getMedian = (values: number[]) => {
+      if (values.length === 0) return 0;
+      const sorted = [...values].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      if (sorted.length % 2 === 0) {
+        return (sorted[mid - 1] + sorted[mid]) / 2;
+      }
+      return sorted[mid];
+    };
+
     const avgDurationMs = completedDurations.length
       ? completedDurations.reduce((a, b) => a + b, 0) / completedDurations.length
       : 0;
 
-    const medianDurationMs = completedDurations.length
-      ? [...completedDurations].sort((a, b) => a - b)[Math.floor(completedDurations.length / 2)]
-      : 0;
+    const medianDurationMs = getMedian(completedDurations);
 
     const tasksByMember: Record<string, number> = {};
+    const tasksByMemberDetails: Record<string, typeof tasks> = {};
+    const taskById = new Map(tasks.map((t) => [t.id, t]));
+
     (assignments ?? []).forEach((a) => {
       tasksByMember[a.user_id] = (tasksByMember[a.user_id] || 0) + 1;
+      const task = taskById.get(a.task_id);
+      if (!task) return;
+      if (!tasksByMemberDetails[a.user_id]) {
+        tasksByMemberDetails[a.user_id] = [];
+      }
+      tasksByMemberDetails[a.user_id].push(task);
     });
+
+    const estimatedDoneDeltas = tasks
+      .filter((t) => t.status === 'done' && t.done_estimated_at && t.done_at)
+      .map((t) => {
+        const estimatedAt = new Date(t.done_estimated_at as string).getTime();
+        const doneAt = new Date(t.done_at as string).getTime();
+        if (Number.isNaN(estimatedAt) || Number.isNaN(doneAt)) return null;
+        return doneAt - estimatedAt;
+      })
+      .filter((v): v is number => v !== null);
+
+    const avgEstimateDeltaMs = estimatedDoneDeltas.length
+      ? Math.round(estimatedDoneDeltas.reduce((a, b) => a + b, 0) / estimatedDoneDeltas.length)
+      : 0;
+    const onTimeCount = estimatedDoneDeltas.filter((v) => v <= 0).length;
+    const lateCount = estimatedDoneDeltas.filter((v) => v > 0).length;
 
     const summaryText = `
 Proyecto: ${project.name}
@@ -116,12 +149,25 @@ Métricas:
 - Avance: ${progress}%
 - Duración promedio (ms): ${Math.round(avgDurationMs)}
 - Duración mediana (ms): ${Math.round(medianDurationMs)}
+- Desvio promedio cierre estimado (ms): ${avgEstimateDeltaMs}
+- En plazo (estimado vs real): ${onTimeCount}
+- Con retraso (estimado vs real): ${lateCount}
+- Tareas con estimacion completadas: ${estimatedDoneDeltas.length}
 
 Tareas por miembro:
 ${members.map((m) => {
   const rawUser = Array.isArray(m.user) ? m.user[0] : m.user;
   const name = rawUser?.name || rawUser?.email || 'Sin nombre';
   const count = tasksByMember[m.user_id] || 0;
+  const taskDetails = (tasksByMemberDetails[m.user_id] || [])
+    .map((task) => {
+      const status = task.status;
+      const estimatedAt = task.done_estimated_at ? new Date(task.done_estimated_at).toISOString().split('T')[0] : 'Sin fecha';
+      const doneAt = task.done_at ? new Date(task.done_at).toISOString().split('T')[0] : 'Sin fecha';
+      const closeText = status === 'done' ? `Cerrado: ${doneAt}` : `Cierre estimado: ${estimatedAt}`;
+      return `  - ${task.title} [${status}] | ${closeText}`;
+    })
+    .join('\n');
   const tags = (m.tags || [])
     .map((t) => {
       const rawTag = Array.isArray(t.tag) ? t.tag[0] : t.tag;
@@ -130,8 +176,20 @@ ${members.map((m) => {
     .filter(Boolean)
     .join(', ');
   const tagsText = tags ? ` | tags: ${tags}` : '';
-  return `- ${name} (${m.role}): ${count}${tagsText}`;
+  const tasksText = taskDetails ? `\n${taskDetails}` : '';
+  return `- ${name} (${m.role}): ${count}${tagsText}${tasksText}`;
 }).join('\n')}
+
+Comparacion cierre estimado vs real (tareas completadas):
+${tasks
+  .filter((t) => t.done_estimated_at && t.done_at)
+  .map((t) => {
+    const estimatedAt = new Date(t.done_estimated_at as string).toISOString().split('T')[0];
+    const doneAt = new Date(t.done_at as string).toISOString().split('T')[0];
+    const deltaMs = new Date(t.done_at as string).getTime() - new Date(t.done_estimated_at as string).getTime();
+    return `- ${t.title}: Estimado ${estimatedAt} | Real ${doneAt} | Delta(ms) ${deltaMs}`;
+  })
+  .join('\n')}
 `;
 console.log(summaryText);
 

@@ -6,6 +6,7 @@ import clsx from 'clsx';
 
 interface RichTextEditorProps {
   value: string;
+  rows?: number;
   onChange: (value: string) => void;
   onSubmit?: () => void;
   placeholder?: string;
@@ -71,6 +72,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   disabled = false,
   className = '',
   showToolbar = true,
+  rows = 3,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -367,8 +369,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={disabled}
-        rows={3}
-        className="flex-1 resize-none px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] bg-transparent focus-visible:outline-0 min-h-[60px] max-h-[150px]"
+        rows={rows}
+        className="flex-1 resize-none px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] bg-transparent focus-visible:outline-0 min-h-[60px]"
         aria-label="Escribir mensaje"
         autoComplete="off"
       />

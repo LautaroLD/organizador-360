@@ -22,6 +22,7 @@ import {
 import Link from 'next/link';
 import { Project } from '@/models';
 import Logo from '../ui/Logo';
+import { MessageContent } from '@/components/ui/MessageContent';
 const SidebarContent = ({ handleBackToDashboard, currentProject, menuItems, pathname, setIsOpen, user }: { handleBackToDashboard: () => void, currentProject: Project | null, menuItems: { id: string; icon: React.ReactNode; label: string; path: string; }[], pathname: string, setIsOpen: (isOpen: boolean) => void, user: { id: string; email?: string; } | null; }) => (
   <>
     <div className="p-4 border-b border-[var(--text-secondary)]/20">
@@ -46,9 +47,9 @@ const SidebarContent = ({ handleBackToDashboard, currentProject, menuItems, path
           </h2>
         </div>
         {currentProject?.description && (
-          <p className="text-xs text-[var(--text-secondary)] line-clamp-2">
-            {currentProject.description}
-          </p>
+          <div className="text-xs text-[var(--text-secondary)] line-clamp-2">
+            <MessageContent content={currentProject.description} />
+          </div>
         )}
         {currentProject?.userRole && (
           <span className="inline-block mt-2 text-xs px-2 py-1 rounded-full bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] font-medium">
