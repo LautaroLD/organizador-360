@@ -11,10 +11,11 @@ import { formatLocalDate } from '@/lib/utils';
 
 interface KanbanTaskProps {
   task: Task;
+  phaseLabel?: string | null;
   onEdit?: () => void;
 }
 
-export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, onEdit }) => {
+export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, phaseLabel, onEdit }) => {
   const {
     attributes,
     listeners,
@@ -61,12 +62,17 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, onEdit }) => {
           </p>
         )}
         {task.priority && (
-          <p className={clsx("text-xs font-bold text-[var(--text-secondary)] line-clamp-2 mb-3 text-ellipsis uppercase border-2 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] w-fit", task.priority === 'alta' ? 'text-red-500' : task.priority === 'media' ? 'text-yellow-500' : 'text-green-500')}>
+          <p className={clsx("text-xs  text-[var(--text-secondary)] line-clamp-2 mb-3 text-ellipsis uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] w-fit", task.priority === 'alta' ? 'text-red-500' : task.priority === 'media' ? 'text-yellow-500' : 'text-green-500')}>
             {task.priority}
           </p>
         )}
+        {phaseLabel && (
+          <p className="text-xs font-semibold text-[var(--text-secondary)] line-clamp-1 mb-3 text-ellipsis uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] w-fit">
+            Fase: {phaseLabel}
+          </p>
+        )}
         {task.done_estimated_at && (
-          <p className="text-xs font-bold text-[var(--text-secondary)] line-clamp-2 mb-3 text-ellipsis uppercase border-2 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] w-fit">
+          <p className="text-xs  text-[var(--text-secondary)] line-clamp-2 mb-3 text-ellipsis uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] w-fit">
             Cierre estimado: {formatLocalDate(task.done_estimated_at)}
           </p>
         )}

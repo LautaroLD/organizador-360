@@ -45,5 +45,15 @@ export type {
 // Push Notification Logs Models
 export type { PushLog, PushLogEntry } from './pushLog';
 
+// Roadmap Models
+export type {
+  Roadmap,
+  RoadmapPhase,
+  CreateRoadmapDTO,
+  UpdateRoadmapDTO,
+  CreateRoadmapPhaseDTO,
+  UpdateRoadmapPhaseDTO,
+} from './roadmap';
+
 // Task Models
 export type { Task, TaskAssignment, TaskImage, TaskChecklistItem, CreateTaskDTO, UpdateTaskDTO } from './task';

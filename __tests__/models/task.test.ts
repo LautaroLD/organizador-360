@@ -10,12 +10,14 @@ describe('Task Model', () => {
       const task: Task = {
         id: '123',
         project_id: 'project-1',
+        phase_roadmap_id: null,
         title: 'Test Task',
         description: 'A test task',
         status: 'todo',
         position: 0,
         created_at: '2026-01-03T00:00:00Z',
         updated_at: '2026-01-03T00:00:00Z',
+        priority: null,
         images: [],
         checklist: [],
         assignments: [],
@@ -50,11 +52,13 @@ describe('Task Model', () => {
       const task: Task = {
         id: '123',
         project_id: 'project-1',
+        phase_roadmap_id: 5,
         title: 'Task with images',
         status: 'in-progress',
         position: 1,
         created_at: '2026-01-03T00:00:00Z',
         updated_at: '2026-01-03T00:00:00Z',
+        priority: 'media',
         images,
       };
 
@@ -105,9 +109,11 @@ describe('Task Model', () => {
 
       const createDto: CreateTaskDTO = {
         project_id: 'project-1',
+        phase_roadmap_id: 10,
         title: 'New task with images',
         description: 'Description',
         status: 'todo',
+        priority: 'baja',
         images: [mockFile1, mockFile2],
       };
 
@@ -120,6 +126,7 @@ describe('Task Model', () => {
       const createDto: CreateTaskDTO = {
         project_id: 'project-1',
         title: 'Task without images',
+        priority: null,
       };
 
       expect(createDto.images).toBeUndefined();
@@ -140,6 +147,8 @@ describe('Task Model', () => {
           { content: 'Item 1', is_completed: false },
           { content: 'Item 2', is_completed: true },
         ],
+        priority: 'alta',
+        done_estimated_at: '2026-02-20',
         images: [mockFile],
       };
 
@@ -156,6 +165,7 @@ describe('Task Model', () => {
       const todoTask: Task = {
         id: '1',
         project_id: 'p1',
+        priority: null,
         title: 'Todo',
         status: 'todo',
         position: 0,
@@ -166,6 +176,7 @@ describe('Task Model', () => {
       const inProgressTask: Task = {
         id: '2',
         project_id: 'p1',
+        priority: 'media',
         title: 'In Progress',
         status: 'in-progress',
         position: 1,
@@ -176,6 +187,7 @@ describe('Task Model', () => {
       const doneTask: Task = {
         id: '3',
         project_id: 'p1',
+        priority: 'alta',
         title: 'Done',
         status: 'done',
         position: 2,
