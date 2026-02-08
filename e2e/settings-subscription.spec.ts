@@ -35,8 +35,7 @@ test.describe('Settings & Subscription (Requires Auth)', () => {
 
   test('should display subscription page', async ({ page }) => {
     await page.goto('/settings/subscription');
-    // Use heading with the full text to be more specific
-    await expect(page.getByRole('heading', { name: /planes y suscripción/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Planes y Suscripción', exact: true })).toBeVisible();
   });
 });
 

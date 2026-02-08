@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { BarChart3, CheckCircle2, Clock, Lock, Sparkles, Users } from 'lucide-react';
 import { MessageContent } from '@/components/ui/MessageContent';
 import { formatLocalDate, parseDateValue } from '@/lib/utils';
+import { RoadmapPhase } from '@/models';
 const formatDuration = (ms: number) => {
   if (!ms || ms <= 0) return '0m';
   const minutes = Math.floor(ms / 60000);
@@ -47,6 +48,7 @@ interface TaskRow {
   done_at?: string | null;
   done_estimated_at?: string | null;
   priority: string | null;
+  phase_roadmap_id?: number | null;
 }
 
 interface AssignmentRow {
@@ -60,6 +62,8 @@ interface MemberRow {
   role: string;
   user?: { name: string | null; email: string | null; } | null;
 }
+
+type RoadmapPhaseRow = Pick<RoadmapPhase, 'id' | 'name' | 'init_at' | 'end_at' | 'description'>;
 
 export const AnalyticsView: React.FC = () => {
   const supabase = createClient();
@@ -78,10 +82,34 @@ export const AnalyticsView: React.FC = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('tasks')
-        .select('id,title,status,created_at,updated_at,done_at,done_estimated_at,priority')
+        .select('id,title,status,created_at,updated_at,done_at,done_estimated_at,priority,phase_roadmap_id')
         .eq('project_id', currentProject!.id);
       if (error) throw error;
       return data as TaskRow[];
+    },
+    enabled: !!currentProject?.id && isEnterprise && canManage,
+  });
+
+  const { data: roadmapPhases = [] } = useQuery({
+    queryKey: ['analytics-roadmap-phases', currentProject?.id],
+    queryFn: async () => {
+      const { data: roadmap, error: roadmapError } = await supabase
+        .from('roadmap')
+        .select('id')
+        .eq('project_id', currentProject!.id)
+        .maybeSingle();
+
+      if (roadmapError) throw roadmapError;
+      if (!roadmap) return [] as RoadmapPhaseRow[];
+
+      const { data, error } = await supabase
+        .from('phase_roadmap')
+        .select('id, name, init_at, end_at, description')
+        .eq('roadmap_id', roadmap.id)
+        .order('id');
+
+      if (error) throw error;
+      return (data || []) as RoadmapPhaseRow[];
     },
     enabled: !!currentProject?.id && isEnterprise && canManage,
   });
@@ -116,10 +144,31 @@ export const AnalyticsView: React.FC = () => {
   const { data: aiInsights, refetch: refetchInsights, isFetching: aiLoading } = useQuery({
     queryKey: ['analytics-ai', currentProject?.id],
     queryFn: async () => {
+      const phaseSummary = roadmapPhases.map((phase) => {
+        const phaseTasks = tasks.filter((task) => task.phase_roadmap_id === phase.id);
+        const doneCount = phaseTasks.filter((task) => task.status === 'done').length;
+        const inProgressCount = phaseTasks.filter((task) => task.status === 'in-progress').length;
+        const todoCount = phaseTasks.filter((task) => task.status === 'todo').length;
+        const totalCount = phaseTasks.length;
+        const progress = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+        return {
+          id: phase.id,
+          name: phase.name,
+          total: totalCount,
+          done: doneCount,
+          inProgress: inProgressCount,
+          todo: todoCount,
+          progress,
+        };
+      });
+
       const res = await fetch('/api/ia/project/insights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: currentProject?.id }),
+        body: JSON.stringify({
+          projectId: currentProject?.id,
+          phaseSummary,
+        }),
       });
       if (!res.ok) throw new Error('Error al generar insights');
       return res.json() as Promise<{ summary: string; }>;
@@ -193,6 +242,26 @@ export const AnalyticsView: React.FC = () => {
 
     const unassigned = total - new Set(assignments.map((a) => a.task_id)).size;
 
+    const phaseBreakdown = roadmapPhases.map((phase) => {
+      const phaseTasks = tasks.filter((task) => task.phase_roadmap_id === phase.id);
+      const doneCount = phaseTasks.filter((task) => task.status === 'done').length;
+      const inProgressCount = phaseTasks.filter((task) => task.status === 'in-progress').length;
+      const todoCount = phaseTasks.filter((task) => task.status === 'todo').length;
+      const totalCount = phaseTasks.length;
+      const progress = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+      return {
+        id: phase.id,
+        name: phase.name,
+        total: totalCount,
+        done: doneCount,
+        inProgress: inProgressCount,
+        todo: todoCount,
+        progress,
+      };
+    });
+
+    const unassignedCount = tasks.filter((task) => !task.phase_roadmap_id).length;
+
     return {
       total,
       done,
@@ -209,8 +278,10 @@ export const AnalyticsView: React.FC = () => {
       lateCount,
       estimateComparisons,
       estimatedDoneCount: estimatedDoneDeltas.length,
+      phaseBreakdown,
+      phaseUnassigned: unassignedCount,
     };
-  }, [tasks, assignments]);
+  }, [assignments, roadmapPhases, tasks]);
 
   const isOverdue = (task: TaskRow) => {
     if (task.status === 'done') return false;
@@ -321,6 +392,43 @@ export const AnalyticsView: React.FC = () => {
             </CardContent>
           </Card>
         </div>
+
+        {analytics.phaseBreakdown.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Estado por fase</CardTitle>
+              <CardDescription>Detalle de avance por etapa del roadmap</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {analytics.phaseBreakdown.map((phase) => (
+                  <div key={phase.id} className="bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium text-[var(--text-primary)]">{phase.name}</p>
+                      <span className="text-xs text-[var(--text-secondary)]">{phase.progress}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-[var(--bg-primary)] overflow-hidden">
+                      <div
+                        className="h-full bg-[var(--accent-primary)] transition-all"
+                        style={{ width: `${phase.progress}%` }}
+                      />
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
+                      <span>Hechas: {phase.done}</span>
+                      <span>En progreso: {phase.inProgress}</span>
+                      <span>Pendientes: {phase.todo}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {analytics.phaseUnassigned > 0 && (
+                <p className="mt-3 text-xs text-[var(--text-secondary)]">
+                  Tareas sin fase: {analytics.phaseUnassigned}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

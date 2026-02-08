@@ -20,15 +20,19 @@ import { TaskModal } from './TaskModal';
 import { useTasks } from '@/hooks/useTasks';
 import { Button } from '@/components/ui/Button';
 import { Plus, Sparkles, Lock } from 'lucide-react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import useGemini from '@/hooks/useGemini';
 import SuggestionsModal from './SuggestionsModal';
 import { createClient } from '@/lib/supabase/client';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
+import CreateRoadmap from './CreateRoadmap';
+import { RoadmapPhase } from '@/models';
 
 interface KanbanBoardProps {
   projectId: string;
 }
+
+type RoadmapPhaseOption = Pick<RoadmapPhase, 'id' | 'name' | 'init_at' | 'end_at' | 'description'>;
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   const {
@@ -42,6 +46,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [isPremium, setIsPremium] = useState(false);
+  const [selectedPhaseId, setSelectedPhaseId] = useState<'all' | 'none' | number>('all');
   const { generateSuggestedTasks } = useGemini();
   const supabase = createClient();
 
@@ -56,6 +61,30 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
     };
     checkPremium();
   }, [supabase]);
+
+  const { data: roadmapPhases = [] } = useQuery({
+    queryKey: ['roadmap-phases', projectId],
+    queryFn: async () => {
+      const { data: roadmap, error: roadmapError } = await supabase
+        .from('roadmap')
+        .select('id')
+        .eq('project_id', projectId)
+        .maybeSingle();
+
+      if (roadmapError) throw roadmapError;
+      if (!roadmap) return [] as RoadmapPhaseOption[];
+
+      const { data, error } = await supabase
+        .from('phase_roadmap')
+        .select('id, name, init_at, end_at, description')
+        .eq('roadmap_id', roadmap.id)
+        .order('id');
+
+      if (error) throw error;
+      return (data || []) as RoadmapPhaseOption[];
+    },
+    enabled: !!projectId,
+  });
 
   const editingTask = React.useMemo(() =>
     tasks?.find(t => t.id === editingTaskId) || null
@@ -72,11 +101,71 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
     })
   );
 
+  const filteredTasks = React.useMemo(() => {
+    if (!tasks) {
+      return [];
+    }
+
+    if (selectedPhaseId === 'all') {
+      return tasks;
+    }
+
+    if (selectedPhaseId === 'none') {
+      return tasks.filter((task) => !task.phase_roadmap_id);
+    }
+
+    return tasks.filter((task) => task.phase_roadmap_id === selectedPhaseId);
+  }, [selectedPhaseId, tasks]);
+
   const columns = {
-    todo: tasks?.filter((task) => task.status === 'todo') || [],
-    'in-progress': tasks?.filter((task) => task.status === 'in-progress') || [],
-    done: tasks?.filter((task) => task.status === 'done') || [],
+    todo: filteredTasks.filter((task) => task.status === 'todo'),
+    'in-progress': filteredTasks.filter((task) => task.status === 'in-progress'),
+    done: filteredTasks.filter((task) => task.status === 'done'),
   };
+
+  const phaseStats = React.useMemo(() => {
+    const allTasks = tasks || [];
+
+    const stats = roadmapPhases.map((phase) => {
+      const phaseTasks = allTasks.filter((task) => task.phase_roadmap_id === phase.id);
+      const doneCount = phaseTasks.filter((task) => task.status === 'done').length;
+      const totalCount = phaseTasks.length;
+      const pendingCount = totalCount - doneCount;
+      const percent = totalCount === 0 ? 0 : Math.round((doneCount / totalCount) * 100);
+
+      return {
+        id: phase.id,
+        name: phase.name,
+        doneCount,
+        pendingCount,
+        totalCount,
+        percent,
+      };
+    });
+
+    const unassignedTasks = allTasks.filter((task) => !task.phase_roadmap_id);
+    if (unassignedTasks.length > 0) {
+      const doneCount = unassignedTasks.filter((task) => task.status === 'done').length;
+      const totalCount = unassignedTasks.length;
+      stats.push({
+        id: -1,
+        name: 'Sin fase',
+        doneCount,
+        pendingCount: totalCount - doneCount,
+        totalCount,
+        percent: totalCount === 0 ? 0 : Math.round((doneCount / totalCount) * 100),
+      });
+    }
+
+    return stats;
+  }, [roadmapPhases, tasks]);
+
+  const phaseLabels = React.useMemo(() => {
+    return roadmapPhases.reduce<Record<number, string>>((acc, phase) => {
+      acc[phase.id] = phase.name;
+      return acc;
+    }, {});
+  }, [roadmapPhases]);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -158,7 +247,34 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   return (
     <div className="min-h-full flex flex-col overflow-hidden w-full">
       <div className="flex-none flex justify-between items-center mb-4 p-4">
-        <h2 className="text-2xl font-bold text-[var(--text-primary)]">Tablero Kanban</h2>
+        <div className="flex flex-col">
+          <h2 className="text-2xl font-bold text-[var(--text-primary)]">Tablero Kanban</h2>
+          {roadmapPhases.length > 0 && (
+            <div className="mt-2 flex items-center gap-2">
+              <label className="text-xs text-[var(--text-secondary)]">Filtrar por fase:</label>
+              <select
+                value={selectedPhaseId}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value === 'all' || value === 'none') {
+                    setSelectedPhaseId(value);
+                    return;
+                  }
+                  setSelectedPhaseId(Number(value));
+                }}
+                className="text-xs bg-[var(--bg-primary)] border border-[var(--text-secondary)]/30 rounded-md px-2 py-1 text-[var(--text-primary)]"
+              >
+                <option value="all">Todas</option>
+                {roadmapPhases.map((phase) => (
+                  <option key={phase.id} value={phase.id}>
+                    {phase.name}
+                  </option>
+                ))}
+                <option value="none">Sin fase</option>
+              </select>
+            </div>
+          )}
+        </div>
         <div className='flex gap-3 items-center'>
           <div className="relative group">
             <Button
@@ -185,8 +301,34 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
               Nueva Tarea
             </p>
           </Button>
+          <CreateRoadmap projectId={projectId} />
         </div>
       </div>
+
+      {phaseStats.length > 0 && (
+        <div className="px-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {phaseStats.map((phase) => (
+              <div key={phase.id} className="p-3 rounded-md border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-[var(--text-primary)]">{phase.name}</p>
+                  <span className="text-xs text-[var(--text-secondary)]">{phase.percent}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+                  <div
+                    className="h-full bg-[var(--accent-primary)] transition-all"
+                    style={{ width: `${phase.percent}%` }}
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
+                  <span>Hechas: {phase.doneCount}</span>
+                  <span>Pendientes: {phase.pendingCount}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <DndContext
         sensors={sensors}
@@ -196,9 +338,27 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
         onDragEnd={handleDragEnd}
       >
         <div className="flex-1 flex gap-5 overflow-x-auto  overflow-y-hidden p-4 min-h-0 h-full">
-          <KanbanColumn id="todo" title="Por hacer" tasks={columns.todo} onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }} />
-          <KanbanColumn id="in-progress" title="En progreso" tasks={columns['in-progress']} onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }} />
-          <KanbanColumn id="done" title="Completado" tasks={columns.done} onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }} />
+          <KanbanColumn
+            id="todo"
+            title="Por hacer"
+            tasks={columns.todo}
+            phaseLabels={phaseLabels}
+            onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }}
+          />
+          <KanbanColumn
+            id="in-progress"
+            title="En progreso"
+            tasks={columns['in-progress']}
+            phaseLabels={phaseLabels}
+            onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }}
+          />
+          <KanbanColumn
+            id="done"
+            title="Completado"
+            tasks={columns.done}
+            phaseLabels={phaseLabels}
+            onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }}
+          />
         </div>
 
         <DragOverlay>

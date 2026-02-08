@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   try {
-    const { projectId } = await req.json();
+    const { projectId, phaseSummary } = await req.json();
 
     if (!projectId) {
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
@@ -137,6 +137,12 @@ export async function POST(req: NextRequest) {
     const onTimeCount = estimatedDoneDeltas.filter((v) => v <= 0).length;
     const lateCount = estimatedDoneDeltas.filter((v) => v > 0).length;
 
+    const phaseSummaryText = Array.isArray(phaseSummary) && phaseSummary.length > 0
+      ? `\nEstado por fases:\n${phaseSummary.map((phase) => (
+        `- ${phase.name}: ${phase.progress}% (${phase.done}/${phase.total}) | En progreso ${phase.inProgress} | Pendientes ${phase.todo}`
+      )).join('\n')}`
+      : '';
+
     const summaryText = `
 Proyecto: ${project.name}
 Descripción: ${project.description || 'Sin descripción'}
@@ -153,6 +159,7 @@ Métricas:
 - En plazo (estimado vs real): ${onTimeCount}
 - Con retraso (estimado vs real): ${lateCount}
 - Tareas con estimacion completadas: ${estimatedDoneDeltas.length}
+${phaseSummaryText}
 
 Tareas por miembro:
 ${members.map((m) => {

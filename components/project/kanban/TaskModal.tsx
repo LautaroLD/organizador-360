@@ -5,14 +5,13 @@ import { useForm } from 'react-hook-form';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Task, CreateTaskDTO, UpdateTaskDTO } from '@/models';
+import { Task, CreateTaskDTO, UpdateTaskDTO, RoadmapPhase } from '@/models';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 
 import { CheckSquare, Plus, Trash2, ImageIcon, X, Sparkles, Lock } from 'lucide-react';
 import useGemini from '@/hooks/useGemini';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
-import { set } from 'date-fns';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -22,6 +21,8 @@ interface TaskModalProps {
   initialData?: Task | null;
   projectId: string;
 }
+
+type RoadmapPhaseOption = Pick<RoadmapPhase, 'id' | 'name' | 'init_at' | 'end_at' | 'description'>;
 
 export const TaskModal: React.FC<TaskModalProps> = ({
   isOpen,
@@ -49,6 +50,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       status: 'todo',
       assigned_to: [],
       tags: [],
+      phase_roadmap_id: null,
     },
   });
 
@@ -104,6 +106,30 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     enabled: isOpen,
   });
 
+  const { data: roadmapPhases } = useQuery({
+    queryKey: ['roadmap-phases', projectId],
+    queryFn: async () => {
+      const { data: roadmap, error: roadmapError } = await supabase
+        .from('roadmap')
+        .select('id')
+        .eq('project_id', projectId)
+        .maybeSingle();
+
+      if (roadmapError) throw roadmapError;
+      if (!roadmap) return [] as RoadmapPhaseOption[];
+
+      const { data, error } = await supabase
+        .from('phase_roadmap')
+        .select('id, name, init_at, end_at, description')
+        .eq('roadmap_id', roadmap.id)
+        .order('id');
+
+      if (error) throw error;
+      return (data || []) as RoadmapPhaseOption[];
+    },
+    enabled: isOpen,
+  });
+
   useEffect(() => {
     // Si estamos generando con IA, no sobrescribir los valores del formulario
     if (isGeneratingWithAI.current) {
@@ -116,6 +142,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setValue('status', initialData.status);
       setValue('priority', initialData.priority || null);
       setValue('done_estimated_at', initialData.done_estimated_at ? initialData.done_estimated_at.split('T')[0] : '');
+      setValue('phase_roadmap_id', initialData.phase_roadmap_id ?? null);
       setValue('assigned_to', initialData.assignments?.map(a => a.user_id) || []);
       setValue('tags', initialData.tags?.map(t => t.tag_id) || []);
       setLocalChecklist([]);
@@ -130,6 +157,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         status: 'todo',
         assigned_to: [],
         tags: [],
+        phase_roadmap_id: null,
       });
       setLocalChecklist([]);
       setLocalImages([]);
@@ -279,10 +307,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   };
 
   const handleFormSubmit = (data: CreateTaskDTO | UpdateTaskDTO) => {
+    const phaseValue = data.phase_roadmap_id ?? null;
+
     if (!initialData) {
       // Si estamos creando
       const createData: CreateTaskDTO = {
         ...data as CreateTaskDTO,
+        phase_roadmap_id: phaseValue,
         priority: data.priority?.length ? data.priority : null,
         done_estimated_at: data.done_estimated_at?.length ? data.done_estimated_at : null,
         checklist: localChecklist.length > 0 ? localChecklist.map(({ content, is_completed }) => ({ content, is_completed })) : undefined,
@@ -313,6 +344,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
       const updateData: UpdateTaskDTO = {
         ...data as UpdateTaskDTO,
+        phase_roadmap_id: phaseValue,
         priority: data.priority?.length ? data.priority : null,
         done_estimated_at: data.done_estimated_at?.length ? data.done_estimated_at : null,
         checklistToAdd: checklistToAdd.length > 0 ? checklistToAdd : undefined,
@@ -534,6 +566,29 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               className="w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
             />
           </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+            Fase del roadmap (opcional)
+          </label>
+          <select
+            {...register('phase_roadmap_id', {
+              setValueAs: (value) => (value ? Number(value) : null),
+            })}
+            className="w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+          >
+            <option value="">Sin fase</option>
+            {roadmapPhases?.map((phase) => (
+              <option key={phase.id} value={phase.id}>
+                {phase.name}
+              </option>
+            ))}
+          </select>
+          {(!roadmapPhases || roadmapPhases.length === 0) && (
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+              No hay fases creadas para este proyecto.
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
