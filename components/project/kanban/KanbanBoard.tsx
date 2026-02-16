@@ -19,7 +19,7 @@ import { KanbanTask } from './KanbanTask';
 import { TaskModal } from './TaskModal';
 import { useTasks } from '@/hooks/useTasks';
 import { Button } from '@/components/ui/Button';
-import { Plus, Sparkles, Lock } from 'lucide-react';
+import { Plus, Sparkles, Lock, CheckCircleIcon, ClockIcon } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import useGemini from '@/hooks/useGemini';
 import SuggestionsModal from './SuggestionsModal';
@@ -307,7 +307,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
 
       {phaseStats.length > 0 && (
         <div className="px-4 mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {phaseStats.map((phase) => (
               <div key={phase.id} className="p-3 rounded-md border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]">
                 <div className="flex items-center justify-between mb-2">
@@ -321,8 +321,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
                   />
                 </div>
                 <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
-                  <span>Hechas: {phase.doneCount}</span>
-                  <span>Pendientes: {phase.pendingCount}</span>
+                  <span className='flex gap-1 items-center'><CheckCircleIcon size={13} /> {phase.doneCount}</span>
+                  <span className='flex gap-1 items-center'><ClockIcon size={13} /> {phase.pendingCount}</span>
                 </div>
               </div>
             ))}

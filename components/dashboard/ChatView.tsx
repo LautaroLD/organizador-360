@@ -510,7 +510,7 @@ export const ChatView: React.FC = () => {
       {/* Channels Sidebar */}
       <aside
         className={clsx(
-          "w-64 border-r border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex flex-col transition-transform duration-300 ease-in-out z-40",
+          "w-52 border-r border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex flex-col transition-transform duration-300 ease-in-out z-40",
           "md:relative md:translate-x-0 md:z-0",
           "fixed inset-y-0 left-0",
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -531,7 +531,7 @@ export const ChatView: React.FC = () => {
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-2" aria-label="Lista de canales">
+        <nav className="flex-1 overflow-y-auto p-1" aria-label="Lista de canales">
           {channelsLoading ? (
             <div className="flex items-center justify-center py-8">
               <p className="text-sm text-[var(--text-secondary)]">Cargando canales...</p>
@@ -613,11 +613,11 @@ export const ChatView: React.FC = () => {
                     title={!isPremium ? "Función disponible solo en Plan Pro o Enterprise" : "Resumir chat con IA"}
                     className="mr-2 text-[var(--text-secondary)] hover:text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/10"
                   >
-                    {!isPremium ? <Lock className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
+                    {<Sparkles className="h-5 w-5" />}
                   </Button>
                   {!isPremium && (
                     <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
-                      <p>Función disponible solo en Plan Pro o Enterprise</p>
+                      <p>El resumen de chat está disponible solo en Plan Pro o Enterprise</p>
                     </div>
                   )}
                 </div>
@@ -916,7 +916,7 @@ export const ChatView: React.FC = () => {
             </div>
 
             {/* Message Input */}
-            <div className="p-2 md:p-4 border-t border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex-shrink-0">
+            <div className="p-2  border-t border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex-shrink-0">
               {replyingTo && (
                 <div className="mb-2 p-2 bg-[var(--bg-primary)] rounded-lg border border-[var(--accent-primary)]/40 flex items-start justify-between">
                   <div className="flex-1 min-w-0">
@@ -945,7 +945,7 @@ export const ChatView: React.FC = () => {
                   disabled={sendMessageMutation.isPending}
                   className="flex-1"
                 />
-                <div className='flex flex-col justify-between'>
+                <div className='flex flex-col justify-between gap-2'>
                   <Button aria-label={showToolbar ? 'Ocultar barra de herramientas' : 'Mostrar barra de herramientas'} title={showToolbar ? 'Ocultar barra de herramientas' : 'Mostrar barra de herramientas'} variant='ghost' onClick={() => setShowToolbar(!showToolbar)}>
                     {
                       !showToolbar ? <ChevronUp className="h-5 w-5" /> :
@@ -954,6 +954,7 @@ export const ChatView: React.FC = () => {
                   </Button>
                   <Button
                     type="button"
+                    className='flex-1'
                     title="Enviar mensaje (Shift + Enter)"
                     onClick={onSubmitMessage}
                     disabled={sendMessageMutation.isPending || !messageContent.trim()}

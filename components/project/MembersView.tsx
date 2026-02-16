@@ -93,12 +93,6 @@ export const MembersView: React.FC = () => {
   // Invite user mutation
   const inviteUserMutation = useMutation({
     mutationFn: async (data: InviteFormData) => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) throw new Error('Sesión inválida');
-
       if (!currentProject?.id) {
         throw new Error('Proyecto no seleccionado');
       }
@@ -106,26 +100,37 @@ export const MembersView: React.FC = () => {
       const resolvedInviteType = data.inviteType ?? 'email';
       const resolvedRole = data.role ?? 'Collaborator';
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/send-invitation`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            projectId: currentProject.id,
-            inviteeEmail: resolvedInviteType === 'email' ? data.email : null,
-            role: resolvedRole,
-            inviteType: resolvedInviteType,
-          }),
-        }
-      );
+      const response = await fetch('/api/invitations/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId: currentProject.id,
+          inviteeEmail: resolvedInviteType === 'email' ? data.email : null,
+          role: resolvedRole,
+          inviteType: resolvedInviteType,
+        }),
+      });
 
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Error al enviar invitación');
+      const result = await response.json().catch(() => null) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+        invitationUrl?: string;
+        isNewUser?: boolean;
+      };
+
+      if (!response.ok) {
+        throw new Error(
+          result?.error ||
+          result?.message ||
+          `Error al enviar invitación (${response.status})`
+        );
+      }
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Error al enviar invitación');
       }
       return result;
     },
