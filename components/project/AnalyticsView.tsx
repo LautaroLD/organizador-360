@@ -6,10 +6,11 @@ import { createClient } from '@/lib/supabase/client';
 import { useProjectStore } from '@/store/projectStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { BarChart3, CheckCircle2, Clock, Lock, Sparkles, Users } from 'lucide-react';
+import { BarChart3, CheckCircle2, ChevronDown, ChevronUp, Clock, Lock, Sparkles, Users } from 'lucide-react';
 import { MessageContent } from '@/components/ui/MessageContent';
 import { formatLocalDate, parseDateValue } from '@/lib/utils';
 import { RoadmapPhase } from '@/models';
+import Link from 'next/link';
 const formatDuration = (ms: number) => {
   if (!ms || ms <= 0) return '0m';
   const minutes = Math.floor(ms / 60000);
@@ -70,6 +71,7 @@ export const AnalyticsView: React.FC = () => {
   const { currentProject } = useProjectStore();
   const [memberTaskFilter, setMemberTaskFilter] = useState<'all' | 'todo' | 'in-progress' | 'done' | 'overdue'>('all');
   const [memberTaskSort, setMemberTaskSort] = useState<'estimated' | 'status' | 'title'>('estimated');
+  const [showExplanation, setShowExplanation] = useState(true);
 
   const projectTier = currentProject?.plan_tier === 'enterprise'
     ? 'enterprise'
@@ -303,10 +305,12 @@ export const AnalyticsView: React.FC = () => {
     return (
       <main className="flex grow flex-col max-h-full overflow-y-auto">
         <div className="flex-1 flex flex-col justify-center items-center p-6">
-          <Lock className="h-10 w-10 text-[var(--text-secondary)] mb-3" />
-          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Analíticas disponibles solo en Enterprise</h2>
-          <p className="text-[var(--text-secondary)] mb-4 text-center">Actualiza el plan para acceder a métricas avanzadas del proyecto.</p>
-          <Button variant="secondary" onClick={() => window.location.href = '/settings/subscription'}>Ver planes</Button>
+          <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-4">Analíticas disponibles solo en Enterprise</h2>
+          <Lock size={48} className=" text-[var(--text-secondary)] mb-4" />
+          <p className="text-[var(--text-secondary)] mb-6 text-center">Actualiza el plan para acceder a métricas avanzadas del proyecto.</p>
+          <Link className='bg-[var(--accent-primary)] px-2 py-1 rounded-lg font-semibold' href="/settings/subscription">
+            Ver planes
+          </Link>
         </div>
       </main>
     );
@@ -316,7 +320,7 @@ export const AnalyticsView: React.FC = () => {
     return (
       <main className="flex grow flex-col max-h-full overflow-y-auto">
         <div className="flex-1 flex flex-col justify-center items-center p-6">
-          <Lock className="h-10 w-10 text-[var(--text-secondary)] mb-3" />
+          <Lock size={48} className=" text-[var(--text-secondary)] mb-4" />
           <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Acceso restringido</h2>
           <p className="text-[var(--text-secondary)] text-center">Solo Owner o Admin pueden ver analíticas del proyecto.</p>
         </div>
@@ -345,6 +349,41 @@ export const AnalyticsView: React.FC = () => {
             <p className="text-sm text-[var(--text-secondary)]">Vista avanzada del progreso y productividad</p>
           </div>
         </div>
+
+        <Card>
+          <CardHeader
+            className="cursor-pointer hover:bg-[var(--bg-secondary)]/50 transition-colors"
+            onClick={() => setShowExplanation(!showExplanation)}
+          >
+            <CardTitle className="text-base flex items-center justify-between">
+              <span>📊 ¿Cómo funcionan las analíticas?</span>
+              {showExplanation ? (
+                <ChevronUp className="h-4 w-4 text-[var(--text-secondary)]" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-[var(--text-secondary)]" />
+              )}
+            </CardTitle>
+          </CardHeader>
+          {showExplanation && (
+            <CardContent className="text-sm text-[var(--text-secondary)] space-y-3">
+              <p>
+                Las analíticas te permiten obtener una visión completa del estado y rendimiento de tu proyecto mediante métricas clave:
+              </p>
+              <ul className="list-disc list-inside space-y-1.5 ml-2">
+                <li><strong className="text-[var(--text-primary)]">Avance:</strong> Porcentaje de tareas completadas respecto al total.</li>
+                <li><strong className="text-[var(--text-primary)]">Tiempo de cierre:</strong> Promedio y mediana del tiempo que toma completar una tarea desde su creación. El desvío estimado muestra si las tareas se completan antes o después de lo estimado.</li>
+                <li><strong className="text-[var(--text-primary)]">Estado:</strong> Distribución de tareas por estado (por hacer, en progreso, completadas) y cantidad de tareas sin asignar.</li>
+                <li><strong className="text-[var(--text-primary)]">Estado por fase:</strong> Si tu proyecto tiene un roadmap, verás el progreso detallado de cada fase.</li>
+                <li><strong className="text-[var(--text-primary)]">Cierre estimado vs real:</strong> Compara las fechas estimadas con las reales para identificar retrasos o adelantos.</li>
+                <li><strong className="text-[var(--text-primary)]">Tareas por miembro:</strong> Visualiza la carga de trabajo de cada integrante del equipo con filtros por estado y fechas.</li>
+                <li><strong className="text-[var(--text-primary)]">Insights de IA:</strong> Genera un análisis automático con recomendaciones basadas en el estado actual del proyecto.</li>
+              </ul>
+              <p className="text-xs italic">
+                💡 Tip: Usa estas métricas para identificar cuellos de botella, redistribuir trabajo y mejorar la planificación de tu equipo.
+              </p>
+            </CardContent>
+          )}
+        </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>

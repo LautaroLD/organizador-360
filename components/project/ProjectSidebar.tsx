@@ -142,25 +142,14 @@ export const Sidebar: React.FC = () => {
       icon: <Calendar className="h-5 w-5" />,
       label: 'Calendario',
       path: `/projects/${projectId}/calendar`
-    }
-  ];
-
-  const projectTier = currentProject?.plan_tier === 'enterprise'
-    ? 'enterprise'
-    : (currentProject?.plan_tier === 'pro' || currentProject?.plan_tier === 'starter'
-      ? currentProject?.plan_tier
-      : (currentProject?.is_premium ? 'pro' : 'free'));
-
-  const canSeeAnalytics = projectTier === 'enterprise' && (currentProject?.userRole === 'Owner' || currentProject?.userRole === 'Admin');
-
-  if (canSeeAnalytics) {
-    menuItems.push({
+    },
+    {
       id: 'analytics',
       icon: <BarChart3 className="h-5 w-5" />,
       label: 'Analíticas',
       path: `/projects/${projectId}/analytics`
-    });
-  }
+    }
+  ];
 
   if (currentProject?.owner_id === user?.id) {
     menuItems.push({
