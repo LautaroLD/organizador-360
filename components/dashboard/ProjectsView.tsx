@@ -202,13 +202,6 @@ export const ProjectsView: React.FC = () => {
   // Invite user mutation - Now sends email
   const inviteUserMutation = useMutation({
     mutationFn: async (data: InviteFormData) => {
-      // Get current session
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        throw new Error('Sesión inválida');
-      }
-
       if (!selectedProjectForInvite?.id) {
         throw new Error('Proyecto no seleccionado');
       }
@@ -216,28 +209,37 @@ export const ProjectsView: React.FC = () => {
       const resolvedInviteType = data.inviteType ?? 'email';
       const resolvedRole = data.role ?? 'Collaborator';
 
-      // Call Edge Function to send invitation email
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/send-invitation`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            projectId: selectedProjectForInvite.id,
-            inviteeEmail: resolvedInviteType === 'email' ? data.email : null,
-            role: resolvedRole,
-            inviteType: resolvedInviteType,
-          }),
-        }
-      );
+      const response = await fetch('/api/invitations/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId: selectedProjectForInvite.id,
+          inviteeEmail: resolvedInviteType === 'email' ? data.email : null,
+          role: resolvedRole,
+          inviteType: resolvedInviteType,
+        }),
+      });
 
-      const result = await response.json();
+      const result = await response.json().catch(() => null) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+        invitationUrl?: string;
+        isNewUser?: boolean;
+      };
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Error al enviar invitación');
+      if (!response.ok) {
+        throw new Error(
+          result?.error ||
+          result?.message ||
+          `Error al enviar invitación (${response.status})`
+        );
+      }
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Error al enviar invitación');
       }
 
       return result;
