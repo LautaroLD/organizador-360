@@ -275,9 +275,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             </div>
           )}
         </div>
-        <div className='flex gap-3 items-center'>
+        <div className='flex gap-3 items-center mb-auto'>
           <div className="relative group">
             <Button
+              size='sm'
               variant='ghost'
               className='text-[var(--accent-primary)]'
               onClick={() => generateSuggestions.mutate()}
@@ -287,7 +288,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
               <p className='hidden md:flex md:mr-2'>
                 {generateSuggestions.isPending ? 'Generando...' : 'Sugerir tareas con IA'}
               </p>
-              {!isPremium ? <Lock size={20} /> : <Sparkles size={20} />}
+              {<Sparkles size={20} />}
             </Button>
             {!isPremium && (
               <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
@@ -295,9 +296,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
               </div>
             )}
           </div>
-          <Button onClick={() => { setEditingTaskId(null); setIsModalOpen(true); }}>
-            <Plus size={24} />
-            <p className='hidden md:flex md:ml-2'>
+          <Button size='sm' onClick={() => { setEditingTaskId(null); setIsModalOpen(true); }}>
+            <Plus size={20} />
+            <p className='hidden md:flex md:ml-1'>
               Nueva Tarea
             </p>
           </Button>
@@ -310,7 +311,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
           <div className="grid grid-cols-3 gap-3">
             {phaseStats.map((phase) => (
               <div key={phase.id} className="p-3 rounded-md border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center flex-wrap justify-between mb-2">
                   <p className="text-sm font-medium text-[var(--text-primary)]">{phase.name}</p>
                   <span className="text-xs text-[var(--text-secondary)]">{phase.percent}%</span>
                 </div>

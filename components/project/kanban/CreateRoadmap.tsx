@@ -313,9 +313,9 @@ export default function CreateRoadmap({ projectId }: CreateRoadmapProps) {
   const modalTitle = roadmapId ? 'Editar Roadmap' : 'Crear Roadmap';
   return (
     <>
-      <Button variant='ghost' onClick={() => setIsOpen(true)} disabled={isRoadmapLoading}>
-        <Map size={24} />
-        <p className='hidden md:flex md:ml-2'>
+      <Button size='sm' variant='ghost' onClick={() => setIsOpen(true)} disabled={isRoadmapLoading}>
+        <Map size={20} />
+        <p className='hidden md:flex md:ml-1'>
           {isRoadmapLoading ? 'Cargando...' : actionLabel}
         </p>
       </Button>
