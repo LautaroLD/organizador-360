@@ -301,7 +301,7 @@ export const AnalyticsView: React.FC = () => {
 
   if (!currentProject) return null;
 
-  if (!isEnterprise) {
+  if (!isEnterprise && canManage) {
     return (
       <main className="flex grow flex-col max-h-full overflow-y-auto">
         <div className="flex-1 flex flex-col justify-center items-center p-6">
@@ -319,9 +319,9 @@ export const AnalyticsView: React.FC = () => {
   if (!canManage) {
     return (
       <main className="flex grow flex-col max-h-full overflow-y-auto">
-        <div className="flex-1 flex flex-col justify-center items-center p-6">
-          <Lock size={48} className=" text-[var(--text-secondary)] mb-4" />
-          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Acceso restringido</h2>
+        <div className="flex-1 gap-4 flex flex-col justify-center items-center p-6">
+          <h2 className="text-xl font-bold text-[var(--text-primary)] ">Acceso restringido</h2>
+          <Lock size={48} className=" text-[var(--text-secondary)] " />
           <p className="text-[var(--text-secondary)] text-center">Solo Owner o Admin pueden ver analíticas del proyecto.</p>
         </div>
       </main>

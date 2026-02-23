@@ -39,7 +39,7 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, phaseLabel, onEdit
       onClick={onEdit}
       className="cursor-pointer touch-none"
     >
-      <Card className="p-3 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)] transition-colors border-2 border-[var(--border-color)]">
+      <Card className="p-3 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)] transition-colors hover:border-2 border-2 border-transparent">
         <h4 className="font-medium text-[var(--text-primary)] mb-2 text-ellipsis overflow-hidden whitespace-nowrap w-full">{task.title}</h4>
 
         {task.tags && task.tags.length > 0 && (

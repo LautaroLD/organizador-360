@@ -308,11 +308,11 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
 
       {phaseStats.length > 0 && (
         <div className="px-4 mb-4">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="flex flex-nowrap overflow-x-auto py-2 gap-3">
             {phaseStats.map((phase) => (
-              <div key={phase.id} className="p-3 rounded-md border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]">
+              <div key={phase.id} className=" min-w-[150px] p-3 rounded-md border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]">
                 <div className="flex items-center flex-wrap justify-between mb-2">
-                  <p className="text-sm font-medium text-[var(--text-primary)]">{phase.name}</p>
+                  <p className="text-sm font-medium text-[var(--text-primary)] text-ellipsis overflow-hidden whitespace-nowrap">{phase.name}</p>
                   <span className="text-xs text-[var(--text-secondary)]">{phase.percent}%</span>
                 </div>
                 <div className="h-2 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
