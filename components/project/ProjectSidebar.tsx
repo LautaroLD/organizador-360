@@ -18,6 +18,7 @@ import {
   Layout,
   Sparkles,
   BarChart3,
+  CheckSquare,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Project } from '@/models';
@@ -148,6 +149,12 @@ export const Sidebar: React.FC = () => {
       icon: <BarChart3 className="h-5 w-5" />,
       label: 'Analíticas',
       path: `/projects/${projectId}/analytics`
+    },
+    {
+      id: 'checkins',
+      icon: <CheckSquare className="h-5 w-5" />,
+      label: 'Check-ins',
+      path: `/projects/${projectId}/check-ins`
     }
   ];
 

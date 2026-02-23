@@ -15,7 +15,7 @@ const MAX_NAME_LENGTH = 80;
 
 export const SettingsView: React.FC = () => {
   const { user, logout, setUser } = useAuthStore();
-  const { theme, toggleTheme } = useThemeStore();
+  const { theme, toggleTheme, customColors, setCustomColor } = useThemeStore();
   const {
     isConnected: isGoogleCalendarConnected,
     authMethod,
@@ -439,7 +439,7 @@ export const SettingsView: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-6">
               <div>
                 <p className="text-[var(--text-primary)] font-medium">Tema Actual</p>
                 <p className="text-sm text-[var(--text-secondary)]">
@@ -449,6 +449,55 @@ export const SettingsView: React.FC = () => {
               <Button onClick={toggleTheme}>
                 Cambiar a {theme === 'light' ? 'Oscuro' : 'Claro'}
               </Button>
+            </div>
+            <div className="space-y-4">
+              <p className='text-[var(--text-primary)] font-medium'>Colores personalizados</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className='text-sm text-[var(--text-primary)]'>
+                    Color principal (Claro)
+                  </p>
+                  <p className='text-xs text-[var(--text-secondary)]'>
+                    Color de acento para el tema claro
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Input
+                    type="color"
+                    value={customColors.light || '#007bff'}
+                    onChange={(e) => setCustomColor('light', e.target.value)}
+                    className='w-10 h-10 p-0 border-0 cursor-pointer'
+                  />
+                  {customColors.light && (
+                    <Button variant="secondary" size="sm" onClick={() => setCustomColor('light', null)}>
+                      Restablecer
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className='text-sm text-[var(--text-primary)]'>
+                    Color principal (Oscuro)
+                  </p>
+                  <p className='text-xs text-[var(--text-secondary)]'>
+                    Color de acento para el tema oscuro
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Input
+                    type="color"
+                    value={customColors.dark || '#8a42f5'}
+                    onChange={(e) => setCustomColor('dark', e.target.value)}
+                    className='w-10 h-10 p-0 border-0 cursor-pointer'
+                  />
+                  {customColors.dark && (
+                    <Button variant="secondary" size="sm" onClick={() => setCustomColor('dark', null)}>
+                      Restablecer
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
