@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import {
   Plus,
@@ -54,7 +54,7 @@ export const ProjectsView: React.FC = () => {
     formState: { errors },
     reset,
     setValue,
-    watch,
+    control,
   } = useForm<ProjectFormData>();
 
   const {
@@ -62,7 +62,7 @@ export const ProjectsView: React.FC = () => {
     handleSubmit: handleSubmitInvite,
     formState: { errors: inviteErrors },
     reset: resetInvite,
-    watch: watchInvite,
+    control: inviteControl,
   } = useForm<InviteFormData>({
     defaultValues: {
       role: 'Collaborator',
@@ -70,10 +70,10 @@ export const ProjectsView: React.FC = () => {
     },
   });
 
-  const inviteType = watchInvite('inviteType');
+  const inviteType = useWatch({ control: inviteControl, name: 'inviteType' });
   const [useRichTextDescription, setUseRichTextDescription] = useState(false);
   const [showDescriptionPreview, setShowDescriptionPreview] = useState(false);
-  const descriptionValue = watch('description') || '';
+  const descriptionValue = useWatch({ control, name: 'description' }) || '';
 
   // Fetch projects
   const { data: projects, isLoading } = useQuery({

@@ -365,7 +365,10 @@ export const CheckinsView: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {filteredCheckins.map((entry) => {
-                const displayName = entry.user?.name;
+                const displayName = memberNameByUserId.get(entry.user_id)
+                  || entry.user?.name
+                  || entry.user?.email
+                  || 'Miembro';
                 const hasBlockers = Boolean(entry.blockers?.trim());
 
                 return (

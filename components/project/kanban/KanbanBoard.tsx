@@ -19,7 +19,7 @@ import { KanbanTask } from './KanbanTask';
 import { TaskModal } from './TaskModal';
 import { useTasks } from '@/hooks/useTasks';
 import { Button } from '@/components/ui/Button';
-import { Plus, Sparkles, Lock, CheckCircleIcon, ClockIcon } from 'lucide-react';
+import { Plus, Sparkles, CheckCircleIcon, ClockIcon } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import useGemini from '@/hooks/useGemini';
 import SuggestionsModal from './SuggestionsModal';
