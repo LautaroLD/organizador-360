@@ -314,23 +314,28 @@ export const ProjectsView: React.FC = () => {
     <div className='space-y-6'>
       {/* Alert for disabled projects */}
       {disabledProjectsCount > 0 && (
-        <div className=' bg-[var(--bg-secondary)] border border-[var(--accent-warning)] rounded-lg p-4'>
+        <div className=' bg-[var(--accent-warning)]/10 rounded-lg p-4'>
           <div className='flex items-start gap-3'>
             <Lock className='h-5 w-5 text-[var(--accent-warning)]  flex-shrink-0 mt-0.5' />
             <div className='flex-1'>
               <h3 className='font-semibold text-[var(--accent-warning)] mb-1'>
                 Proyectos Deshabilitados
               </h3>
-              <p className='text-sm text-[var(--accent-warning)] mb-2'>
+              <p className='text-sm text-[var(--accent-warning)] '>
                 {currentLimits.MAX_PROJECTS === null
                   ? 'Tu plan permite proyectos ilimitados.'
                   : `Tu plan ${currentTier.toUpperCase()} permite hasta ${currentLimits.MAX_PROJECTS} proyectos habilitados simultáneamente.`}
               </p>
-              <div className='flex gap-2 flex-wrap'>
-                <p className='text-xs text-[var(--accent-warning)]  self-center'>
-                  Para habilitar un proyecto, primero desactiva otro o actualiza tu plan.
-                </p>
-              </div>
+              {
+                // este mensaje solo debe mostrarse si el usuario no tiene plan enterprise
+                currentTier !== 'enterprise' && (
+                  <div className='flex gap-2 flex-wrap'>
+                    <p className='text-xs text-[var(--accent-warning)]  self-center'>
+                      Para habilitar un proyecto, primero desactiva otro o actualiza tu plan.
+                    </p>
+                  </div>
+                )
+              }
             </div>
           </div>
         </div>

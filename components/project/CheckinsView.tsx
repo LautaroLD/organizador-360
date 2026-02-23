@@ -14,6 +14,12 @@ import { AlertTriangle, CheckSquare, Clock, Filter, Save } from 'lucide-react';
 import type { ProjectCheckin, UpsertCheckinDTO } from '@/models';
 
 type CheckinFilter = 'all' | 'blockers' | 'mine';
+type DateScope = 'date' | 'all';
+
+interface ProjectMemberUserRow {
+  user_id: string;
+  user: { name: string | null; email: string | null; } | { name: string | null; email: string | null; }[] | null;
+}
 
 const toISODate = (date: Date) => {
   const year = date.getFullYear();
@@ -30,6 +36,7 @@ export const CheckinsView: React.FC = () => {
 
   const todayDate = toISODate(new Date());
   const [listDate, setListDate] = useState<string>(todayDate);
+  const [dateScope, setDateScope] = useState<DateScope>('date');
   const [filter, setFilter] = useState<CheckinFilter>('all');
 
   const [yesterday, setYesterday] = useState('');
@@ -53,26 +60,66 @@ export const CheckinsView: React.FC = () => {
       return (data as unknown as ProjectCheckin) ?? null;
     },
     enabled: !!currentProject?.id && !!user?.id,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
-  const { data: checkins = [], isLoading } = useQuery({
-    queryKey: ['project-checkins', currentProject?.id, listDate],
+  const { data: projectMembers = [] } = useQuery({
+    queryKey: ['project-checkins-members', currentProject?.id],
     queryFn: async () => {
       if (!currentProject?.id) return [];
 
       const { data, error } = await supabase
+        .from('project_members')
+        .select('user_id,user:users(name,email)')
+        .eq('project_id', currentProject.id);
+
+      if (error) throw error;
+      return (data ?? []) as unknown as ProjectMemberUserRow[];
+    },
+    enabled: !!currentProject?.id,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: checkins = [], isLoading } = useQuery({
+    queryKey: ['project-checkins', currentProject?.id, dateScope, listDate],
+    queryFn: async () => {
+      if (!currentProject?.id) return [];
+
+      let query = supabase
         .from('project_checkins')
         .select('id,project_id,user_id,checkin_date,yesterday,today,blockers,created_at,updated_at,user:users(name,email)')
-        .eq('project_id', currentProject.id)
-        .eq('checkin_date', listDate)
-        .order('updated_at', { ascending: false });
+        .eq('project_id', currentProject.id);
+
+      if (dateScope === 'date') {
+        query = query.eq('checkin_date', listDate);
+      }
+
+      const { data, error } = await query.order('updated_at', { ascending: false });
 
       if (error) throw error;
 
       return (data ?? []) as unknown as ProjectCheckin[];
     },
     enabled: !!currentProject?.id,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
+
+  const memberNameByUserId = useMemo(() => {
+    const map = new Map<string, string>();
+
+    projectMembers.forEach((member) => {
+      const rawUser = Array.isArray(member.user) ? member.user[0] : member.user;
+      const displayName = rawUser?.name || rawUser?.email;
+      if (displayName) {
+        map.set(member.user_id, displayName);
+      }
+    });
+
+    return map;
+  }, [projectMembers]);
 
   const myCheckinInListDate = useMemo(
     () => checkins.find((entry) => entry.user_id === user?.id) ?? null,
@@ -104,11 +151,13 @@ export const CheckinsView: React.FC = () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['project-checkins', currentProject?.id] }),
         queryClient.invalidateQueries({ queryKey: ['project-checkins-me-today', currentProject?.id, user?.id, todayDate] }),
+        queryClient.invalidateQueries({ queryKey: ['project-checkins-members', currentProject?.id] }),
       ]);
 
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ['project-checkins', currentProject?.id], type: 'active' }),
         queryClient.refetchQueries({ queryKey: ['project-checkins-me-today', currentProject?.id, user?.id, todayDate], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['project-checkins-members', currentProject?.id], type: 'active' }),
       ]);
 
       toast.success('Check-in guardado');
@@ -185,7 +234,7 @@ export const CheckinsView: React.FC = () => {
                 value={yesterday}
                 onChange={(e) => setYesterday(e.target.value)}
                 placeholder="¿Qué avanzaste ayer?"
-                className="w-full min-h-28 rounded-lg border border-[var(--text-secondary)] bg-[var(--bg-secondary)] p-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                className="w-full min-h-28 rounded-lg border border-[var(--text-secondary)] bg-[var(--bg-primary)] p-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
               />
             </label>
 
@@ -195,7 +244,7 @@ export const CheckinsView: React.FC = () => {
                 value={today}
                 onChange={(e) => setToday(e.target.value)}
                 placeholder="¿Qué vas a hacer hoy?"
-                className="w-full min-h-28 rounded-lg border border-[var(--text-secondary)] bg-[var(--bg-secondary)] p-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                className="w-full min-h-28 rounded-lg border border-[var(--text-secondary)] bg-[var(--bg-primary)] p-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
               />
             </label>
 
@@ -205,7 +254,7 @@ export const CheckinsView: React.FC = () => {
                 value={blockers}
                 onChange={(e) => setBlockers(e.target.value)}
                 placeholder="¿Qué te está bloqueando?"
-                className="w-full min-h-28 rounded-lg border border-[var(--text-secondary)] bg-[var(--bg-secondary)] p-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                className="w-full min-h-28 rounded-lg border border-[var(--text-secondary)] bg-[var(--bg-primary)] p-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
               />
             </label>
           </div>
@@ -231,7 +280,7 @@ export const CheckinsView: React.FC = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
-            Check-ins del día {formatLocalDate(listDate)}
+            {dateScope === 'all' ? 'Todos los check-ins' : `Check-ins del día ${formatLocalDate(listDate)}`}
           </CardTitle>
           <CardDescription className="flex items-center gap-3 flex-wrap">
             <span>{checkins.length} enviados</span>
@@ -242,14 +291,39 @@ export const CheckinsView: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="max-w-xs">
-            <Input
-              type="date"
-              label="Filtrar por fecha"
-              value={listDate}
-              onChange={(e) => setListDate(e.target.value)}
-            />
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant={dateScope === 'date' ? 'primary' : 'secondary'}
+              size="sm"
+              onClick={() => setDateScope('date')}
+            >
+              Por fecha
+            </Button>
+            <Button
+              variant={dateScope === 'all' ? 'primary' : 'secondary'}
+              size="sm"
+              onClick={() => setDateScope('all')}
+            >
+              Todas las fechas
+            </Button>
           </div>
+
+          {dateScope === 'date' && (
+            <div className="max-w-xs">
+              <Input
+                type="date"
+                label="Filtrar por fecha"
+                value={listDate}
+                onChange={(e) => setListDate(e.target.value)}
+              />
+            </div>
+          )}
+
+          {dateScope === 'all' && (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Mostrando check-ins de todas las fechas.
+            </p>
+          )}
 
           <div className="flex items-center gap-2 flex-wrap">
             <Filter className="h-4 w-4 text-[var(--text-secondary)]" />
@@ -278,7 +352,9 @@ export const CheckinsView: React.FC = () => {
 
           {filter === 'mine' && !myCheckinInListDate && (
             <p className="text-xs text-[var(--text-secondary)]">
-              No tienes check-in cargado para la fecha seleccionada.
+              {dateScope === 'all'
+                ? 'No tienes check-ins cargados.'
+                : 'No tienes check-in cargado para la fecha seleccionada.'}
             </p>
           )}
 
@@ -289,8 +365,7 @@ export const CheckinsView: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {filteredCheckins.map((entry) => {
-                const member = entry.user;
-                const displayName = member?.name || member?.email || 'Miembro';
+                const displayName = entry.user?.name;
                 const hasBlockers = Boolean(entry.blockers?.trim());
 
                 return (
@@ -313,19 +388,19 @@ export const CheckinsView: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                      <div>
+                      <div className='bg-[var(--bg-primary)] p-3 rounded-lg'>
                         <p className="font-semibold text-[var(--text-primary)] mb-1">Ayer</p>
                         <p className="text-[var(--text-secondary)] whitespace-pre-wrap">
                           {entry.yesterday?.trim() || '—'}
                         </p>
                       </div>
-                      <div>
+                      <div className='bg-[var(--bg-primary)] p-3 rounded-lg'>
                         <p className="font-semibold text-[var(--text-primary)] mb-1">Hoy</p>
                         <p className="text-[var(--text-secondary)] whitespace-pre-wrap">
                           {entry.today?.trim() || '—'}
                         </p>
                       </div>
-                      <div>
+                      <div className='bg-[var(--bg-primary)] p-3 rounded-lg'>
                         <p className="font-semibold text-[var(--text-primary)] mb-1">Bloqueos</p>
                         <p className="text-[var(--text-secondary)] whitespace-pre-wrap">
                           {entry.blockers?.trim() || 'Sin bloqueos'}

@@ -52,7 +52,7 @@ export default async function DashboardPage() {
 
       <main className='m-6 space-y-6'>
         {planTier === 'free' && (
-          <div className="p-2 bg-[var(--bg-secondary)] border border-[var(--accent-warning)] rounded-md">
+          <div className="p-3 bg-[var(--accent-warning)]/10  rounded-md">
             <p className="text-[var(--accent-warning)] text-sm">
               Estás limitado a 3 proyectos.
               <a href="/settings/subscription" className="font-bold underline ml-1">Ver planes</a>

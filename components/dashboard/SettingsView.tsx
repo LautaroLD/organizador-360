@@ -85,7 +85,7 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleCancelEditName = () => {
-    setNewName(user?.user_metadata?.full_name || '');
+    setNewName(user?.user_metadata?.name || user?.user_metadata?.full_name || '');
     setIsEditingName(false);
   };
 

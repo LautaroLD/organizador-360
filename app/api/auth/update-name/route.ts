@@ -35,15 +35,32 @@ export async function PUT(request: Request) {
       );
     }
 
-    // Actualizar el nombre en user_metadata
+    // Actualizar el nombre en user_metadata (compat: name y full_name)
     const { data, error } = await supabase.auth.updateUser({
-      data: { name: trimmedName }
+      data: {
+        name: trimmedName,
+        full_name: trimmedName,
+      }
     });
 
     if (error) {
       console.error('Error updating name:', error);
       return NextResponse.json(
         { error: 'Error al actualizar el nombre' },
+        { status: 500 }
+      );
+    }
+
+    // Sincronizar perfil publico para joins en project_members / check-ins
+    const { error: profileError } = await supabase
+      .from('users')
+      .update({ name: trimmedName })
+      .eq('id', user.id);
+
+    if (profileError) {
+      console.error('Error syncing public.users name:', profileError);
+      return NextResponse.json(
+        { error: 'Nombre actualizado en autenticación, pero no en perfil público' },
         { status: 500 }
       );
     }
