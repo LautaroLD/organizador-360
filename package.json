@@ -4,13 +4,9 @@
   "private": true,
   "packageManager": "pnpm@10.29.2",
   "scripts": {
-    "prebuild": "node scripts/ensure-capacitor-entry.cjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "cap:prepare": "node scripts/ensure-capacitor-entry.cjs",
-    "cap:sync:android": "pnpm run cap:prepare && npx cap sync android",
-    "ionic:android:build": "CAP_USE_REMOTE_SERVER=true pnpm run cap:sync:android",
     "lint": "eslint",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -22,9 +18,6 @@
     "test:all": "pnpm test && pnpm test:e2e"
   },
   "dependencies": {
-    "@capacitor/android": "^8.1.0",
-    "@capacitor/cli": "^8.1.0",
-    "@capacitor/core": "^8.1.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
