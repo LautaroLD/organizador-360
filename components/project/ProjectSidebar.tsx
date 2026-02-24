@@ -26,7 +26,7 @@ import Logo from '../ui/Logo';
 import { MessageContent } from '@/components/ui/MessageContent';
 const SidebarContent = ({ handleBackToDashboard, currentProject, menuItems, pathname, setIsOpen, user }: { handleBackToDashboard: () => void, currentProject: Project | null, menuItems: { id: string; icon: React.ReactNode; label: string; path: string; }[], pathname: string, setIsOpen: (isOpen: boolean) => void, user: { id: string; email?: string; } | null; }) => (
   <>
-    <div className="p-4 border-b border-[var(--text-secondary)]/20">
+    <div className="p-2 border-b border-[var(--text-secondary)]/20 space-y-1">
       <Link href='/dashboard' className='flex items-center justify-center space-x-2 bg-[var(--bg-primary)] p-2 rounded-lg'>
         <Logo />
       </Link>
@@ -34,7 +34,7 @@ const SidebarContent = ({ handleBackToDashboard, currentProject, menuItems, path
         variant="ghost"
         size="sm"
         onClick={handleBackToDashboard}
-        className="w-full justify-start my-3"
+        className="w-full justify-start"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
         Volver a Proyectos
@@ -60,7 +60,7 @@ const SidebarContent = ({ handleBackToDashboard, currentProject, menuItems, path
       </div>
     </div>
 
-    <nav className="flex-1 p-4 space-y-2">
+    <nav className="flex-1 p-2 space-y-2">
       <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider px-2 mb-2">
         Navegación
       </p>
@@ -74,7 +74,7 @@ const SidebarContent = ({ handleBackToDashboard, currentProject, menuItems, path
             onClick={() => {
               setIsOpen(false);
             }}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${isActive
+            className={`w-full flex items-center space-x-2 px-2 py-1 rounded-lg transition-colors ${isActive
               ? 'bg-[var(--accent-primary)] text-white'
               : 'text-[var(--text-primary)] hover:bg-[var(--bg-primary)]'
               }`}
@@ -199,7 +199,7 @@ export const Sidebar: React.FC = () => {
       )}
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex fixed left-0 top-0 h-full w-64 bg-[var(--bg-secondary)] border-r border-[var(--text-secondary)]/20 flex-col overflow-auto">
+      <aside className="hidden lg:flex fixed left-0 top-0 h-full w-56 bg-[var(--bg-secondary)] border-r border-[var(--text-secondary)]/20 flex-col overflow-auto">
         <SidebarContent
           currentProject={currentProject}
           handleBackToDashboard={handleBackToDashboard}

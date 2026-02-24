@@ -52,11 +52,13 @@ export default async function DashboardPage() {
 
       <main className='m-6 space-y-6'>
         {planTier === 'free' && (
-          <div className="p-3 bg-[var(--accent-warning)]/10  rounded-md">
-            <p className="text-[var(--accent-warning)] text-sm">
-              Estás limitado a 3 proyectos.
-              <a href="/settings/subscription" className="font-bold underline ml-1">Ver planes</a>
-            </p>
+          <div className='bg-[var(--bg-secondary)] rounded-md'>
+            <div className="p-3 bg-[var(--accent-warning)]/10  rounded-md border border-[var(--accent-warning)]">
+              <p className="text-[var(--accent-warning)] text-sm">
+                Estás limitado a 3 proyectos.
+                <a href="/settings/subscription" className="font-bold underline ml-1">Ver planes</a>
+              </p>
+            </div>
           </div>
         )}
         {/* Sincroniza la suscripción al volver de Stripe con session_id */}
