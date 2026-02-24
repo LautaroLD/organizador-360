@@ -20,7 +20,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({ id, title, tasks, ph
   });
 
   return (
-    <div id={id} className="flex flex-col w-72 md:w-96  rounded-lg py-2 h-fit max-h-full flex-shrink-0 overflow-y-auto" >
+    <div id={id} className="flex flex-col w-72 md:w-96  rounded-lg py-2 h-fit max-h-full flex-shrink-0" >
       <h3 className="font-semibold text-[var(--text-primary)] mx-4 my-2 flex justify-between items-center flex-none">
         {title}
         <span className="bg-[var(--bg-primary)] text-[var(--text-secondary)] text-xs px-2 py-1 rounded-full">
@@ -28,7 +28,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({ id, title, tasks, ph
         </span>
       </h3>
 
-      <div ref={setNodeRef} className="flex-1 p-5 overflow-y-auto space-y-3 min-h-[100px]">
+      <div ref={setNodeRef} className="flex-1 px-7 overflow-y-auto space-y-3 min-h-[100px]">
         <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
             <KanbanTask

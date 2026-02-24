@@ -39,11 +39,11 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, phaseLabel, onEdit
       onClick={onEdit}
       className="cursor-pointer touch-none"
     >
-      <Card className="p-3 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)] transition-colors hover:border-2 border-2 border-transparent">
-        <h4 className="font-medium text-[var(--text-primary)] mb-2 text-ellipsis overflow-hidden whitespace-nowrap w-full">{task.title}</h4>
+      <Card className="p-1 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)] transition-colors hover:border-2 border-2 border-transparent flex flex-col gap-1">
+        <p className="font-medium text-[var(--text-primary)]  text-ellipsis overflow-hidden whitespace-nowrap w-full">{task.title}</p>
 
         {task.tags && task.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
+          <div className="flex flex-wrap gap-1 ">
             {task.tags.map((t) => (
               <span
                 key={t.id}
@@ -57,22 +57,22 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, phaseLabel, onEdit
         )}
 
         {task.description && (
-          <p className="text-sm text-[var(--text-secondary)] line-clamp-2 mb-3 text-ellipsis overflow-hidden whitespace-nowrap w-full">
+          <p className="text-sm text-[var(--text-secondary)] line-clamp-2 text-ellipsis overflow-hidden whitespace-nowrap w-full">
             {task.description}
           </p>
         )}
         {task.priority && (
-          <p className={clsx("text-xs  text-[var(--text-secondary)] line-clamp-2 mb-3 text-ellipsis uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] w-fit", task.priority === 'alta' ? 'text-red-500' : task.priority === 'media' ? 'text-yellow-500' : 'text-green-500')}>
+          <p className={clsx("text-xs  text-[var(--text-secondary)] line-clamp-2 text-ellipsis uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] w-fit", task.priority === 'alta' ? 'text-red-500' : task.priority === 'media' ? 'text-yellow-500' : 'text-green-500')}>
             {task.priority}
           </p>
         )}
         {phaseLabel && (
-          <p className="text-xs font-semibold text-[var(--text-secondary)] line-clamp-1 mb-3 text-ellipsis uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] w-fit">
+          <p className="text-xs text-[var(--text-secondary)] line-clamp-1 uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] text-ellipsis">
             Fase: {phaseLabel}
           </p>
         )}
         {task.done_estimated_at && (
-          <p className="text-xs  text-[var(--text-secondary)] line-clamp-2 mb-3 text-ellipsis uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] w-fit">
+          <p className="text-xs  text-[var(--text-secondary)] line-clamp-2 text-ellipsis uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] ">
             Cierre estimado: {formatLocalDate(task.done_estimated_at)}
           </p>
         )}
