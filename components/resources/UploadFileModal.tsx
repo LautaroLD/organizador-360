@@ -73,7 +73,7 @@ export const UploadFileModal: React.FC<UploadFileModalProps> = ({
               file:mr-4 file:py-2 file:px-4
               file:rounded-lg file:border-0
               file:text-sm file:font-semibold
-              file:bg-[var(--accent-primary)] file:text-white
+              file:bg-[var(--accent-primary)] file:text-[var(--accent-primary-contrast)]
               hover:file:opacity-90 cursor-pointer
               border border-[var(--text-secondary)]/30 rounded-lg'
           />

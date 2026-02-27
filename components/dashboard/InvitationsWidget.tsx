@@ -86,7 +86,7 @@ export const InvitationsWidget: React.FC = () => {
           <div className='flex items-center justify-between'>
             <div className='flex items-center'>
               <div className='bg-[var(--accent-primary)] p-2 rounded-lg mr-3'>
-                <Mail className='h-5 w-5 text-white' />
+                <Mail className='h-5 w-5 text-[var(--accent-primary-contrast)]' />
               </div>
               <div>
                 <CardTitle className='text-lg'>

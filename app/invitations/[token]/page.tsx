@@ -420,7 +420,7 @@ export default function InvitationPage() {
             {/* Action Buttons */}
             <div className='space-y-3 pt-4'>
               <Button
-                className='w-full bg-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/90 text-white font-semibold py-3'
+                className='w-full bg-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/90 text-[var(--accent-primary-contrast)] font-semibold py-3'
                 onClick={handleRegisterClick}
               >
                 <UserPlus className='h-5 w-5 mr-2' />

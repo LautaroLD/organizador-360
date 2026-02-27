@@ -203,7 +203,7 @@ export default function HomePage() {
 
       {/* CTA Section */}
       <section className="container mx-auto px-4 py-20 text-center">
-        <div className="max-w-3xl mx-auto p-12 rounded-lg bg-[var(--accent-primary)] text-white">
+        <div className="max-w-3xl mx-auto p-12 rounded-lg bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]">
           <h3 className="text-3xl font-bold mb-4">
             ¿Listo para mejorar la productividad de tu equipo?
           </h3>

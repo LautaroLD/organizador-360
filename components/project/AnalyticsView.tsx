@@ -308,7 +308,7 @@ export const AnalyticsView: React.FC = () => {
           <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-4">Analíticas disponibles solo en Enterprise</h2>
           <Lock size={48} className=" text-[var(--text-secondary)] mb-4" />
           <p className="text-[var(--text-secondary)] mb-6 text-center">Actualiza el plan para acceder a métricas avanzadas del proyecto.</p>
-          <Link className='bg-[var(--accent-primary)] px-2 py-1 rounded-lg font-semibold' href="/settings/subscription">
+          <Link className='bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] px-2 py-1 rounded-lg font-semibold' href="/settings/subscription">
             Ver planes
           </Link>
         </div>

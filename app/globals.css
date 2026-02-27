@@ -6,6 +6,7 @@
   --text-primary: #212529;
   --text-secondary: #6c757d;
   --accent-primary: #007bff;
+  --accent-primary-contrast: #ffffff;
   --accent-warning: #ffc107;
   --accent-danger: #dc3545;
   --accent-success: #28a745;
@@ -18,6 +19,7 @@
   --text-primary: #e4e6eb;
   --text-secondary: #8e8e8f;
   --accent-primary: #8a42f5;
+  --accent-primary-contrast: #ffffff;
   --accent-warning: #ffb700;
   --accent-danger: #ff6b6b;
   --accent-success: #20c997;

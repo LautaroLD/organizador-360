@@ -75,7 +75,7 @@ const SidebarContent = ({ handleBackToDashboard, currentProject, menuItems, path
               setIsOpen(false);
             }}
             className={`w-full flex items-center space-x-2 px-2 py-1 rounded-lg transition-colors ${isActive
-              ? 'bg-[var(--accent-primary)] text-white'
+              ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
               : 'text-[var(--text-primary)] hover:bg-[var(--bg-primary)]'
               }`}
           >

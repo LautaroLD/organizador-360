@@ -100,7 +100,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
             >
               <div className="flex items-center space-x-2">
                 {/* Avatar */}
-                <div className="w-8 h-8 rounded-full bg-[var(--accent-primary)] flex items-center justify-center text-white text-sm font-semibold">
+                <div className="w-8 h-8 rounded-full bg-[var(--accent-primary)] flex items-center justify-center text-[var(--accent-primary-contrast)] text-sm font-semibold">
                   {user?.user_metadata.name[0]}
                 </div>
                 <div className="hidden md:block text-left">

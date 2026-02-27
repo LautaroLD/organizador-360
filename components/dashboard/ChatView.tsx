@@ -544,7 +544,7 @@ export const ChatView: React.FC = () => {
                 className={clsx(
                   "w-full flex items-center justify-between px-3 py-2 rounded-lg mb-1 transition-colors",
                   selectedChannel?.id === channel.id
-                    ? 'bg-[var(--accent-primary)] text-white'
+                    ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
                     : 'text-[var(--text-primary)] hover:bg-[var(--bg-primary)]'
                 )}
                 aria-label={`Canal ${channel.name}`}
@@ -751,7 +751,7 @@ export const ChatView: React.FC = () => {
                     onMouseLeave={() => setOpenMenuMessageId(null)}
                   >
                     {/* Avatar */}
-                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[var(--accent-primary)] flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[var(--accent-primary)] flex items-center justify-center text-[var(--accent-primary-contrast)] font-semibold text-sm flex-shrink-0">
                       {message.user?.name?.[0]?.toUpperCase() || 'U'}
                     </div>
 
@@ -1014,7 +1014,7 @@ export const ChatView: React.FC = () => {
           <Button
             onClick={handleGenerateSummary}
             disabled={isGeneratingSummary}
-            className="w-full flex items-center justify-center gap-2 bg-[var(--accent-primary)] text-white hover:opacity-90 transition-opacity"
+            className="w-full flex items-center justify-center gap-2 bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] hover:opacity-90 transition-opacity"
           >
             {isGeneratingSummary ? (
               <>

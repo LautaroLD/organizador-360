@@ -779,7 +779,7 @@ export const CalendarView: React.FC = () => {
       {showScrollTop && (
         <button
           onClick={scrollToTop}
-          className="fixed bottom-6 right-6 z-50 p-3 bg-[var(--accent-primary)] text-white rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all"
+          className="fixed bottom-6 right-6 z-50 p-3 bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all"
           aria-label="Volver arriba"
           title="Volver arriba"
         >

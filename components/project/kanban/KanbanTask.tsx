@@ -100,7 +100,7 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, phaseLabel, onEdit
             {task.assignments?.map((assignment) => (
               <div
                 key={assignment.user_id}
-                className="w-6 h-6 rounded-full bg-[var(--accent-primary)] text-white flex items-center justify-center text-xs border-2 border-[var(--bg-primary)]"
+                className="w-6 h-6 rounded-full bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] flex items-center justify-center text-xs border-2 border-[var(--bg-primary)]"
                 title={assignment.user?.name}
               >
                 {assignment.user?.name?.[0] || '?'}
