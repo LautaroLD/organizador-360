@@ -301,14 +301,14 @@ export const AnalyticsView: React.FC = () => {
 
   if (!currentProject) return null;
 
-  if (!isEnterprise) {
+  if (!isEnterprise && canManage) {
     return (
       <main className="flex grow flex-col max-h-full overflow-y-auto">
         <div className="flex-1 flex flex-col justify-center items-center p-6">
           <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-4">Analíticas disponibles solo en Enterprise</h2>
           <Lock size={48} className=" text-[var(--text-secondary)] mb-4" />
           <p className="text-[var(--text-secondary)] mb-6 text-center">Actualiza el plan para acceder a métricas avanzadas del proyecto.</p>
-          <Link className='bg-[var(--accent-primary)] px-2 py-1 rounded-lg font-semibold' href="/settings/subscription">
+          <Link className='bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] px-2 py-1 rounded-lg font-semibold' href="/settings/subscription">
             Ver planes
           </Link>
         </div>
@@ -319,9 +319,9 @@ export const AnalyticsView: React.FC = () => {
   if (!canManage) {
     return (
       <main className="flex grow flex-col max-h-full overflow-y-auto">
-        <div className="flex-1 flex flex-col justify-center items-center p-6">
-          <Lock size={48} className=" text-[var(--text-secondary)] mb-4" />
-          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Acceso restringido</h2>
+        <div className="flex-1 gap-4 flex flex-col justify-center items-center p-6">
+          <h2 className="text-xl font-bold text-[var(--text-primary)] ">Acceso restringido</h2>
+          <Lock size={48} className=" text-[var(--text-secondary)] " />
           <p className="text-[var(--text-secondary)] text-center">Solo Owner o Admin pueden ver analíticas del proyecto.</p>
         </div>
       </main>

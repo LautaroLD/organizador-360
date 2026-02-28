@@ -136,21 +136,11 @@ export default function AgentPage() {
   if (!isPremium) {
     return (
       <main className="flex grow flex-col max-h-full overflow-hidden">
-        {/* Header */}
-        {/* <div className="p-4 border-b border-[var(--text-secondary)]/10 flex items-center gap-3 bg-[var(--bg-secondary)]">
-          <div className="p-2 bg-[var(--accent-primary)] rounded-lg">
-            <Bot className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-[var(--text-primary)]">Asistente de Proyecto</h1>
-            <p className="text-sm text-[var(--text-secondary)]">Pregunta sobre tareas, mensajes, documentos, y estado del equipo</p>
-          </div>
-        </div> */}
         <div className="flex-1 flex flex-col justify-center items-center p-4">
           <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-4">El asistente IA de proyectos está disponible solo en Plan Pro o Enterprise</h2>
           <Lock size={48} className="text-[var(--text-secondary)] mb-4" />
           <p className="text-[var(--text-secondary)] mb-6 text-center">Para acceder al asistente IA de proyectos, por favor actualiza a un plan Pro o Enterprise.</p>
-          <Link className='bg-[var(--accent-primary)] px-2 py-1 rounded-lg font-semibold' href="/settings/subscription">
+          <Link className='bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] px-2 py-1 rounded-lg font-semibold' href="/settings/subscription">
             Ver planes
           </Link>
         </div>
@@ -162,7 +152,7 @@ export default function AgentPage() {
       {/* Header */}
       <div className="p-4 border-b border-[var(--text-secondary)]/10 flex items-center gap-3 bg-[var(--bg-secondary)]">
         <div className="p-2 bg-[var(--accent-primary)] rounded-lg">
-          <Bot className="h-6 w-6 text-white" />
+          <Bot className="h-6 w-6 text-[var(--accent-primary-contrast)]" />
         </div>
         <div>
           <h1 className="text-xl font-bold text-[var(--text-primary)]">Asistente de Proyecto</h1>
@@ -181,14 +171,14 @@ export default function AgentPage() {
             className={`flex items-start gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''
               }`}
           >
-            <div className={`p-2 rounded-full flex-shrink-0 bg-[var(--accent-primary)] text-white`}>
+            <div className={`p-2 rounded-full flex-shrink-0 bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]`}>
               {msg.role === 'user' ? <User className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
             </div>
 
             <div className={`flex flex-col max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'
               }`}>
               <div className={`p-4 rounded-2xl ${msg.role === 'user'
-                ? 'bg-[var(--accent-primary)] text-white rounded-tr-sm'
+                ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] rounded-tr-sm'
                 : 'bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--text-secondary)]/10 rounded-tl-sm'
                 }`}>
                 <div className="prose dark:prose-invert max-w-none text-sm break-words">

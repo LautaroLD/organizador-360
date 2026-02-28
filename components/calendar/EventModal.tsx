@@ -183,7 +183,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                     className={`
                       h-10 rounded-lg text-xs font-medium transition-all
                       ${selectedDays.includes(day.id)
-                        ? 'bg-[var(--accent-primary)] text-white'
+                        ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
                         : 'bg-[var(--bg-primary)] border border-[var(--text-secondary)]/30 text-[var(--text-primary)] hover:border-[var(--accent-primary)]'
                       }
                     `}

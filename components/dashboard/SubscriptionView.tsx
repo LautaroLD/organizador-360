@@ -409,8 +409,8 @@ export const SubscriptionView: React.FC = () => {
           { /* Starter Plan Cards */}
           <div className='space-y-2 relative'>
             <div className='bg-[var(--bg-secondary)] rounded-full flex items-center absolute -top-12 z-10 w-full'>
-              <span onClick={() => setTabStarter('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabStarter === 'mensual' ? 'bg-[var(--accent-primary)] text-white' : '')}>MENSUAL</span>
-              <span onClick={() => setTabStarter('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabStarter === 'anual' ? 'bg-[var(--accent-primary)] text-white' : '')}>ANUAL</span>
+              <span onClick={() => setTabStarter('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabStarter === 'mensual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>MENSUAL</span>
+              <span onClick={() => setTabStarter('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabStarter === 'anual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>ANUAL</span>
             </div>
             {
               tabStarter === 'mensual' &&
@@ -423,8 +423,8 @@ export const SubscriptionView: React.FC = () => {
           { /* Pro Plan Cards */}
           <div className='space-y-2 relative'>
             <div className='bg-[var(--bg-secondary)] rounded-full flex items-center absolute -top-12 z-10 w-full'>
-              <span onClick={() => setTabPro('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabPro === 'mensual' ? 'bg-[var(--accent-primary)] text-white' : '')}>MENSUAL</span>
-              <span onClick={() => setTabPro('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabPro === 'anual' ? 'bg-[var(--accent-primary)] text-white' : '')}>ANUAL</span>
+              <span onClick={() => setTabPro('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabPro === 'mensual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>MENSUAL</span>
+              <span onClick={() => setTabPro('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabPro === 'anual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>ANUAL</span>
             </div>
             {
               tabPro === 'mensual' &&
@@ -437,8 +437,8 @@ export const SubscriptionView: React.FC = () => {
           { /* Enterprise Plan Cards */}
           <div className='space-y-2 relative'>
             <div className='bg-[var(--bg-secondary)] rounded-full flex items-center absolute -top-12 z-10 w-full'>
-              <span onClick={() => setTabEnterprise('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabEnterprise === 'mensual' ? 'bg-[var(--accent-primary)] text-white' : '')}>MENSUAL</span>
-              <span onClick={() => setTabEnterprise('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabEnterprise === 'anual' ? 'bg-[var(--accent-primary)] text-white' : '')}>ANUAL</span>
+              <span onClick={() => setTabEnterprise('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabEnterprise === 'mensual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>MENSUAL</span>
+              <span onClick={() => setTabEnterprise('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabEnterprise === 'anual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>ANUAL</span>
             </div>
             {
               tabEnterprise === 'mensual' &&

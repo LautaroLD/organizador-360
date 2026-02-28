@@ -57,3 +57,6 @@ export type {
 
 // Task Models
 export type { Task, TaskAssignment, TaskImage, TaskChecklistItem, CreateTaskDTO, UpdateTaskDTO } from './task';
+
+// Check-in Models
+export type { ProjectCheckin, UpsertCheckinDTO } from './checkin';

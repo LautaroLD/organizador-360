@@ -66,4 +66,5 @@ e2e/.auth/
 *.swo
 *~
 
-scripts
+android
+ios

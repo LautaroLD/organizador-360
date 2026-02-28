@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import {
   Plus,
@@ -54,7 +54,7 @@ export const ProjectsView: React.FC = () => {
     formState: { errors },
     reset,
     setValue,
-    watch,
+    control,
   } = useForm<ProjectFormData>();
 
   const {
@@ -62,7 +62,7 @@ export const ProjectsView: React.FC = () => {
     handleSubmit: handleSubmitInvite,
     formState: { errors: inviteErrors },
     reset: resetInvite,
-    watch: watchInvite,
+    control: inviteControl,
   } = useForm<InviteFormData>({
     defaultValues: {
       role: 'Collaborator',
@@ -70,10 +70,10 @@ export const ProjectsView: React.FC = () => {
     },
   });
 
-  const inviteType = watchInvite('inviteType');
+  const inviteType = useWatch({ control: inviteControl, name: 'inviteType' });
   const [useRichTextDescription, setUseRichTextDescription] = useState(false);
   const [showDescriptionPreview, setShowDescriptionPreview] = useState(false);
-  const descriptionValue = watch('description') || '';
+  const descriptionValue = useWatch({ control, name: 'description' }) || '';
 
   // Fetch projects
   const { data: projects, isLoading } = useQuery({
@@ -314,22 +314,29 @@ export const ProjectsView: React.FC = () => {
     <div className='space-y-6'>
       {/* Alert for disabled projects */}
       {disabledProjectsCount > 0 && (
-        <div className=' bg-[var(--bg-secondary)] border border-[var(--accent-warning)] rounded-lg p-4'>
-          <div className='flex items-start gap-3'>
-            <Lock className='h-5 w-5 text-[var(--accent-warning)]  flex-shrink-0 mt-0.5' />
-            <div className='flex-1'>
-              <h3 className='font-semibold text-[var(--accent-warning)] mb-1'>
-                Proyectos Deshabilitados
-              </h3>
-              <p className='text-sm text-[var(--accent-warning)] mb-2'>
-                {currentLimits.MAX_PROJECTS === null
-                  ? 'Tu plan permite proyectos ilimitados.'
-                  : `Tu plan ${currentTier.toUpperCase()} permite hasta ${currentLimits.MAX_PROJECTS} proyectos habilitados simultáneamente.`}
-              </p>
-              <div className='flex gap-2 flex-wrap'>
-                <p className='text-xs text-[var(--accent-warning)]  self-center'>
-                  Para habilitar un proyecto, primero desactiva otro o actualiza tu plan.
+        <div className='bg-[var(--bg-secondary)] rounded-md'>
+          <div className=' bg-[var(--accent-warning)]/10 rounded-md border border-[var(--accent-warning)] p-4'>
+            <div className='flex items-start gap-3'>
+              <Lock className='h-5 w-5 text-[var(--accent-warning)]  flex-shrink-0 mt-0.5' />
+              <div className='flex-1'>
+                <h3 className='font-semibold text-[var(--accent-warning)] mb-1'>
+                  Proyectos Deshabilitados
+                </h3>
+                <p className='text-sm text-[var(--accent-warning)] '>
+                  {currentLimits.MAX_PROJECTS === null
+                    ? 'Tu plan permite proyectos ilimitados.'
+                    : `Tu plan ${currentTier.toUpperCase()} permite hasta ${currentLimits.MAX_PROJECTS} proyectos habilitados simultáneamente.`}
                 </p>
+                {
+                  // este mensaje solo debe mostrarse si el usuario no tiene plan enterprise
+                  currentTier !== 'enterprise' && (
+                    <div className='flex gap-2 flex-wrap'>
+                      <p className='text-xs text-[var(--accent-warning)]  self-center'>
+                        Para habilitar un proyecto, primero desactiva otro o actualiza tu plan.
+                      </p>
+                    </div>
+                  )
+                }
               </div>
             </div>
           </div>
@@ -381,7 +388,9 @@ export const ProjectsView: React.FC = () => {
                 </div>
                 <CardTitle className='mt-3 flex items-center justify-between'>
                   {project.name}
-                  <ArrowRight className='h-5 w-5 text-[var(--text-secondary)] group-hover:text-[var(--accent-primary)] transition-colors group-hover:translate-x-1 transition-transform' />
+                  {project.enabled &&
+                    <ArrowRight className='h-5 w-5 text-[var(--text-secondary)] group-hover:text-[var(--accent-primary)] transition-colors group-hover:translate-x-1 transition-transform' />
+                  }
                 </CardTitle>
                 <CardDescription className='line-clamp-2'>
                   {project.description ? (

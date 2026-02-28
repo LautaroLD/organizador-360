@@ -36,20 +36,18 @@ export const ResourceTabs: React.FC<ResourceTabsProps> = ({ activeTab, onTabChan
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-t-lg transition-colors whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'bg-[var(--accent-primary)] text-white'
+              className={`flex items-center gap-2 px-4 py-2 rounded-t-lg transition-colors whitespace-nowrap ${activeTab === tab.id
+                  ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
                   : 'text-[var(--text-primary)] hover:bg-[var(--bg-primary)]'
-              }`}
+                }`}
             >
               <Icon className='h-4 w-4' />
               <span className='text-sm font-medium'>{tab.label}</span>
               <span
-                className={`text-xs px-1.5 py-0.5 rounded-full ${
-                  activeTab === tab.id
+                className={`text-xs px-1.5 py-0.5 rounded-full ${activeTab === tab.id
                     ? 'bg-white/20'
                     : 'bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]'
-                }`}
+                  }`}
               >
                 {counts[tab.id]}
               </span>

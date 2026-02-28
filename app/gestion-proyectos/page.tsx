@@ -73,7 +73,7 @@ export default function GestionProyectosPage() {
         <div className="flex flex-wrap gap-4">
           <Link
             href="/auth"
-            className="inline-flex items-center justify-center rounded-md bg-[var(--accent-primary)] px-5 py-2.5 text-white hover:opacity-90 transition"
+            className="inline-flex items-center justify-center rounded-md bg-[var(--accent-primary)] px-5 py-2.5 text-[var(--accent-primary-contrast)] hover:opacity-90 transition"
           >
             Probar gratis
           </Link>

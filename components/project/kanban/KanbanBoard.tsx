@@ -19,7 +19,7 @@ import { KanbanTask } from './KanbanTask';
 import { TaskModal } from './TaskModal';
 import { useTasks } from '@/hooks/useTasks';
 import { Button } from '@/components/ui/Button';
-import { Plus, Sparkles, Lock, CheckCircleIcon, ClockIcon } from 'lucide-react';
+import { Plus, Sparkles, CheckCircleIcon, ClockIcon, ChevronDown, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import useGemini from '@/hooks/useGemini';
 import SuggestionsModal from './SuggestionsModal';
@@ -49,7 +49,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   const [selectedPhaseId, setSelectedPhaseId] = useState<'all' | 'none' | number>('all');
   const { generateSuggestedTasks } = useGemini();
   const supabase = createClient();
-
+  const [openPhaseStats, setOpenPhaseStats] = useState(false);
   // Verificar si el usuario puede usar IA
   React.useEffect(() => {
     const checkPremium = async () => {
@@ -246,7 +246,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
     });
   return (
     <div className="min-h-full flex flex-col overflow-hidden w-full">
-      <div className="flex-none flex justify-between items-center mb-4 p-4">
+      <div className="flex-none flex justify-between items-center p-4">
         <div className="flex flex-col">
           <h2 className="text-2xl font-bold text-[var(--text-primary)]">Tablero Kanban</h2>
           {roadmapPhases.length > 0 && (
@@ -307,27 +307,38 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
       </div>
 
       {phaseStats.length > 0 && (
-        <div className="px-4 mb-4">
-          <div className="grid grid-cols-3 gap-3">
+        <div className="px-4 bg-[var(--bg-secondary)]">
+          <div hidden={!openPhaseStats} className="flex flex-nowrap overflow-x-auto py-2 gap-3">
             {phaseStats.map((phase) => (
-              <div key={phase.id} className="p-3 rounded-md border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]">
-                <div className="flex items-center flex-wrap justify-between mb-2">
-                  <p className="text-sm font-medium text-[var(--text-primary)]">{phase.name}</p>
+              <div key={phase.id} className=" min-w-[200px] max-w-[200px] px-2 py-1 rounded-md border border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex flex-col gap-1">
+                <div className="flex items-center flex-wrap justify-between">
+                  <p className="text-sm font-medium text-[var(--text-primary)] text-ellipsis overflow-hidden whitespace-nowrap">{phase.name}</p>
                   <span className="text-xs text-[var(--text-secondary)]">{phase.percent}%</span>
                 </div>
-                <div className="h-2 rounded-full bg-[var(--bg-secondary)] overflow-hidden">
+                <div className="h-2 rounded-full bg-[var(--bg-primary)] overflow-hidden">
                   <div
                     className="h-full bg-[var(--accent-primary)] transition-all"
                     style={{ width: `${phase.percent}%` }}
                   />
                 </div>
-                <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
+                <div className="flex items-center h-auto mt-auto justify-between text-xs text-[var(--text-secondary)]">
                   <span className='flex gap-1 items-center'><CheckCircleIcon size={13} /> {phase.doneCount}</span>
                   <span className='flex gap-1 items-center'><ClockIcon size={13} /> {phase.pendingCount}</span>
                 </div>
               </div>
             ))}
           </div>
+          {
+            <div onClick={() => setOpenPhaseStats(!openPhaseStats)}>
+              {openPhaseStats ? (
+                <ChevronUpIcon size={24} className="mx-auto text-[var(--text-secondary)]" />
+
+              ) : (
+
+                <ChevronDownIcon size={24} className="mx-auto text-[var(--text-secondary)]" />
+              )}
+            </div>
+          }
         </div>
       )}
 

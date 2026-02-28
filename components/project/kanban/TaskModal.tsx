@@ -455,7 +455,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                       type="button"
                       onClick={() => handleToggleEditChecklistItem(item.id)}
                       className={`flex-none w-5 h-5 rounded border flex items-center justify-center transition-colors ${item.is_completed
-                        ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white'
+                        ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
                         : 'border-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
                         }`}
                     >
@@ -482,7 +482,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                     type="button"
                     onClick={() => handleToggleLocalChecklistItem(item.tempId)}
                     className={`flex-none w-5 h-5 rounded border flex items-center justify-center transition-colors ${item.is_completed
-                      ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white'
+                      ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
                       : 'border-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
                       }`}
                   >
@@ -723,7 +723,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 type="button"
                 onClick={() => toggleAssignment(member.user_id)}
                 className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm transition-colors ${assignedTo.includes(member.user_id)
-                  ? 'bg-[var(--accent-primary)] text-white'
+                  ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
                   : 'bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]'
                   }`}
               >
