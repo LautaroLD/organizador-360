@@ -76,7 +76,7 @@ export const AnalyticsView: React.FC = () => {
   const projectTier = currentProject?.plan_tier === 'enterprise'
     ? 'enterprise'
     : (currentProject?.plan_tier === 'pro' || currentProject?.plan_tier === 'starter' ? currentProject?.plan_tier : (currentProject?.is_premium ? 'pro' : 'free'));
-  const isEnterprise = projectTier === 'enterprise';
+  const canAccessAnalytics = projectTier === 'pro' || projectTier === 'enterprise';
   const canManage = currentProject?.userRole === 'Owner' || currentProject?.userRole === 'Admin';
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
@@ -89,7 +89,7 @@ export const AnalyticsView: React.FC = () => {
       if (error) throw error;
       return data as TaskRow[];
     },
-    enabled: !!currentProject?.id && isEnterprise && canManage,
+    enabled: !!currentProject?.id && canAccessAnalytics && canManage,
   });
 
   const { data: roadmapPhases = [] } = useQuery({
@@ -113,7 +113,7 @@ export const AnalyticsView: React.FC = () => {
       if (error) throw error;
       return (data || []) as RoadmapPhaseRow[];
     },
-    enabled: !!currentProject?.id && isEnterprise && canManage,
+    enabled: !!currentProject?.id && canAccessAnalytics && canManage,
   });
 
   const { data: members = [] } = useQuery({
@@ -126,7 +126,7 @@ export const AnalyticsView: React.FC = () => {
       if (error) throw error;
       return (data ?? []) as unknown as MemberRow[];
     },
-    enabled: !!currentProject?.id && isEnterprise && canManage,
+    enabled: !!currentProject?.id && canAccessAnalytics && canManage,
   });
   const taskIds = tasks.map((t) => t.id);
   const { data: assignments = [] } = useQuery({
@@ -140,7 +140,7 @@ export const AnalyticsView: React.FC = () => {
       if (error) throw error;
       return (data ?? []) as unknown as AssignmentRow[];
     },
-    enabled: !!currentProject?.id && taskIds.length > 0 && isEnterprise && canManage,
+    enabled: !!currentProject?.id && taskIds.length > 0 && canAccessAnalytics && canManage,
   });
 
   const { data: aiInsights, refetch: refetchInsights, isFetching: aiLoading } = useQuery({
@@ -301,11 +301,11 @@ export const AnalyticsView: React.FC = () => {
 
   if (!currentProject) return null;
 
-  if (!isEnterprise && canManage) {
+  if (!canAccessAnalytics && canManage) {
     return (
       <main className="flex grow flex-col max-h-full overflow-y-auto">
         <div className="flex-1 flex flex-col justify-center items-center p-6">
-          <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-4">Analíticas disponibles solo en Enterprise</h2>
+          <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-4">Analíticas disponibles solo en Pro y Enterprise</h2>
           <Lock size={48} className=" text-[var(--text-secondary)] mb-4" />
           <p className="text-[var(--text-secondary)] mb-6 text-center">Actualiza el plan para acceder a métricas avanzadas del proyecto.</p>
           <Link className='bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] px-2 py-1 rounded-lg font-semibold' href="/settings/subscription">

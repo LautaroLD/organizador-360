@@ -370,8 +370,8 @@ export const SubscriptionView: React.FC = () => {
       )}
 
       {/* Grid de planes */}
-      <div className=''>
-        <div className='flex gap-6 overflow-x-auto  pb-2 pt-14'>
+      <div className='-mx-6'>
+        <div className='flex gap-6 overflow-x-auto px-4  pb-2 pt-14'>
           <div className='min-w-100 max-w-100 relative'>
             <Card className='h-full flex flex-col border-[var(--accent-primary)]'>
               <CardHeader>

@@ -42,8 +42,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
     }
 
-    if (project.plan_tier !== 'enterprise') {
-      return NextResponse.json({ error: 'Disponible solo para Enterprise' }, { status: 403 });
+    const { data: analyticsEnabledByDb, error: analyticsEnabledError } = await supabase.rpc('can_use_project_analytics', {
+      p_project_id: projectId,
+    });
+
+    if (analyticsEnabledError) {
+      console.error('Error checking analytics access with RPC:', analyticsEnabledError);
+    }
+
+    const projectTier = typeof project.plan_tier === 'string' ? project.plan_tier.toLowerCase() : 'free';
+    const analyticsEnabledByPlan = projectTier === 'pro' || projectTier === 'enterprise';
+    const canUseAnalytics = typeof analyticsEnabledByDb === 'boolean'
+      ? analyticsEnabledByDb
+      : analyticsEnabledByPlan;
+
+    if (!canUseAnalytics) {
+      return NextResponse.json({ error: 'Disponible solo para Pro o Enterprise' }, { status: 403 });
     }
 
     const [tasksRes, membersRes] = await Promise.all([

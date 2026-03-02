@@ -835,7 +835,7 @@ export const ChatView: React.FC = () => {
                         message.user?.id === user?.id ? 'flex-row-reverse' : 'flex-row',
                         openMenuMessageId === message.id ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'
                       )}>
-                        <div className="relative">
+                        <div className="relative h-full">
                           <button
                             onClick={() => setOpenMenuMessageId(openMenuMessageId === message.id ? null : message.id)}
                             className="p-1 hover:bg-[var(--bg-secondary)] rounded text-[var(--text-secondary)]"
@@ -845,25 +845,23 @@ export const ChatView: React.FC = () => {
 
                           {openMenuMessageId === message.id && (
                             <div className={clsx(
-                              "absolute top-0 mt-1 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg z-50 min-w-[120px] min-h-auto py-1",
-                              message.user?.id === user?.id ? '-right-10' : '-left-10'
+                              "absolute flex  bottom-1/2  bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg z-50 min-w-auto p-1",
+                              message.user?.id === user?.id ? 'left-full' : 'right-full'
                             )}>
                               <button
                                 onClick={() => {
                                   setReplyingTo(message);
                                   setOpenMenuMessageId(null);
                                 }}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] flex items-center gap-2"
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] rounded-lg flex items-center gap-2"
                               >
-                                <Reply className="h-3 w-3" />
-                                Responder
+                                <Reply size={16} />
                               </button>
                               <button
                                 onClick={() => togglePinMutation.mutate({ messageId: message.id })}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] flex items-center gap-2"
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] flex items-center gap-2 rounded-lg"
                               >
-                                {message.is_pinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
-                                {message.is_pinned ? 'Desfijar' : 'Fijar'}
+                                {message.is_pinned ? <PinOff size={16} /> : <Pin size={16} />}
                               </button>
 
                               {message.user?.id === user?.id && (
@@ -874,10 +872,9 @@ export const ChatView: React.FC = () => {
                                       setEditContent(message.content);
                                       setOpenMenuMessageId(null);
                                     }}
-                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] flex items-center gap-2"
+                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] flex items-center gap-2 rounded-lg"
                                   >
-                                    <Edit2 className="h-3 w-3" />
-                                    Editar
+                                    <Edit2 size={16} />
                                   </button>
                                   <button
                                     onClick={() => {
@@ -885,10 +882,9 @@ export const ChatView: React.FC = () => {
                                         deleteMessageMutation.mutate(message.id);
                                       }
                                     }}
-                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] text-red-500 flex items-center gap-2"
+                                    className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] text-red-500 flex items-center gap-2 rounded-lg"
                                   >
-                                    <Trash2 className="h-3 w-3" />
-                                    Eliminar
+                                    <Trash2 size={16} />
                                   </button>
                                 </>
                               )}
