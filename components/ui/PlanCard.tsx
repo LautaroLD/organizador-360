@@ -139,66 +139,84 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
       )}
       {!isLoadingState && plan && !error && (
         <Card className='h-full flex flex-col border-0'>
-          <CardHeader>
-            <div className='flex items-start justify-between mb-2'>
-              <div className='text-[var(--accent-primary)] mx-auto flex gap-2'>{icon}</div>
-              {isCurrent && (
-                <div className={`text-xs font-bold px-2 py-1 rounded ${isCanceled ? 'bg-[var(--accent-danger)]/20 text-[var(--accent-danger)]' : 'bg-green-500/20 text-green-700'}`}>
-                  {isCanceled ? 'CANCELADO (ACTIVO)' : 'ACTUAL'}
+          {type === 'enterprise' ? (
+            <>
+              <CardHeader>
+                <div className='flex items-start justify-between mb-2'>
+                  <div className='text-[var(--accent-primary)] mx-auto flex gap-2'>{icon}</div>
                 </div>
-              )}
-            </div>
-            <CardTitle className='text-2xl uppercase text-center'>{planReason || 'Plan'}</CardTitle>
-            <CardDescription className='text-center'>{description}</CardDescription>
-            {plan.auto_recurring?.free_trial &&
-              <div className='w-full mt-2'>
-                <span className='border border-[var(--accent-success)] bg-[var(--accent-success)]/10 w-full rounded-2xl py-1 inline-block text-center text-[var(--accent-success)]  font-medium uppercase'>
-                  {`${plan.auto_recurring.free_trial.frequency} días`} de prueba gratuita
-                </span>
-              </div>
-            }
-            <div className='mt-2'>
-              <div className='flex items-baseline gap-1'>
-                <span className='text-2xl font-bold text-[var(--text-primary)]'>
-                  ${plan.auto_recurring?.transaction_amount?.toLocaleString() ?? '0'}
-                </span>
-                <span className='text-[var(--text-secondary)]'>
-                  {planReason !== 'free' && (plan.auto_recurring?.frequency_type === 'months' && plan.auto_recurring?.frequency === 12 ? '/año' : '/mes')}
-                </span>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className='flex-1 flex flex-col'>
-            <div className='grid grid-cols-2 mb-6'>
-              {features.map((feature) => (
-                <div
-                  key={feature}
-                  className='flex items-start gap-3 text-xs text-[var(--text-secondary)]'
+                <CardTitle className='text-xl uppercase text-center'>{planReason || 'Plan'}</CardTitle>
+              </CardHeader>
+              <CardContent className='flex-1 flex justify-center '>
+                <p className='text-xl text-center font-bold text-[var(--accent-primary)]'>Próximamente</p>
+              </CardContent>
+            </>
+          ) :
+            <>
+              <CardHeader>
+                <div className='flex items-start justify-between mb-2'>
+                  <div className='text-[var(--accent-primary)] mx-auto flex gap-2'>{icon}</div>
+                  {isCurrent && (
+                    <div className={`text-xs font-bold px-2 py-1 rounded ${isCanceled ? 'bg-[var(--accent-danger)]/20 text-[var(--accent-danger)]' : 'bg-green-500/20 text-green-700'}`}>
+                      {isCanceled ? 'CANCELADO (ACTIVO)' : 'ACTUAL'}
+                    </div>
+                  )}
+                </div>
+                <CardTitle className='text-xl uppercase text-center'>{planReason || 'Plan'}</CardTitle>
+                <CardDescription className='text-center'>{description}</CardDescription>
+                {plan.auto_recurring?.free_trial &&
+                  <div className='w-full mt-2'>
+                    <span className='border border-[var(--accent-success)] bg-[var(--accent-success)]/10 w-full rounded-2xl py-1 inline-block text-center text-[var(--accent-success)]  font-medium uppercase'>
+                      {`${plan.auto_recurring.free_trial.frequency} días`} de prueba gratuita
+                    </span>
+                  </div>
+                }
+                <div className='mt-2'>
+                  <div className='flex items-baseline gap-1'>
+                    <span className='text-2xl font-bold text-[var(--text-primary)]'>
+                      ${plan.auto_recurring?.transaction_amount?.toLocaleString() ?? '0'}
+                    </span>
+                    <span className='text-[var(--text-secondary)]'>
+                      {planReason !== 'free' && (plan.auto_recurring?.frequency_type === 'months' && plan.auto_recurring?.frequency === 12 ? '/año' : '/mes')}
+                    </span>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className='flex-1 flex flex-col'>
+
+                <div className='grid grid-cols-2 mb-6'>
+                  {features.map((feature) => (
+                    <div
+                      key={feature}
+                      className='flex items-start gap-1 text-xs text-[var(--text-secondary)] space-y-2'
+                    >
+                      <Check className='h-4 w-4 text-green-500 flex-shrink-0' />
+                      <span>{feature}</span>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  className='w-full mt-auto'
+                  disabled={
+                    (isCurrent && !isCanceled) || isLoadingState || isFree
+                  }
+                  onClick={() => {
+                    if (!isFree) handleSubscribe(plan.init_point);
+                  }}
+                  variant={isCurrent ? 'primary' : 'secondary'}
                 >
-                  <Check className='h-4 w-4 text-green-500 flex-shrink-0 mt-0.5' />
-                  <span>{feature}</span>
-                </div>
-              ))}
-            </div>
-            <Button
-              className='w-full mt-auto'
-              disabled={
-                (isCurrent && !isCanceled) || isLoadingState || isFree
-              }
-              onClick={() => {
-                if (!isFree) handleSubscribe(plan.init_point);
-              }}
-              variant={isCurrent ? 'primary' : 'secondary'}
-            >
-              {isFree
-                ? 'Ya estás aquí'
-                : isLoadingState && isCurrent
-                  ? 'Redirigiendo...'
-                  : isCurrent
-                    ? (isCanceled ? 'Reactivar Suscripción' : 'Plan actual')
-                    : 'Actualizar'}
-            </Button>
-          </CardContent>
+                  {isFree
+                    ? 'Ya estás aquí'
+                    : isLoadingState && isCurrent
+                      ? 'Redirigiendo...'
+                      : isCurrent
+                        ? (isCanceled ? 'Reactivar Suscripción' : 'Plan actual')
+                        : 'Actualizar'}
+                </Button>
+
+              </CardContent>
+            </>
+          }
         </Card>
       )}
     </div>
