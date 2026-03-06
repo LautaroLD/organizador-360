@@ -93,8 +93,15 @@ setup('authenticate', async ({ page }) => {
   console.log(`[Cookies] Found ${supabaseCookies.length} Supabase cookies`);
   supabaseCookies.forEach(c => console.log(`  - ${c.name}: ${c.value.substring(0, 20)}...`));
 
-  // 6. Navegar manualmente al dashboard para verificar la autenticación
-  await page.goto('/dashboard', { waitUntil: 'networkidle', timeout: 30000 });
+  // 6. Navegar manualmente al dashboard para verificar la autenticación.
+  // networkidle puede fallar en apps con polling/realtime; usamos domcontentloaded y reintento.
+  try {
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  } catch (error) {
+    console.log(`[Navigation] First goto failed, retrying once: ${String(error)}`);
+    await page.waitForTimeout(1000);
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  }
 
   // 7. Verificar que estamos en dashboard (no redirigidos a /auth)
   const currentUrl = page.url();

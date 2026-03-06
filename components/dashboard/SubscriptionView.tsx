@@ -370,45 +370,42 @@ export const SubscriptionView: React.FC = () => {
       )}
 
       {/* Grid de planes */}
-      <div className='-mx-6'>
+      <div className='-mx-6 bg-[var(--bg-secondary)] px-6 py-10 mb-8'>
         <div className='flex gap-6 overflow-x-auto px-4  pb-2 pt-14'>
           <div className='min-w-100 max-w-100 relative'>
-            <Card className='h-full flex flex-col border-[var(--accent-primary)]'>
-              <CardHeader>
-                <div className='flex items-start justify-between mb-2'>
-                  <div className='text-[var(--accent-primary)] mx-auto flex gap-2'>{planFeatures.free.icon}</div>
+            <div className={`relative rounded-xl border p-6 flex flex-col h-full transition-all ${isFreeCurrent
+              ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/5 shadow-lg'
+              : 'border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]'
+              }`}>
+              {isFreeCurrent && (
+                <div className='absolute top-3 right-3 text-xs font-bold px-2 py-1 rounded-full bg-green-500/20 text-green-700'>
+                  Plan actual
                 </div>
-                <CardTitle className='text-2xl uppercase text-center' >FREE</CardTitle>
-                <CardDescription className='text-center'>{planFeatures.free.description}</CardDescription>
-                <div className='mt-2'>
-                  <div className='flex items-baseline gap-1'>
-                    <span className='text-2xl font-bold text-[var(--text-primary)]'>
-                      $0
-                    </span>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className='flex-1 flex flex-col'>
-                <div className='space-y-3 mb-6 flex-1'>
-                  {planFeatures.free.features.map((feature) => (
-                    <div
-                      key={feature}
-                      className='flex items-start gap-3 text-xs text-[var(--text-secondary)]'
-                    >
-                      <Check className='h-4 w-4 text-green-500 flex-shrink-0 mt-0.5' />
-                      <span>{feature}</span>
-                    </div>
-                  ))}
-                </div>
-                <Button className='w-full mt-auto' variant='secondary' disabled={!isFreeCurrent}>
-                  Ya estás aquí
-                </Button>
-              </CardContent>
-            </Card>
+              )}
+              <div className='flex items-center gap-2 mb-3'>
+                <span className='text-[var(--accent-primary)]'>{planFeatures.free.icon}</span>
+                <h3 className='font-bold text-[var(--text-primary)] text-lg uppercase'>Free</h3>
+              </div>
+              <div className='mb-1'>
+                <span className='text-3xl font-extrabold text-[var(--text-primary)]'>$0</span>
+              </div>
+              <p className='text-sm text-[var(--text-secondary)] mb-5'>{planFeatures.free.description}</p>
+              <ul className='space-y-2 mb-6 flex-1'>
+                {planFeatures.free.features.map((feature) => (
+                  <li key={feature} className='flex items-start gap-2 text-sm text-[var(--text-secondary)]'>
+                    <Check className='h-4 w-4 text-[var(--accent-primary)] shrink-0 mt-0.5' />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              {isFreeCurrent && (
+                <p>Ya estas aquí</p>
+              )}
+            </div>
           </div>
           { /* Starter Plan Cards */}
           <div className='space-y-2 relative'>
-            <div className='bg-[var(--bg-secondary)] rounded-full flex items-center absolute -top-12 z-10 w-full'>
+            <div className='bg-[var(--bg-primary)] rounded-full flex items-center absolute -top-14 z-10 w-full'>
               <span onClick={() => setTabStarter('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabStarter === 'mensual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>MENSUAL</span>
               <span onClick={() => setTabStarter('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabStarter === 'anual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>ANUAL</span>
             </div>
@@ -422,7 +419,7 @@ export const SubscriptionView: React.FC = () => {
           </div>
           { /* Pro Plan Cards */}
           <div className='space-y-2 relative'>
-            <div className='bg-[var(--bg-secondary)] rounded-full flex items-center absolute -top-12 z-10 w-full'>
+            <div className='bg-[var(--bg-primary)] rounded-full flex items-center absolute -top-14 z-10 w-full'>
               <span onClick={() => setTabPro('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabPro === 'mensual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>MENSUAL</span>
               <span onClick={() => setTabPro('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabPro === 'anual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>ANUAL</span>
             </div>
@@ -436,10 +433,6 @@ export const SubscriptionView: React.FC = () => {
           </div>
           { /* Enterprise Plan Cards */}
           <div className='space-y-2 relative'>
-            <div className='bg-[var(--bg-secondary)] rounded-full flex items-center absolute -top-12 z-10 w-full'>
-              <span onClick={() => setTabEnterprise('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabEnterprise === 'mensual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>MENSUAL</span>
-              <span onClick={() => setTabEnterprise('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabEnterprise === 'anual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>ANUAL</span>
-            </div>
             {
               tabEnterprise === 'mensual' &&
               <PlanCard planId={enterprise_mensual_id} isCurrent={currentPlanTier === 'enterprise'} isCanceled={isCanceled} plan_reference="ENTERPRISE_MENSUAL" />
@@ -470,9 +463,6 @@ export const SubscriptionView: React.FC = () => {
             <p>
               <strong>Pro:</strong> Hasta 5 GB por proyecto
             </p>
-            <p>
-              <strong>Enterprise:</strong> Ilimitado
-            </p>
             <p className='text-xs mt-4'>
               El almacenamiento se calcula a partir de tus recursos y archivos
               subidos.
@@ -496,9 +486,6 @@ export const SubscriptionView: React.FC = () => {
             </p>
             <p>
               <strong>Pro:</strong> Hasta 20 miembros por proyecto
-            </p>
-            <p>
-              <strong>Enterprise:</strong> Ilimitado
             </p>
             <p className='text-xs mt-4'>
               Invita a tu equipo a colaborar en proyectos. Los permisos se

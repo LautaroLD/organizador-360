@@ -53,18 +53,7 @@ export const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
         )}
 
         {/* Límite de miembros por plan */}
-        {planTier === 'enterprise' && (
-          <div className='bg-[var(--accent-primary)]/5 border-2 border-[var(--accent-primary)]/30 rounded-lg p-3 mb-4'>
-            <div className='flex items-start'>
-              <Mail className='h-5 w-5 text-[var(--accent-primary)] mr-2 mt-0.5 flex-shrink-0' />
-              <div>
-                <p className='text-sm text-[var(--text-primary)] font-medium'>Plan ENTERPRISE</p>
-                <p className='text-xs text-[var(--text-secondary)] mt-1'>Miembros ilimitados</p>
-              </div>
-            </div>
-          </div>
-        )}
-        {planTier !== 'enterprise' && currentMemberCount !== undefined && memberLimit !== undefined && (
+        {currentMemberCount !== undefined && memberLimit !== undefined && (
           <div className='bg-orange-500/5 border-2 border-orange-500/30 rounded-lg p-3 mb-4'>
             <div className='flex items-start'>
               <Mail className='h-5 w-5 text-orange-500 mr-2 mt-0.5 flex-shrink-0' />

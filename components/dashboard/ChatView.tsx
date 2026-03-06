@@ -610,14 +610,14 @@ export const ChatView: React.FC = () => {
                     variant="ghost"
                     onClick={openSummaryModal}
                     disabled={!isPremium}
-                    title={!isPremium ? "Función disponible solo en Plan Pro o Enterprise" : "Resumir chat con IA"}
+                    title={!isPremium ? "Función disponible solo en Plan Pro" : "Resumir chat con IA"}
                     className="mr-2 text-[var(--text-secondary)] hover:text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/10"
                   >
                     {<Sparkles className="h-5 w-5" />}
                   </Button>
                   {!isPremium && (
                     <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
-                      <p>El resumen de chat está disponible solo en Plan Pro o Enterprise</p>
+                      <p>El resumen de chat está disponible solo en Plan Pro</p>
                     </div>
                   )}
                 </div>

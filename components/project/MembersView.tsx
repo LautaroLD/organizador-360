@@ -8,7 +8,7 @@ import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/Button';
 import { toast } from 'react-toastify';
-import { Users, UserPlus, Settings, Crown } from 'lucide-react';
+import { Users, UserPlus, Settings } from 'lucide-react';
 import { MemberCard } from '@/components/members/MemberCard';
 import { InviteMemberModal } from '@/components/members/InviteMemberModal';
 import { ManageMemberModal } from '@/components/members/ManageMemberModal';
@@ -24,7 +24,7 @@ export const MembersView: React.FC = () => {
   const { currentProject, setCurrentProject } = useProjectStore();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
-  const projectTier = currentProject?.plan_tier === 'starter' || currentProject?.plan_tier === 'pro' || currentProject?.plan_tier === 'enterprise'
+  const projectTier = currentProject?.plan_tier === 'starter' || currentProject?.plan_tier === 'pro'
     ? currentProject.plan_tier
     : (currentProject?.is_premium ? 'pro' : 'free');
 
@@ -413,18 +413,10 @@ export const MembersView: React.FC = () => {
             <p className='text-sm md:text-base text-[var(--text-secondary)] mt-1'>
               {members?.length || 0} miembro(s) en el equipo
               {(() => {
-                const tier = currentProject?.plan_tier === 'starter' || currentProject?.plan_tier === 'pro' || currentProject?.plan_tier === 'enterprise'
+                const tier = currentProject?.plan_tier === 'starter' || currentProject?.plan_tier === 'pro'
                   ? currentProject.plan_tier
                   : (currentProject?.is_premium ? 'pro' : 'free');
                 const limit = getPlanLimits(tier).MAX_MEMBERS_PER_PROJECT;
-
-                if (limit === null) {
-                  return (
-                    <span className='ml-2 text-xs text-[var(--accent-primary)] font-medium inline-flex items-center gap-1'>
-                      <Crown className='h-3 w-3' /> ENTERPRISE - miembros ilimitados
-                    </span>
-                  );
-                }
 
                 return (
                   <span className={`ml-2 text-xs font-medium ${tier === 'free' ? 'text-orange-500' : 'text-[var(--accent-primary)]'}`}>

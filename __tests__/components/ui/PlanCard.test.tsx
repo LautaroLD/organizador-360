@@ -21,12 +21,13 @@ describe('PlanCard', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    queryClient.clear();
   });
 
   it('muestra loading mientras carga el plan', () => {
     // Simula que no hay planId (no se habilita la query)
     renderComponent({ planId: '', isCurrent: false, isCanceled: false, plan_reference: 'PRO_MENSUAL' });
-    expect(screen.getByText('Cargando datos de suscripción...')).toBeInTheDocument();
+    expect(screen.getByText('Cargando plan...')).toBeInTheDocument();
   });
 
   it('muestra error si falla la carga', () => {
@@ -48,7 +49,7 @@ describe('PlanCard', () => {
     renderComponent({ planId: 'pro', isCurrent: false, isCanceled: false, plan_reference: 'PRO_MENSUAL' });
     expect(await screen.findByText('Para usuarios avanzados')).toBeInTheDocument();
     expect(await screen.findByText('Hasta 10 proyectos')).toBeInTheDocument();
-    expect(await screen.findByText('Actualizar')).toBeInTheDocument();
+    expect(await screen.findByText('Actualizar plan')).toBeInTheDocument();
   });
 
   it('muestra el badge de ACTUAL si es el plan actual', async () => {
@@ -60,7 +61,7 @@ describe('PlanCard', () => {
       })
     } as any);
     renderComponent({ planId: 'pro', isCurrent: true, isCanceled: false, plan_reference: 'PRO_MENSUAL' });
-    expect(await screen.findByText('ACTUAL')).toBeInTheDocument();
+    expect((await screen.findAllByText('Plan actual')).length).toBeGreaterThan(0);
   });
 
   it('muestra el badge CANCELADO (ACTIVO) si el plan está cancelado pero activo', async () => {
@@ -72,7 +73,7 @@ describe('PlanCard', () => {
       })
     } as any);
     renderComponent({ planId: 'pro', isCurrent: true, isCanceled: true, plan_reference: 'PRO_MENSUAL' });
-    expect(await screen.findByText('CANCELADO (ACTIVO)')).toBeInTheDocument();
+    expect(await screen.findByText('Cancelado')).toBeInTheDocument();
   });
 
   it('muestra el botón Ya estás aquí si es el plan free', async () => {
