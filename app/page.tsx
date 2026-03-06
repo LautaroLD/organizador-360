@@ -82,8 +82,6 @@ export default function HomePage() {
   const plans = [
     {
       name: 'Free',
-      price: '$0',
-      period: '',
       description: 'Para empezar sin costo',
       icon: <Zap className="h-5 w-5" />,
       features: ['3 proyectos', 'Chat ilimitado', '100 MB de recursos', 'Hasta 10 miembros/proyecto'],
@@ -92,8 +90,6 @@ export default function HomePage() {
     },
     {
       name: 'Starter',
-      price: 'Desde',
-      period: '',
       description: 'Para equipos en crecimiento',
       icon: <Star className="h-5 w-5" />,
       features: ['5 proyectos', 'Chat ilimitado', '1 GB de recursos', 'Hasta 15 miembros/proyecto'],
@@ -102,10 +98,8 @@ export default function HomePage() {
     },
     {
       name: 'Pro',
-      price: 'Desde',
-      period: '',
       description: 'Todo el poder de Veenzo',
-      icon: <Sparkles className="h-5 w-5" />,
+      icon: <><Star className="h-5 w-5" /> <Star className="h-5 w-5" /></>,
       features: ['10 proyectos', 'Asistente IA con Gemini', '5 GB de recursos', 'Hasta 20 miembros/proyecto', 'Analítica avanzada con IA', 'Resúmenes y generación de tareas'],
       cta: 'Ver planes',
       highlighted: true,
@@ -321,15 +315,11 @@ export default function HomePage() {
                     Más popular
                   </span>
                 )}
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-[var(--accent-primary)]">{plan.icon}</span>
+                <div className="flex items-center mb-3 flex-col">
+                  <span className="text-[var(--accent-primary)] flex gap-1">{plan.icon}</span>
                   <h3 className="font-bold text-[var(--text-primary)] text-lg">{plan.name}</h3>
                 </div>
-                <div className="mb-1">
-                  <span className="text-3xl font-extrabold text-[var(--text-primary)]">{plan.price}</span>
-                  {plan.period && <span className="text-[var(--text-secondary)] ml-1 text-sm">{plan.period}</span>}
-                </div>
-                <p className="text-sm text-[var(--text-secondary)] mb-5">{plan.description}</p>
+                <p className="text-sm text-center text-[var(--text-secondary)] mb-5">{plan.description}</p>
                 <ul className="space-y-2 mb-6 flex-1">
                   {plan.features.map((f, j) => (
                     <li key={j} className="flex items-start gap-2 text-sm text-[var(--text-secondary)]">
