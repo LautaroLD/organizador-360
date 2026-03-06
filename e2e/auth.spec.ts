@@ -10,9 +10,9 @@ test.describe('Home Page', () => {
     // Check if page loaded
     await expect(page).toHaveTitle(/Veenzo/i);
     
-    // Check for features section
-    await expect(page.getByText(/Chat en Tiempo Real/i)).toBeVisible();
-    await expect(page.getByText(/Gestión de Proyectos/i)).toBeVisible();
+    // Check for features section using heading role to avoid strict-mode collisions
+    await expect(page.getByRole('heading', { name: /Chat en Tiempo Real/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Kanban Avanzado/i })).toBeVisible();
   });
 
   test('should have navigation button', async ({ page }) => {

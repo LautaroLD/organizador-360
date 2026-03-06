@@ -109,9 +109,9 @@ describe('SubscriptionView', () => {
     renderComponent();
 
     expect(screen.getByText('Planes y Suscripción')).toBeInTheDocument();
-    // Ahora los botones de acción de los planes pueden ser "Actualizar" o "Ya estás aquí" según el plan
-    expect(screen.getAllByText('Actualizar').length).toBeGreaterThan(0);
-    expect(screen.getByText('Ya estás aquí')).toBeInTheDocument();
+    // Los botones de acción: PlanCards no-actuales muestran "Actualizar plan", Free muestra "Plan actual"
+    expect(screen.getAllByText('Actualizar plan').length).toBeGreaterThan(0);
+    expect(screen.getByText('Plan actual')).toBeInTheDocument();
   });
 
   // El test de redirección debe adaptarse a la nueva lógica de PlanCard, se recomienda testear en PlanCard.test.tsx
@@ -223,10 +223,7 @@ describe('SubscriptionView', () => {
 
     renderComponent();
 
-    // Check for "CANCELADO (ACTIVO)" badge
-    expect(screen.getByText('CANCELADO (ACTIVO)')).toBeInTheDocument();
-
-    // Check for "CANCELADO (ACTIVO)" badge
-    expect(screen.getByText('CANCELADO (ACTIVO)')).toBeInTheDocument();
+    // Check for "Cancelado" badge (puede aparecer en el status label y en el badge del PlanCard)
+    expect(screen.getAllByText('Cancelado').length).toBeGreaterThan(0);
   });
 });

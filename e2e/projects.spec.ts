@@ -2,9 +2,11 @@ import { test, expect } from '@playwright/test';
 
 // These tests require authentication
 // Configure authentication state before running
+const hasE2ECreds = Boolean(process.env.E2E_TEST_EMAIL && process.env.E2E_TEST_PASSWORD);
 
 test.describe('Project Management (Requires Auth)', () => {
   test('should display projects list', async ({ page }) => {
+    test.skip(!hasE2ECreds, 'E2E_TEST_EMAIL/E2E_TEST_PASSWORD no configuradas para tests autenticados.');
     await page.goto('/dashboard');
     // Check if projects section is visible (use heading role to be more specific)
     await expect(page.getByRole('heading', { name: /mis proyectos/i })).toBeVisible();
@@ -13,6 +15,7 @@ test.describe('Project Management (Requires Auth)', () => {
 
 test.describe('Kanban Board (Requires Auth)', () => {
   test('should display kanban columns', async ({ page }) => {
+    test.skip(!hasE2ECreds, 'E2E_TEST_EMAIL/E2E_TEST_PASSWORD no configuradas para tests autenticados.');
     await page.goto('/dashboard');
     // Verify user is authenticated by checking dashboard elements
     await expect(page.getByRole('heading', { name: /mis proyectos/i })).toBeVisible();

@@ -83,13 +83,13 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({ resource, onDelete, 
                       ? 'hover:bg-indigo-100 dark:hover:bg-indigo-900/20 text-indigo-500'
                       : 'text-gray-400 cursor-not-allowed'
                       }`}
-                    title={!isPremium ? 'Función disponible solo en Plan Pro o Enterprise' : 'Analizar con IA'}
+                    title={!isPremium ? 'Función disponible solo en Plan Pro' : 'Analizar con IA'}
                   >
                     {isPremium ? <Sparkles className='h-4 w-4' /> : <Lock className='h-4 w-4' />}
                   </button>
                   {!isPremium && (
                     <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
-                      <p>Función disponible solo en Plan Pro o Enterprise</p>
+                      <p>Función disponible solo en Plan Pro</p>
                     </div>
                   )}
                 </div>

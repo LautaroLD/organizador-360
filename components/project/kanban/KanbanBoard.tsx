@@ -283,7 +283,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
               className='text-[var(--accent-primary)]'
               onClick={() => generateSuggestions.mutate()}
               disabled={generateSuggestions.isPending || !isPremium}
-              title={!isPremium ? 'Función disponible solo en Plan Pro o Enterprise' : ''}
+              title={!isPremium ? 'Función disponible solo en Plan Pro' : ''}
             >
               <p className='hidden md:flex md:mr-2'>
                 {generateSuggestions.isPending ? 'Generando...' : 'Sugerir tareas con IA'}
@@ -292,7 +292,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             </Button>
             {!isPremium && (
               <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
-                <p>Función disponible solo en Plan Pro o Enterprise</p>
+                <p>Función disponible solo en Plan Pro</p>
               </div>
             )}
           </div>

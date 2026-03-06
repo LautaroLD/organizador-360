@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     const canUseAI = await canUseAIFeatures(supabase, user.id);
     if (!canUseAI) {
       return NextResponse.json(
-        { error: 'Esta función está disponible solo para planes Pro o Enterprise' },
+        { error: 'Esta función está disponible solo para plan Pro' },
         { status: 403 }
       );
     }

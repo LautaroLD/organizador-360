@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       : analyticsEnabledByPlan;
 
     if (!canUseAnalytics) {
-      return NextResponse.json({ error: 'Disponible solo para Pro o Enterprise' }, { status: 403 });
+      return NextResponse.json({ error: 'Disponible solo para Pro' }, { status: 403 });
     }
 
     const [tasksRes, membersRes] = await Promise.all([

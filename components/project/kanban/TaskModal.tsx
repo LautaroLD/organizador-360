@@ -419,14 +419,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 className='text-[var(--accent-primary)] gap-1'
                 onClick={() => generateDescription.mutate()}
                 disabled={generateDescription.isPending || !isPremium}
-                title={!isPremium ? 'Función disponible solo en Plan Pro o Enterprise' : ''}
+                title={!isPremium ? 'Función disponible solo en Plan Pro' : ''}
               >
                 {generateDescription.isPending ? 'Generando...' : 'Generar con IA'}
                 {!isPremium ? <Lock size={16} /> : <Sparkles size={16} />}
               </Button>
               {!isPremium && (
                 <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--text-secondary)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
-                  <p>Función disponible solo en Plan Pro o Enterprise</p>
+                  <p>Función disponible solo en Plan Pro</p>
                 </div>
               )}
             </div>

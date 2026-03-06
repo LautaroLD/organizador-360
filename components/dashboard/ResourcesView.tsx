@@ -53,11 +53,11 @@ export const ResourcesView: React.FC = () => {
   const { currentProject, setCurrentProject } = useProjectStore();
   const queryClient = useQueryClient();
 
-  const projectTier = currentProject?.plan_tier === 'starter' || currentProject?.plan_tier === 'pro' || currentProject?.plan_tier === 'enterprise'
+  const projectTier = currentProject?.plan_tier === 'starter' || currentProject?.plan_tier === 'pro'
     ? currentProject.plan_tier
     : (currentProject?.is_premium ? 'pro' : 'free');
   const projectLimits = getPlanLimits(projectTier ?? 'free');
-  const canUseAI = projectTier === 'pro' || projectTier === 'enterprise';
+  const canUseAI = projectTier === 'pro';
 
   // Fetch resources
   const { data: resources, isLoading } = useQuery({

@@ -73,10 +73,10 @@ export const AnalyticsView: React.FC = () => {
   const [memberTaskSort, setMemberTaskSort] = useState<'estimated' | 'status' | 'title'>('estimated');
   const [showExplanation, setShowExplanation] = useState(true);
 
-  const projectTier = currentProject?.plan_tier === 'enterprise'
-    ? 'enterprise'
-    : (currentProject?.plan_tier === 'pro' || currentProject?.plan_tier === 'starter' ? currentProject?.plan_tier : (currentProject?.is_premium ? 'pro' : 'free'));
-  const canAccessAnalytics = projectTier === 'pro' || projectTier === 'enterprise';
+  const projectTier = currentProject?.plan_tier === 'pro' || currentProject?.plan_tier === 'starter'
+    ? currentProject?.plan_tier
+    : (currentProject?.is_premium ? 'pro' : 'free');
+  const canAccessAnalytics = projectTier === 'pro';
   const canManage = currentProject?.userRole === 'Owner' || currentProject?.userRole === 'Admin';
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
@@ -305,7 +305,7 @@ export const AnalyticsView: React.FC = () => {
     return (
       <main className="flex grow flex-col max-h-full overflow-y-auto">
         <div className="flex-1 flex flex-col justify-center items-center p-6">
-          <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-4">Analíticas disponibles solo en Pro y Enterprise</h2>
+          <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-4">Analíticas disponibles solo en Pro</h2>
           <Lock size={48} className=" text-[var(--text-secondary)] mb-4" />
           <p className="text-[var(--text-secondary)] mb-6 text-center">Actualiza el plan para acceder a métricas avanzadas del proyecto.</p>
           <Link className='bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] px-2 py-1 rounded-lg font-semibold' href="/settings/subscription">

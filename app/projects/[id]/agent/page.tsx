@@ -137,9 +137,9 @@ export default function AgentPage() {
     return (
       <main className="flex grow flex-col max-h-full overflow-hidden">
         <div className="flex-1 flex flex-col justify-center items-center p-4">
-          <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-4">El asistente IA de proyectos está disponible solo en Plan Pro o Enterprise</h2>
+          <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-4">El asistente IA de proyectos está disponible solo en Plan Pro</h2>
           <Lock size={48} className="text-[var(--text-secondary)] mb-4" />
-          <p className="text-[var(--text-secondary)] mb-6 text-center">Para acceder al asistente IA de proyectos, por favor actualiza a un plan Pro o Enterprise.</p>
+          <p className="text-[var(--text-secondary)] mb-6 text-center">Para acceder al asistente IA de proyectos, por favor actualiza a plan Pro.</p>
           <Link className='bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] px-2 py-1 rounded-lg font-semibold' href="/settings/subscription">
             Ver planes
           </Link>

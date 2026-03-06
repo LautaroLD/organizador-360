@@ -1,7 +1,6 @@
 'use client';
 import { useQuery } from '@tanstack/react-query';
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './Card';
 import { Check, Star, Zap } from 'lucide-react';
 import { Button } from './Button';
 import { useRouter } from 'next/navigation';
@@ -116,111 +115,119 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
     router.push(init_point);
   };
 
+  const isPro = type === 'pro';
+
   return (
-    <div className='relative min-w-96 max-w-96 h-full bg-[var(--bg-secondary)] border-[var(--accent-primary)] border rounded-lg'>
-      {/* Error visual si no hay plan */}
-      {!isLoadingState && (!plan || error) && (
-        <div className='flex items-center justify-center h-full p-8'>
-          <div className='text-center w-full'>
-            <div className='text-[var(--accent-danger)] font-bold mb-2'>No se pudo cargar el plan</div>
-            <div className='text-[var(--text-secondary)] text-xs'>Intenta recargar la página o contacta soporte.</div>
-          </div>
-        </div>
-      )}
+    <div className='relative min-w-96 max-w-96 h-full'>
+
+      {/* Loading */}
       {isLoadingState && (
-        <div className='flex items-center justify-center h-full p-12'>
+        <div className='rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-6 flex items-center justify-center min-h-80'>
           <div className='text-center'>
-            <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent-primary)] mx-auto mb-4'></div>
-            <p className='text-[var(--text-secondary)]'>
-              Cargando datos de suscripción...
-            </p>
+            <div className='animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--accent-primary)] mx-auto mb-3'></div>
+            <p className='text-[var(--text-secondary)] text-sm'>Cargando plan...</p>
           </div>
         </div>
       )}
+
+      {/* Error */}
+      {!isLoadingState && (!plan || error) && (
+        <div className='rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-6 flex items-center justify-center min-h-80'>
+          <div className='text-center'>
+            <p className='text-[var(--accent-danger)] font-bold mb-2'>No se pudo cargar el plan</p>
+            <p className='text-[var(--text-secondary)] text-xs'>Intenta recargar la página o contacta soporte.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Plan cargado */}
       {!isLoadingState && plan && !error && (
-        <Card className='h-full flex flex-col border-0'>
-          {type === 'enterprise' ? (
-            <>
-              <CardHeader>
-                <div className='flex items-start justify-between mb-2'>
-                  <div className='text-[var(--accent-primary)] mx-auto flex gap-2'>{icon}</div>
-                </div>
-                <CardTitle className='text-xl uppercase text-center'>{planReason || 'Plan'}</CardTitle>
-              </CardHeader>
-              <CardContent className='flex-1 flex justify-center '>
-                <p className='text-xl text-center font-bold text-[var(--accent-primary)]'>Próximamente</p>
-              </CardContent>
-            </>
-          ) :
-            <>
-              <CardHeader>
-                <div className='flex items-start justify-between mb-2'>
-                  <div className='text-[var(--accent-primary)] mx-auto flex gap-2'>{icon}</div>
-                  {isCurrent && (
-                    <div className={`text-xs font-bold px-2 py-1 rounded ${isCanceled ? 'bg-[var(--accent-danger)]/20 text-[var(--accent-danger)]' : 'bg-green-500/20 text-green-700'}`}>
-                      {isCanceled ? 'CANCELADO (ACTIVO)' : 'ACTUAL'}
-                    </div>
-                  )}
-                </div>
-                <CardTitle className='text-xl uppercase text-center'>{planReason || 'Plan'}</CardTitle>
-                <CardDescription className='text-center'>{description}</CardDescription>
-                {plan.auto_recurring?.free_trial &&
-                  <div className='w-full mt-2'>
-                    <span className='border border-[var(--accent-success)] bg-[var(--accent-success)]/10 w-full rounded-2xl py-1 inline-block text-center text-[var(--accent-success)]  font-medium uppercase'>
-                      {`${plan.auto_recurring.free_trial.frequency} días`} de prueba gratuita
-                    </span>
-                  </div>
-                }
-                <div className='mt-2'>
-                  <div className='flex items-baseline gap-1'>
-                    <span className='text-2xl font-bold text-[var(--text-primary)]'>
-                      ${plan.auto_recurring?.transaction_amount?.toLocaleString() ?? '0'}
-                    </span>
-                    <span className='text-[var(--text-secondary)]'>
-                      {planReason !== 'free' && (plan.auto_recurring?.frequency_type === 'months' && plan.auto_recurring?.frequency === 12 ? '/año' : '/mes')}
-                    </span>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className='flex-1 flex flex-col'>
+        type === 'enterprise' ? (
+          /* Enterprise – Próximamente */
+          <div className='relative rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-6 flex flex-col items-center justify-center min-h-full transition-all'>
+            <div className='flex flex-col items-center gap-2 mb-3'>
+              <span className='text-[var(--accent-primary)] flex'>{icon}</span>
+              <h3 className='font-bold text-[var(--text-primary)] text-lg uppercase'>{planReason || 'Enterprise'}</h3>
+            </div>
+            <p className='text-xl font-bold text-[var(--accent-primary)]'>Próximamente</p>
+          </div>
+        ) : (
+          /* Plan normal */
+          <div className={`relative rounded-xl border p-6 flex flex-col transition-all h-full ${isPro
+            ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/5 shadow-lg'
+            : 'border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]'
+            }`}>
+            {/* Badge "Más popular" para Pro */}
+            {isPro && (
+              <span className='absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-bold px-3 py-1 rounded-full bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] whitespace-nowrap'>
+                Más popular
+              </span>
+            )}
 
-                <div className='grid grid-cols-2 mb-6'>
-                  {features.map((feature) => (
-                    <div
-                      key={feature}
-                      className='flex items-start gap-1 text-xs text-[var(--text-secondary)] space-y-2'
-                    >
-                      <Check className='h-4 w-4 text-green-500 flex-shrink-0' />
-                      <span>{feature}</span>
-                    </div>
-                  ))}
-                </div>
-                <Button
-                  className='w-full mt-auto'
-                  disabled={
-                    (isCurrent && !isCanceled) || isLoadingState || isFree
-                  }
-                  onClick={() => {
-                    if (!isFree) handleSubscribe(plan.init_point);
-                  }}
-                  variant={isCurrent ? 'primary' : 'secondary'}
-                >
-                  {isFree
-                    ? 'Ya estás aquí'
-                    : isLoadingState && isCurrent
-                      ? 'Redirigiendo...'
-                      : isCurrent
-                        ? (isCanceled ? 'Reactivar Suscripción' : 'Plan actual')
-                        : 'Actualizar'}
-                </Button>
+            {/* Badge plan actual */}
+            {isCurrent && (
+              <div className={`absolute top-3 right-3 text-xs font-bold px-2 py-1 rounded-full ${isCanceled
+                ? 'bg-[var(--accent-danger)]/20 text-[var(--accent-danger)]'
+                : 'bg-green-500/20 text-green-700'
+                }`}>
+                {isCanceled ? 'Cancelado' : 'Plan actual'}
+              </div>
+            )}
 
-              </CardContent>
-            </>
-          }
-        </Card>
+            {/* Nombre e icono */}
+            <div className='flex flex-col items-center gap-2 mb-3'>
+              <span className='text-[var(--accent-primary)] flex'>{icon}</span>
+              <h3 className='font-bold text-[var(--text-primary)] text-lg uppercase'>{planReason || 'Plan'}</h3>
+            </div>
+
+            {/* Precio */}
+            <div className='mb-1'>
+              <span className='text-3xl font-extrabold text-[var(--text-primary)]'>
+                ${plan.auto_recurring?.transaction_amount?.toLocaleString() ?? '0'}
+              </span>
+              <span className='text-[var(--text-secondary)] ml-1 text-sm'>
+                {plan.auto_recurring?.frequency_type === 'months' && plan.auto_recurring?.frequency === 12 ? '/año' : '/mes'}
+              </span>
+            </div>
+
+            {/* Descripción */}
+            <p className='text-sm text-[var(--text-secondary)] mb-1'>{description}</p>
+
+            {/* Prueba gratuita */}
+            {plan.auto_recurring?.free_trial && (
+              <p className='text-xs font-medium text-[var(--accent-primary)] mb-4'>
+                ✓ {plan.auto_recurring.free_trial.frequency} días de prueba gratuita
+              </p>
+            )}
+
+            {/* Features */}
+            <ul className='space-y-2 mb-6 flex-1 mt-3'>
+              {features.map((feature) => (
+                <li key={feature} className='flex items-start gap-2 text-sm text-[var(--text-secondary)]'>
+                  <Check className='h-4 w-4 text-[var(--accent-primary)] shrink-0 mt-0.5' />
+                  {feature}
+                </li>
+              ))}
+            </ul>
+
+            {/* CTA */}
+            <Button
+              className='w-full mt-auto'
+              variant={isCurrent && !isCanceled ? 'primary' : 'secondary'}
+              disabled={(isCurrent && !isCanceled) || isLoadingState || isFree}
+              onClick={() => { if (!isFree) handleSubscribe(plan.init_point); }}
+            >
+              {isFree
+                ? 'Ya estás aquí'
+                : isLoadingState && isCurrent
+                  ? 'Redirigiendo...'
+                  : isCurrent
+                    ? (isCanceled ? 'Reactivar suscripción' : 'Plan actual')
+                    : 'Actualizar plan'}
+            </Button>
+          </div>
+        )
       )}
     </div>
-
-
   );
 }

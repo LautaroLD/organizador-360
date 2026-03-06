@@ -125,7 +125,7 @@ export const ProjectsView: React.FC = () => {
 
   const getProjectTier = (project: Project) => {
     const tier = (project as Project & { plan_tier?: string; }).plan_tier;
-    if (tier === 'starter' || tier === 'pro' || tier === 'enterprise') {
+    if (tier === 'starter' || tier === 'pro') {
       return tier;
     }
     return project.is_premium ? 'pro' : 'free';
@@ -327,16 +327,13 @@ export const ProjectsView: React.FC = () => {
                     ? 'Tu plan permite proyectos ilimitados.'
                     : `Tu plan ${currentTier.toUpperCase()} permite hasta ${currentLimits.MAX_PROJECTS} proyectos habilitados simultáneamente.`}
                 </p>
-                {
-                  // este mensaje solo debe mostrarse si el usuario no tiene plan enterprise
-                  currentTier !== 'enterprise' && (
-                    <div className='flex gap-2 flex-wrap'>
-                      <p className='text-xs text-[var(--accent-warning)]  self-center'>
-                        Para habilitar un proyecto, primero desactiva otro o actualiza tu plan.
-                      </p>
-                    </div>
-                  )
-                }
+                {currentTier === 'free' && (
+                  <div className='flex gap-2 flex-wrap'>
+                    <p className='text-xs text-[var(--accent-warning)]  self-center'>
+                      Para habilitar un proyecto, primero desactiva otro o actualiza tu plan.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

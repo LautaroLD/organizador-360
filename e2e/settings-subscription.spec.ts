@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+const hasE2ECreds = Boolean(process.env.E2E_TEST_EMAIL && process.env.E2E_TEST_PASSWORD);
 
 test.describe('Responsive Design', () => {
   test('should load in mobile viewport', async ({ page }) => {
@@ -28,12 +29,14 @@ test.describe('Responsive Design', () => {
 
 test.describe('Settings & Subscription (Requires Auth)', () => {
   test('should display settings page', async ({ page }) => {
+    test.skip(!hasE2ECreds, 'E2E_TEST_EMAIL/E2E_TEST_PASSWORD no configuradas para tests autenticados.');
     await page.goto('/settings');
     // Use main role to get the page heading (not sidebar)
     await expect(page.getByRole('main').getByRole('heading', { name: /configuración/i })).toBeVisible();
   });
 
   test('should display subscription page', async ({ page }) => {
+    test.skip(!hasE2ECreds, 'E2E_TEST_EMAIL/E2E_TEST_PASSWORD no configuradas para tests autenticados.');
     await page.goto('/settings/subscription');
     await expect(page.getByRole('heading', { name: 'Planes y Suscripción', exact: true })).toBeVisible();
   });
