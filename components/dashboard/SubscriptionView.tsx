@@ -399,7 +399,7 @@ export const SubscriptionView: React.FC = () => {
                 ))}
               </ul>
               {isFreeCurrent && (
-                <p>Ya estas aquí</p>
+                <p className='text-center'>Ya estas aquí</p>
               )}
             </div>
           </div>
