@@ -11,6 +11,7 @@ import { User, Mail, Shield, Palette, Star, ArrowRight, Lock, Edit2, Save, X, Ca
 import { useThemeStore } from '@/store/themeStore';
 import { useGoogleCalendarTokens } from '@/hooks/useGoogleCalendarTokens';
 import { toast } from 'react-toastify';
+import { PASSWORD_REQUIREMENTS_MESSAGE, isStrongPassword } from '@/lib/passwordValidation';
 
 const MAX_NAME_LENGTH = 80;
 
@@ -106,8 +107,8 @@ export const SettingsView: React.FC = () => {
       return;
     }
 
-    if (newPassword.length < 6) {
-      toast.error('La contraseña debe tener al menos 6 caracteres');
+    if (!isStrongPassword(newPassword)) {
+      toast.error(PASSWORD_REQUIREMENTS_MESSAGE);
       return;
     }
 
@@ -459,7 +460,7 @@ export const SettingsView: React.FC = () => {
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Ingresa tu nueva contraseña (mín. 6 caracteres)"
+                    placeholder="Min. 8 chars, mayús/minús, número y símbolo"
                     disabled={isUpdatingPassword}
                   />
                 </div>

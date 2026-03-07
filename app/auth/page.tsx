@@ -13,6 +13,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { toast } from 'react-toastify';
 import { LogIn, UserPlus } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
+import { PASSWORD_REQUIREMENTS_MESSAGE, isStrongPassword } from '@/lib/passwordValidation';
 
 // Icono de Google SVG
 const GoogleIcon = () => (
@@ -280,14 +281,20 @@ export default function AuthPage() {
                 type="password"
                 {...register('password', {
                   required: 'La contraseña es requerida',
-                  minLength: {
-                    value: 6,
-                    message: 'La contraseña debe tener al menos 6 caracteres',
+                  validate: (value) => {
+                    if (isLogin) return true;
+                    return isStrongPassword(value) || PASSWORD_REQUIREMENTS_MESSAGE;
                   },
                 })}
                 error={errors.password?.message}
                 placeholder="••••••••"
               />
+
+              {!isLogin && (
+                <p className="text-xs text-[var(--text-secondary)]">
+                  {PASSWORD_REQUIREMENTS_MESSAGE}
+                </p>
+              )}
 
               <Button
                 type="submit"

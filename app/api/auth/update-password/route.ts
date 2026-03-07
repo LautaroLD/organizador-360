@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { validatePasswordStrength } from '@/lib/passwordValidation';
 
 export async function PUT(request: Request) {
   try {
@@ -12,9 +13,11 @@ export async function PUT(request: Request) {
       );
     }
 
-    if (newPassword.length < 6) {
+    const passwordValidationError = validatePasswordStrength(newPassword);
+
+    if (passwordValidationError) {
       return NextResponse.json(
-        { error: 'La nueva contraseña debe tener al menos 6 caracteres' },
+        { error: passwordValidationError },
         { status: 400 }
       );
     }
