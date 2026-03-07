@@ -14,6 +14,7 @@ interface ThemeStore {
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
   setCustomColor: (theme: Theme, color: string | null) => void;
+  setCustomColors: (customColors: CustomColors) => void;
 }
 
 export const useThemeStore = create<ThemeStore>()(
@@ -36,9 +37,20 @@ export const useThemeStore = create<ThemeStore>()(
             [theme]: color,
           },
         })),
+      setCustomColors: (customColors) => set({ customColors }),
     }),
     {
       name: 'theme-storage',
+      // Persist only the current theme locally. Custom colors now come from DB.
+      partialize: (state) => ({ theme: state.theme }),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<ThemeStore>;
+
+        return {
+          ...currentState,
+          theme: persisted.theme === 'dark' ? 'dark' : 'light',
+        };
+      },
     }
   )
 );

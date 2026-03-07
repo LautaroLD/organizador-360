@@ -415,7 +415,7 @@ export const ProjectsView: React.FC = () => {
                     <Button
                       variant='ghost'
                       size='sm'
-                      className='w-full'
+                      className='w-full bg-[var(--bg-primary)]'
                       onClick={(e) => handleActiveClick(project, e)}
                     >
                       {project.enabled ? <>
@@ -429,7 +429,6 @@ export const ProjectsView: React.FC = () => {
                   )}
                   {(project.userRole === 'Owner' || project.userRole === 'Admin') && (
                     <Button
-                      variant='secondary'
                       size='sm'
                       className='w-full'
                       disabled={!project.enabled}

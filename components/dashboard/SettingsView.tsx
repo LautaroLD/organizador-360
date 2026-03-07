@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
+import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -14,6 +15,7 @@ import { toast } from 'react-toastify';
 const MAX_NAME_LENGTH = 80;
 
 export const SettingsView: React.FC = () => {
+  const supabase = createClient();
   const { user, logout, setUser } = useAuthStore();
   const { theme, toggleTheme, customColors, setCustomColor } = useThemeStore();
   const {
@@ -35,6 +37,10 @@ export const SettingsView: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [isSavingLightColor, setIsSavingLightColor] = useState(false);
+  const [isSavingDarkColor, setIsSavingDarkColor] = useState(false);
+  const [hasUnsavedLightColor, setHasUnsavedLightColor] = useState(false);
+  const [hasUnsavedDarkColor, setHasUnsavedDarkColor] = useState(false);
 
   // Mensajes reemplazados por toasts (react-toastify)
 
@@ -172,6 +178,78 @@ export const SettingsView: React.FC = () => {
     }
   };
 
+  const persistCustomColor = async (targetTheme: 'light' | 'dark') => {
+    const color = customColors[targetTheme];
+
+    if (targetTheme === 'light') {
+      setIsSavingLightColor(true);
+    } else {
+      setIsSavingDarkColor(true);
+    }
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+
+      if (!authData.user) {
+        throw new Error('No autenticado');
+      }
+
+      const response = await fetch('/api/auth/update-theme-colors', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          theme: targetTheme,
+          color,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || 'No se pudo guardar el color');
+      }
+
+      if (targetTheme === 'light') {
+        setHasUnsavedLightColor(false);
+      } else {
+        setHasUnsavedDarkColor(false);
+      }
+
+      toast.success('Color guardado');
+    } catch (error) {
+      console.error('Error saving custom color:', error);
+      const message = error instanceof Error ? error.message : 'Error al guardar color personalizado';
+      toast.error(message);
+    } finally {
+      if (targetTheme === 'light') {
+        setIsSavingLightColor(false);
+      } else {
+        setIsSavingDarkColor(false);
+      }
+    }
+  };
+
+  const handleColorChange = (targetTheme: 'light' | 'dark', color: string) => {
+    setCustomColor(targetTheme, color);
+
+    if (targetTheme === 'light') {
+      setHasUnsavedLightColor(true);
+    } else {
+      setHasUnsavedDarkColor(true);
+    }
+  };
+
+  const handleResetColor = (targetTheme: 'light' | 'dark') => {
+    setCustomColor(targetTheme, null);
+
+    if (targetTheme === 'light') {
+      setHasUnsavedLightColor(true);
+    } else {
+      setHasUnsavedDarkColor(true);
+    }
+  };
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6">
@@ -194,9 +272,6 @@ export const SettingsView: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-[var(--text-secondary)] mb-4">
-              Actualiza a Pro para desbloquear proyectos ilimitados, hasta 20 miembros por proyecto y más.
-            </p>
             <Link href="/settings/subscription">
               <Button className="w-full">
                 Ver Planes
@@ -465,14 +540,27 @@ export const SettingsView: React.FC = () => {
                   <Input
                     type="color"
                     value={customColors.light || '#007bff'}
-                    onChange={(e) => setCustomColor('light', e.target.value)}
-                    className='w-10 h-10 p-0 border-0 cursor-pointer'
+                    onChange={(e) => handleColorChange('light', e.target.value)}
+                    className='w-10 h-10 p-0 border-0 cursor-pointer bg-transparent'
+                    disabled={isSavingLightColor}
                   />
                   {customColors.light && (
-                    <Button variant="secondary" size="sm" onClick={() => setCustomColor('light', null)}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleResetColor('light')}
+                      disabled={isSavingLightColor}
+                    >
                       Restablecer
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    onClick={() => void persistCustomColor('light')}
+                    disabled={isSavingLightColor || !hasUnsavedLightColor}
+                  >
+                    {isSavingLightColor ? 'Guardando...' : 'Guardar'}
+                  </Button>
                 </div>
               </div>
               <div className="flex items-center justify-between">
@@ -488,14 +576,27 @@ export const SettingsView: React.FC = () => {
                   <Input
                     type="color"
                     value={customColors.dark || '#8a42f5'}
-                    onChange={(e) => setCustomColor('dark', e.target.value)}
-                    className='w-10 h-10 p-0 border-0 cursor-pointer'
+                    onChange={(e) => handleColorChange('dark', e.target.value)}
+                    className='w-10 h-10 p-0 border-0 cursor-pointer bg-transparent'
+                    disabled={isSavingDarkColor}
                   />
                   {customColors.dark && (
-                    <Button variant="secondary" size="sm" onClick={() => setCustomColor('dark', null)}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleResetColor('dark')}
+                      disabled={isSavingDarkColor}
+                    >
                       Restablecer
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    onClick={() => void persistCustomColor('dark')}
+                    disabled={isSavingDarkColor || !hasUnsavedDarkColor}
+                  >
+                    {isSavingDarkColor ? 'Guardando...' : 'Guardar'}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -531,7 +632,7 @@ export const SettingsView: React.FC = () => {
           <CardContent>
             <div className="space-y-2 text-sm text-[var(--text-secondary)]">
               <p><strong>Versión:</strong> 1.0.0</p>
-              <p><strong>Última actualización:</strong> Noviembre 2024</p>
+              <p><strong>Última actualización:</strong> Marzo 2026</p>
               <p className="pt-2 border-t border-[var(--text-secondary)]">
                 Veenzo es una plataforma de colaboración todo-en-uno diseñada específicamente
                 para equipos de desarrollo.
