@@ -757,7 +757,7 @@ export const ChatView: React.FC = () => {
 
                     {/* Message Content */}
                     <div className={clsx(
-                      "flex-1 flex flex-col min-w-0",
+                      "flex-1 flex flex-col min-w-0 relative",
                       message.user?.id === user?.id ? 'items-end' : 'items-start'
                     )}>
                       <div className="flex items-baseline space-x-2 mb-1">
@@ -835,7 +835,7 @@ export const ChatView: React.FC = () => {
                         message.user?.id === user?.id ? 'flex-row-reverse' : 'flex-row',
                         openMenuMessageId === message.id ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'
                       )}>
-                        <div className="relative h-full">
+                        <div className=" h-full">
                           <button
                             onClick={() => setOpenMenuMessageId(openMenuMessageId === message.id ? null : message.id)}
                             className="p-1 hover:bg-[var(--bg-secondary)] rounded text-[var(--text-secondary)]"
@@ -845,8 +845,8 @@ export const ChatView: React.FC = () => {
 
                           {openMenuMessageId === message.id && (
                             <div className={clsx(
-                              "absolute flex  bottom-1/2  bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg z-50 min-w-auto p-1",
-                              message.user?.id === user?.id ? 'left-full' : 'right-full'
+                              "absolute flex  top-0   bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg z-50 min-w-auto p-1",
+                              message.user?.id === user?.id ? 'left-0' : 'right-0'
                             )}>
                               <button
                                 onClick={() => {
