@@ -321,4 +321,79 @@ describe('useGoogleCalendarTokens', () => {
       });
     });
   });
+
+  describe('processOAuthCallback', () => {
+    it('debería procesar callback exitoso y guardar tokens', async () => {
+      mockGetSession.mockResolvedValue({
+        data: { session: null },
+      });
+
+      const mockUpdateEq = jest.fn().mockResolvedValue({ error: null });
+      const mockUpdate = jest.fn().mockReturnValue({
+        eq: mockUpdateEq,
+      });
+      const mockMaybeSingle = jest.fn().mockResolvedValue({ data: { id: 'existing-token' }, error: null });
+      const mockEq = jest.fn().mockReturnValue({
+        maybeSingle: mockMaybeSingle,
+      });
+      const mockSelect = jest.fn().mockReturnValue({
+        eq: mockEq,
+      });
+
+      mockFrom.mockReturnValue({
+        select: mockSelect,
+        update: mockUpdate,
+      });
+
+      const { result } = renderHook(() => useGoogleCalendarTokens());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      const callbackPayload = {
+        tokens: {
+          access_token: 'oauth-access-token',
+          refresh_token: 'oauth-refresh-token',
+          token_type: 'Bearer',
+        },
+        userEmail: 'user@gmail.com',
+      };
+
+      const encoded = btoa(JSON.stringify(callbackPayload));
+
+      const response = await result.current.processOAuthCallback({
+        googleAuthParam: encoded,
+        errorParam: null,
+        projectId: 'project-123',
+      });
+
+      expect(response.handled).toBe(true);
+      expect(response.status).toBe('success');
+      expect(response.redirectTo).toBe('/projects/project-123/calendar');
+      expect(mockSetTokens).toHaveBeenCalledWith(callbackPayload.tokens, 'user@gmail.com');
+    });
+
+    it('debería devolver error cuando viene errorParam', async () => {
+      mockGetSession.mockResolvedValue({
+        data: { session: null },
+      });
+
+      const { result } = renderHook(() => useGoogleCalendarTokens());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      const response = await result.current.processOAuthCallback({
+        googleAuthParam: null,
+        errorParam: encodeURIComponent('Acceso denegado'),
+      });
+
+      expect(response.handled).toBe(true);
+      expect(response.status).toBe('error');
+      expect(response.message).toBe('Acceso denegado');
+      expect(response.redirectTo).toBe('/dashboard');
+    });
+  });
 });
