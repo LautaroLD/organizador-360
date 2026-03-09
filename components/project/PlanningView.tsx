@@ -14,7 +14,7 @@ import { toast } from 'react-toastify';
 
 type PlanningTaskRow = Pick<Task, 'id' | 'status' | 'epic_id'>;
 
-type ObjectiveRow = Pick<OkrObjective, 'id' | 'title' | 'description' | 'status' | 'cycle'>;
+type ObjectiveRow = Pick<OkrObjective, 'id' | 'title' | 'description' | 'status' | 'cycle' | 'start_date' | 'end_date'>;
 type KeyResultRow = Pick<OkrKeyResult, 'id' | 'objective_id' | 'title' | 'target_value' | 'current_value' | 'unit' | 'tracking_mode'>;
 type EpicRow = Pick<Epic, 'id' | 'objective_id' | 'key_result_id' | 'title' | 'status' | 'color'>;
 
@@ -23,6 +23,8 @@ type ObjectiveFormState = {
   description: string;
   status: 'draft' | 'active' | 'completed' | 'archived';
   cycle: 'quarterly' | 'half-year' | 'yearly' | 'custom';
+  start_date: string;
+  end_date: string;
 };
 
 type KeyResultFormState = {
@@ -47,6 +49,8 @@ const defaultObjectiveForm: ObjectiveFormState = {
   description: '',
   status: 'draft',
   cycle: 'quarterly',
+  start_date: '',
+  end_date: '',
 };
 
 const defaultKrForm: KeyResultFormState = {
@@ -144,7 +148,7 @@ export const PlanningView: React.FC = () => {
       const [objectivesRes, keyResultsRes, epicsRes, tasksRes] = await Promise.all([
         supabase
           .from('okr_objectives')
-          .select('id,title,description,status,cycle')
+          .select('id,title,description,status,cycle,start_date,end_date')
           .eq('project_id', projectId)
           .order('created_at', { ascending: false }),
         supabase
@@ -194,6 +198,8 @@ export const PlanningView: React.FC = () => {
         description: payload.description || null,
         status: payload.status,
         cycle: payload.cycle,
+        start_date: payload.start_date || null,
+        end_date: payload.end_date || null,
       });
       if (insertError) throw insertError;
     },
@@ -214,6 +220,8 @@ export const PlanningView: React.FC = () => {
           description: payload.description || null,
           status: payload.status,
           cycle: payload.cycle,
+          start_date: payload.start_date || null,
+          end_date: payload.end_date || null,
         })
         .eq('id', id);
       if (updateError) throw updateError;
@@ -361,6 +369,8 @@ export const PlanningView: React.FC = () => {
       description: objective.description || '',
       status: objective.status,
       cycle: objective.cycle,
+      start_date: objective.start_date || '',
+      end_date: objective.end_date || '',
     });
     setObjectiveModalOpen(true);
   };
@@ -491,6 +501,15 @@ export const PlanningView: React.FC = () => {
         objectives.map((objective) => {
           const objectiveKeyResults = keyResults.filter((kr) => kr.objective_id === objective.id);
           const objectiveEpics = epics.filter((epic) => epic.objective_id === objective.id);
+          const isCycleOverdue = Boolean(
+            objective.end_date
+            && objective.end_date < new Date().toISOString().slice(0, 10)
+            && objective.status !== 'completed'
+            && objective.status !== 'archived'
+          );
+          const cycleDateText = objective.start_date || objective.end_date
+            ? `${objective.start_date || 'Sin inicio'} - ${objective.end_date || 'Sin fin'}`
+            : 'Sin fechas';
 
           return (
             <Card key={objective.id}>
@@ -519,6 +538,16 @@ export const PlanningView: React.FC = () => {
                 <p className='text-xs text-[var(--text-secondary)] uppercase'>
                   Estado: {objectiveStatusLabels[objective.status]} | Ciclo: {objectiveCycleLabels[objective.cycle]}
                 </p>
+                <div className='flex items-center gap-2 flex-wrap'>
+                  <p className='text-xs text-[var(--text-secondary)] uppercase'>
+                    Fechas: {cycleDateText}
+                  </p>
+                  {isCycleOverdue && (
+                    <span className='text-[10px] px-2 py-0.5 rounded-full bg-red-500/15 text-red-500'>
+                      Ciclo vencido
+                    </span>
+                  )}
+                </div>
                 {objective.description && (
                   <p className='text-sm text-[var(--text-secondary)]'>{objective.description}</p>
                 )}
@@ -716,6 +745,20 @@ export const PlanningView: React.FC = () => {
                 <option value='custom'>{objectiveCycleLabels.custom}</option>
               </select>
             </div>
+          </div>
+          <div className='grid grid-cols-2 gap-3'>
+            <Input
+              label='Inicio del ciclo'
+              type='date'
+              value={objectiveForm.start_date}
+              onChange={(event) => setObjectiveForm((prev) => ({ ...prev, start_date: event.target.value }))}
+            />
+            <Input
+              label='Fin del ciclo'
+              type='date'
+              value={objectiveForm.end_date}
+              onChange={(event) => setObjectiveForm((prev) => ({ ...prev, end_date: event.target.value }))}
+            />
           </div>
           <div className='flex justify-end gap-2 pt-2'>
             <Button type='button' variant='ghost' onClick={resetObjectiveModal}>Cancelar</Button>
