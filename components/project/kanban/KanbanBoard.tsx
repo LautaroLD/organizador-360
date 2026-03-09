@@ -19,20 +19,21 @@ import { KanbanTask } from './KanbanTask';
 import { TaskModal } from './TaskModal';
 import { useTasks } from '@/hooks/useTasks';
 import { Button } from '@/components/ui/Button';
-import { Plus, Sparkles, CheckCircleIcon, ClockIcon, ChevronDown, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
+import { Plus, Sparkles, CheckCircleIcon, ClockIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import useGemini from '@/hooks/useGemini';
 import SuggestionsModal from './SuggestionsModal';
 import { createClient } from '@/lib/supabase/client';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 import CreateRoadmap from './CreateRoadmap';
-import { RoadmapPhase } from '@/models';
+import { Epic, RoadmapPhase } from '@/models';
 
 interface KanbanBoardProps {
   projectId: string;
 }
 
 type RoadmapPhaseOption = Pick<RoadmapPhase, 'id' | 'name' | 'init_at' | 'end_at' | 'description'>;
+type EpicOption = Pick<Epic, 'id' | 'title'>;
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   const {
@@ -47,6 +48,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [isPremium, setIsPremium] = useState(false);
   const [selectedPhaseId, setSelectedPhaseId] = useState<'all' | 'none' | number>('all');
+  const [selectedEpicId, setSelectedEpicId] = useState<'all' | 'none' | string>('all');
   const { generateSuggestedTasks } = useGemini();
   const supabase = createClient();
   const [openPhaseStats, setOpenPhaseStats] = useState(false);
@@ -86,6 +88,21 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
     enabled: !!projectId,
   });
 
+  const { data: epics = [] } = useQuery({
+    queryKey: ['epics', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('epics')
+        .select('id, title')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return (data || []) as EpicOption[];
+    },
+    enabled: !!projectId,
+  });
+
   const editingTask = React.useMemo(() =>
     tasks?.find(t => t.id === editingTaskId) || null
     , [tasks, editingTaskId]);
@@ -114,8 +131,18 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
       return tasks.filter((task) => !task.phase_roadmap_id);
     }
 
-    return tasks.filter((task) => task.phase_roadmap_id === selectedPhaseId);
-  }, [selectedPhaseId, tasks]);
+    const phaseFiltered = tasks.filter((task) => task.phase_roadmap_id === selectedPhaseId);
+
+    if (selectedEpicId === 'all') {
+      return phaseFiltered;
+    }
+
+    if (selectedEpicId === 'none') {
+      return phaseFiltered.filter((task) => !task.epic_id);
+    }
+
+    return phaseFiltered.filter((task) => task.epic_id === selectedEpicId);
+  }, [selectedEpicId, selectedPhaseId, tasks]);
 
   const columns = {
     todo: filteredTasks.filter((task) => task.status === 'todo'),
@@ -166,6 +193,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
       return acc;
     }, {});
   }, [roadmapPhases]);
+
+  const epicLabels = React.useMemo(() => {
+    return epics.reduce<Record<string, string>>((acc, epic) => {
+      acc[epic.id] = epic.title;
+      return acc;
+    }, {});
+  }, [epics]);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -249,8 +283,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
       <div className="flex-none flex justify-between items-center p-4">
         <div className="flex flex-col">
           <h2 className="text-2xl font-bold text-[var(--text-primary)]">Tablero Kanban</h2>
-          {roadmapPhases.length > 0 && (
-            <div className="mt-2 flex items-center gap-2">
+          {(roadmapPhases.length > 0 || epics.length > 0) && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
               <label className="text-xs text-[var(--text-secondary)]">Filtrar por fase:</label>
               <select
                 value={selectedPhaseId}
@@ -271,6 +305,28 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
                   </option>
                 ))}
                 <option value="none">Sin fase</option>
+              </select>
+
+              <label className="text-xs text-[var(--text-secondary)]">Epica:</label>
+              <select
+                value={selectedEpicId}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value === 'all' || value === 'none') {
+                    setSelectedEpicId(value);
+                    return;
+                  }
+                  setSelectedEpicId(value);
+                }}
+                className="text-xs bg-[var(--bg-primary)] border border-[var(--text-secondary)]/30 rounded-md px-2 py-1 text-[var(--text-primary)]"
+              >
+                <option value="all">Todas</option>
+                {epics.map((epic) => (
+                  <option key={epic.id} value={epic.id}>
+                    {epic.title}
+                  </option>
+                ))}
+                <option value="none">Sin epica</option>
               </select>
             </div>
           )}
@@ -355,6 +411,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             title="Por hacer"
             tasks={columns.todo}
             phaseLabels={phaseLabels}
+            epicLabels={epicLabels}
             onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }}
           />
           <KanbanColumn
@@ -362,6 +419,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             title="En progreso"
             tasks={columns['in-progress']}
             phaseLabels={phaseLabels}
+            epicLabels={epicLabels}
             onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }}
           />
           <KanbanColumn
@@ -369,6 +427,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             title="Completado"
             tasks={columns.done}
             phaseLabels={phaseLabels}
+            epicLabels={epicLabels}
             onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }}
           />
         </div>

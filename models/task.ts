@@ -4,6 +4,8 @@ export interface Task {
   id: string;
   project_id: string;
   phase_roadmap_id?: number | null;
+  epic_id?: string | null;
+  key_result_id?: string | null;
   title: string;
   description?: string;
   status: 'todo' | 'in-progress' | 'done';
@@ -60,6 +62,8 @@ export interface TaskAssignment {
 export interface CreateTaskDTO {
   project_id: string;
   phase_roadmap_id?: number | null;
+  epic_id?: string | null;
+  key_result_id?: string | null;
   title: string;
   description?: string;
   status?: 'todo' | 'in-progress' | 'done';
@@ -74,6 +78,8 @@ export interface CreateTaskDTO {
 
 export interface UpdateTaskDTO {
   phase_roadmap_id?: number | null;
+  epic_id?: string | null;
+  key_result_id?: string | null;
   title?: string;
   description?: string;
   status?: 'todo' | 'in-progress' | 'done';

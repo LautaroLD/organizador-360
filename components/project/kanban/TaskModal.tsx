@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Task, CreateTaskDTO, UpdateTaskDTO, RoadmapPhase } from '@/models';
+import { Task, CreateTaskDTO, UpdateTaskDTO, RoadmapPhase, Epic } from '@/models';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 
@@ -23,6 +23,7 @@ interface TaskModalProps {
 }
 
 type RoadmapPhaseOption = Pick<RoadmapPhase, 'id' | 'name' | 'init_at' | 'end_at' | 'description'>;
+type EpicOption = Pick<Epic, 'id' | 'title'>;
 
 export const TaskModal: React.FC<TaskModalProps> = ({
   isOpen,
@@ -51,6 +52,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       assigned_to: [],
       tags: [],
       phase_roadmap_id: null,
+      epic_id: null,
     },
   });
 
@@ -130,6 +132,21 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     enabled: isOpen,
   });
 
+  const { data: epics } = useQuery({
+    queryKey: ['project-epics', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('epics')
+        .select('id, title')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return (data || []) as EpicOption[];
+    },
+    enabled: isOpen,
+  });
+
   useEffect(() => {
     // Si estamos generando con IA, no sobrescribir los valores del formulario
     if (isGeneratingWithAI.current) {
@@ -143,6 +160,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setValue('priority', initialData.priority || null);
       setValue('done_estimated_at', initialData.done_estimated_at ? initialData.done_estimated_at.split('T')[0] : '');
       setValue('phase_roadmap_id', initialData.phase_roadmap_id ?? null);
+      setValue('epic_id', initialData.epic_id ?? null);
       setValue('assigned_to', initialData.assignments?.map(a => a.user_id) || []);
       setValue('tags', initialData.tags?.map(t => t.tag_id) || []);
       setLocalChecklist([]);
@@ -158,6 +176,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         assigned_to: [],
         tags: [],
         phase_roadmap_id: null,
+        epic_id: null,
       });
       setLocalChecklist([]);
       setLocalImages([]);
@@ -308,12 +327,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
 
   const handleFormSubmit = (data: CreateTaskDTO | UpdateTaskDTO) => {
     const phaseValue = data.phase_roadmap_id ?? null;
+    const epicValue = data.epic_id ?? null;
 
     if (!initialData) {
       // Si estamos creando
       const createData: CreateTaskDTO = {
         ...data as CreateTaskDTO,
         phase_roadmap_id: phaseValue,
+        epic_id: epicValue,
         priority: data.priority?.length ? data.priority : null,
         done_estimated_at: data.done_estimated_at?.length ? data.done_estimated_at : null,
         checklist: localChecklist.length > 0 ? localChecklist.map(({ content, is_completed }) => ({ content, is_completed })) : undefined,
@@ -345,6 +366,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       const updateData: UpdateTaskDTO = {
         ...data as UpdateTaskDTO,
         phase_roadmap_id: phaseValue,
+        epic_id: epicValue,
         priority: data.priority?.length ? data.priority : null,
         done_estimated_at: data.done_estimated_at?.length ? data.done_estimated_at : null,
         checklistToAdd: checklistToAdd.length > 0 ? checklistToAdd : undefined,
@@ -587,6 +609,29 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           {(!roadmapPhases || roadmapPhases.length === 0) && (
             <p className="mt-1 text-xs text-[var(--text-secondary)]">
               No hay fases creadas para este proyecto.
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+            Epica (opcional)
+          </label>
+          <select
+            {...register('epic_id', {
+              setValueAs: (value) => (value ? value : null),
+            })}
+            className="w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+          >
+            <option value="">Sin epica</option>
+            {epics?.map((epic) => (
+              <option key={epic.id} value={epic.id}>
+                {epic.title}
+              </option>
+            ))}
+          </select>
+          {(!epics || epics.length === 0) && (
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+              No hay epicas creadas para este proyecto.
             </p>
           )}
         </div>

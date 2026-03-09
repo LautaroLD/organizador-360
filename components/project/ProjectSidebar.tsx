@@ -19,6 +19,7 @@ import {
   Sparkles,
   BarChart3,
   CheckSquare,
+  Goal,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Project } from '@/models';
@@ -125,6 +126,12 @@ export const Sidebar: React.FC = () => {
       icon: <Layout className="h-5 w-5" />,
       label: 'Tablero',
       path: `/projects/${projectId}/kanban`
+    },
+    {
+      id: 'planning',
+      icon: <Goal className="h-5 w-5" />,
+      label: 'Planificacion',
+      path: `/projects/${projectId}/planning`
     },
     {
       id: 'members',

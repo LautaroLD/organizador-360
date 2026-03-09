@@ -11,10 +11,11 @@ interface KanbanColumnProps {
   title: string;
   tasks: Task[];
   phaseLabels?: Record<number, string>;
+  epicLabels?: Record<string, string>;
   onEditTask?: (task: Task) => void;
 }
 
-export const KanbanColumn: React.FC<KanbanColumnProps> = ({ id, title, tasks, phaseLabels, onEditTask }) => {
+export const KanbanColumn: React.FC<KanbanColumnProps> = ({ id, title, tasks, phaseLabels, epicLabels, onEditTask }) => {
   const { setNodeRef } = useDroppable({
     id: id,
   });
@@ -35,6 +36,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({ id, title, tasks, ph
               key={task.id}
               task={task}
               phaseLabel={task.phase_roadmap_id ? phaseLabels?.[task.phase_roadmap_id] : null}
+              epicLabel={task.epic_id ? epicLabels?.[task.epic_id] : null}
               onEdit={() => onEditTask?.(task)}
             />
           ))}
