@@ -23,7 +23,7 @@ interface TaskModalProps {
 }
 
 type RoadmapPhaseOption = Pick<RoadmapPhase, 'id' | 'name' | 'init_at' | 'end_at' | 'description'>;
-type EpicOption = Pick<Epic, 'id' | 'title'>;
+type EpicOption = Pick<Epic, 'id' | 'title' | 'key_result_id'>;
 
 export const TaskModal: React.FC<TaskModalProps> = ({
   isOpen,
@@ -53,6 +53,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       tags: [],
       phase_roadmap_id: null,
       epic_id: null,
+      key_result_id: null,
     },
   });
 
@@ -137,7 +138,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('epics')
-        .select('id, title')
+        .select('id, title, key_result_id')
         .eq('project_id', projectId)
         .order('created_at', { ascending: false });
 
@@ -161,6 +162,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setValue('done_estimated_at', initialData.done_estimated_at ? initialData.done_estimated_at.split('T')[0] : '');
       setValue('phase_roadmap_id', initialData.phase_roadmap_id ?? null);
       setValue('epic_id', initialData.epic_id ?? null);
+      setValue('key_result_id', initialData.key_result_id ?? null);
       setValue('assigned_to', initialData.assignments?.map(a => a.user_id) || []);
       setValue('tags', initialData.tags?.map(t => t.tag_id) || []);
       setLocalChecklist([]);
@@ -177,6 +179,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         tags: [],
         phase_roadmap_id: null,
         epic_id: null,
+        key_result_id: null,
       });
       setLocalChecklist([]);
       setLocalImages([]);
@@ -328,6 +331,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const handleFormSubmit = (data: CreateTaskDTO | UpdateTaskDTO) => {
     const phaseValue = data.phase_roadmap_id ?? null;
     const epicValue = data.epic_id ?? null;
+    const selectedEpic = epicValue ? epics?.find((epic) => epic.id === epicValue) : null;
+    const keyResultValue = epicValue ? (selectedEpic?.key_result_id ?? null) : null;
 
     if (!initialData) {
       // Si estamos creando
@@ -335,6 +340,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         ...data as CreateTaskDTO,
         phase_roadmap_id: phaseValue,
         epic_id: epicValue,
+        key_result_id: keyResultValue,
         priority: data.priority?.length ? data.priority : null,
         done_estimated_at: data.done_estimated_at?.length ? data.done_estimated_at : null,
         checklist: localChecklist.length > 0 ? localChecklist.map(({ content, is_completed }) => ({ content, is_completed })) : undefined,
@@ -367,6 +373,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         ...data as UpdateTaskDTO,
         phase_roadmap_id: phaseValue,
         epic_id: epicValue,
+        key_result_id: keyResultValue,
         priority: data.priority?.length ? data.priority : null,
         done_estimated_at: data.done_estimated_at?.length ? data.done_estimated_at : null,
         checklistToAdd: checklistToAdd.length > 0 ? checklistToAdd : undefined,

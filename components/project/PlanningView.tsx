@@ -477,12 +477,6 @@ export const PlanningView: React.FC = () => {
             <CardTitle>Sin objetivos aun</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className='text-sm text-[var(--text-secondary)]'>
-              Crea registros en `okr_objectives`, `okr_key_results` y `epics` para empezar a usar la planificacion estandar.
-            </p>
-            <p className='text-xs text-[var(--text-secondary)] mt-2'>
-              La vista funciona aunque no haya datos aun. Si ya creaste datos y no aparecen, recarga y revisa permisos RLS.
-            </p>
             {canManage && (
               <div className='mt-3'>
                 <Button size='sm' onClick={openCreateObjective}>
