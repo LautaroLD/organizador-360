@@ -14,7 +14,7 @@ import { toast } from 'react-toastify';
 
 type PlanningTaskRow = Pick<Task, 'id' | 'status' | 'epic_id'>;
 
-type ObjectiveRow = Pick<OkrObjective, 'id' | 'title' | 'description' | 'status' | 'cycle'>;
+type ObjectiveRow = Pick<OkrObjective, 'id' | 'title' | 'description' | 'status' | 'cycle' | 'start_date' | 'end_date'>;
 type KeyResultRow = Pick<OkrKeyResult, 'id' | 'objective_id' | 'title' | 'target_value' | 'current_value' | 'unit' | 'tracking_mode'>;
 type EpicRow = Pick<Epic, 'id' | 'objective_id' | 'key_result_id' | 'title' | 'status' | 'color'>;
 
@@ -23,6 +23,8 @@ type ObjectiveFormState = {
   description: string;
   status: 'draft' | 'active' | 'completed' | 'archived';
   cycle: 'quarterly' | 'half-year' | 'yearly' | 'custom';
+  start_date: string;
+  end_date: string;
 };
 
 type KeyResultFormState = {
@@ -47,6 +49,8 @@ const defaultObjectiveForm: ObjectiveFormState = {
   description: '',
   status: 'draft',
   cycle: 'quarterly',
+  start_date: '',
+  end_date: '',
 };
 
 const defaultKrForm: KeyResultFormState = {
@@ -90,6 +94,35 @@ const epicStatusLabels: Record<EpicFormState['status'], string> = {
   todo: 'Por hacer',
   'in-progress': 'En progreso',
   done: 'Completado',
+};
+
+const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
+
+const getCycleDateSuggestion = (cycle: ObjectiveFormState['cycle']) => {
+  const now = new Date();
+  const year = now.getFullYear();
+
+  if (cycle === 'quarterly') {
+    const quarter = Math.floor(now.getMonth() / 3);
+    const start = new Date(year, quarter * 3, 1);
+    const end = new Date(year, quarter * 3 + 3, 0);
+    return { start: toIsoDate(start), end: toIsoDate(end) };
+  }
+
+  if (cycle === 'half-year') {
+    const firstHalf = now.getMonth() < 6;
+    const start = new Date(year, firstHalf ? 0 : 6, 1);
+    const end = new Date(year, firstHalf ? 6 : 12, 0);
+    return { start: toIsoDate(start), end: toIsoDate(end) };
+  }
+
+  if (cycle === 'yearly') {
+    const start = new Date(year, 0, 1);
+    const end = new Date(year, 12, 0);
+    return { start: toIsoDate(start), end: toIsoDate(end) };
+  }
+
+  return null;
 };
 
 export const PlanningView: React.FC = () => {
@@ -144,7 +177,7 @@ export const PlanningView: React.FC = () => {
       const [objectivesRes, keyResultsRes, epicsRes, tasksRes] = await Promise.all([
         supabase
           .from('okr_objectives')
-          .select('id,title,description,status,cycle')
+          .select('id,title,description,status,cycle,start_date,end_date')
           .eq('project_id', projectId)
           .order('created_at', { ascending: false }),
         supabase
@@ -194,6 +227,8 @@ export const PlanningView: React.FC = () => {
         description: payload.description || null,
         status: payload.status,
         cycle: payload.cycle,
+        start_date: payload.start_date || null,
+        end_date: payload.end_date || null,
       });
       if (insertError) throw insertError;
     },
@@ -214,6 +249,8 @@ export const PlanningView: React.FC = () => {
           description: payload.description || null,
           status: payload.status,
           cycle: payload.cycle,
+          start_date: payload.start_date || null,
+          end_date: payload.end_date || null,
         })
         .eq('id', id);
       if (updateError) throw updateError;
@@ -361,6 +398,8 @@ export const PlanningView: React.FC = () => {
       description: objective.description || '',
       status: objective.status,
       cycle: objective.cycle,
+      start_date: objective.start_date || '',
+      end_date: objective.end_date || '',
     });
     setObjectiveModalOpen(true);
   };
@@ -491,6 +530,15 @@ export const PlanningView: React.FC = () => {
         objectives.map((objective) => {
           const objectiveKeyResults = keyResults.filter((kr) => kr.objective_id === objective.id);
           const objectiveEpics = epics.filter((epic) => epic.objective_id === objective.id);
+          const isCycleOverdue = Boolean(
+            objective.end_date
+            && objective.end_date < new Date().toISOString().slice(0, 10)
+            && objective.status !== 'completed'
+            && objective.status !== 'archived'
+          );
+          const cycleDateText = objective.start_date || objective.end_date
+            ? `${objective.start_date || 'Sin inicio'} - ${objective.end_date || 'Sin fin'}`
+            : 'Sin fechas';
 
           return (
             <Card key={objective.id}>
@@ -519,6 +567,16 @@ export const PlanningView: React.FC = () => {
                 <p className='text-xs text-[var(--text-secondary)] uppercase'>
                   Estado: {objectiveStatusLabels[objective.status]} | Ciclo: {objectiveCycleLabels[objective.cycle]}
                 </p>
+                <div className='flex items-center gap-2 flex-wrap'>
+                  <p className='text-xs text-[var(--text-secondary)] uppercase'>
+                    Fechas: {cycleDateText}
+                  </p>
+                  {isCycleOverdue && (
+                    <span className='text-[10px] px-2 py-0.5 rounded-full bg-red-500/15 text-red-500'>
+                      Ciclo vencido
+                    </span>
+                  )}
+                </div>
                 {objective.description && (
                   <p className='text-sm text-[var(--text-secondary)]'>{objective.description}</p>
                 )}
@@ -666,6 +724,11 @@ export const PlanningView: React.FC = () => {
               return;
             }
 
+            if (objectiveForm.start_date && objectiveForm.end_date && objectiveForm.start_date > objectiveForm.end_date) {
+              toast.error('La fecha de inicio no puede ser mayor a la fecha de fin');
+              return;
+            }
+
             if (editingObjective) {
               updateObjective.mutate({ id: editingObjective.id, payload: objectiveForm });
               return;
@@ -708,14 +771,49 @@ export const PlanningView: React.FC = () => {
               <select
                 className='w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)]'
                 value={objectiveForm.cycle}
-                onChange={(event) => setObjectiveForm((prev) => ({ ...prev, cycle: event.target.value as ObjectiveFormState['cycle'] }))}
+                onChange={(event) => {
+                  const nextCycle = event.target.value as ObjectiveFormState['cycle'];
+                  setObjectiveForm((prev) => {
+                    const suggestion = getCycleDateSuggestion(nextCycle);
+                    if (!suggestion || nextCycle === 'custom') {
+                      return { ...prev, cycle: nextCycle };
+                    }
+
+                    // Only autofill when dates are empty to avoid overwriting explicit user input.
+                    const shouldAutofill = !prev.start_date && !prev.end_date;
+
+                    return {
+                      ...prev,
+                      cycle: nextCycle,
+                      start_date: shouldAutofill ? suggestion.start : prev.start_date,
+                      end_date: shouldAutofill ? suggestion.end : prev.end_date,
+                    };
+                  });
+                }}
               >
                 <option value='quarterly'>{objectiveCycleLabels.quarterly}</option>
                 <option value='half-year'>{objectiveCycleLabels['half-year']}</option>
                 <option value='yearly'>{objectiveCycleLabels.yearly}</option>
                 <option value='custom'>{objectiveCycleLabels.custom}</option>
               </select>
+              <p className='text-xs text-[var(--text-secondary)] mt-1'>
+                Al elegir ciclo trimestral/semestral/anual, se sugieren fechas si aun no definiste el rango.
+              </p>
             </div>
+          </div>
+          <div className='grid grid-cols-2 gap-3'>
+            <Input
+              label='Inicio del ciclo'
+              type='date'
+              value={objectiveForm.start_date}
+              onChange={(event) => setObjectiveForm((prev) => ({ ...prev, start_date: event.target.value }))}
+            />
+            <Input
+              label='Fin del ciclo'
+              type='date'
+              value={objectiveForm.end_date}
+              onChange={(event) => setObjectiveForm((prev) => ({ ...prev, end_date: event.target.value }))}
+            />
           </div>
           <div className='flex justify-end gap-2 pt-2'>
             <Button type='button' variant='ghost' onClick={resetObjectiveModal}>Cancelar</Button>
