@@ -9,6 +9,7 @@ interface RichTextEditorProps {
   rows?: number;
   onChange: (value: string) => void;
   onSubmit?: () => void;
+  submitBehavior?: 'shift-enter' | 'enter';
   placeholder?: string;
   disabled?: boolean;
   className?: string;
@@ -68,6 +69,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   value,
   onChange,
   onSubmit,
+  submitBehavior = 'shift-enter',
   placeholder = 'Escribe un mensaje...',
   disabled = false,
   className = '',
@@ -158,15 +160,32 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Submit on Shift + Enter
-    if (e.key === 'Enter' && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    const isEnterKey = e.key === 'Enter';
+    const isModEnter = isEnterKey && (e.ctrlKey || e.metaKey);
+    const isShiftEnter = isEnterKey && e.shiftKey && !e.ctrlKey && !e.metaKey;
+    const isPlainEnter = isEnterKey && !e.shiftKey && !e.ctrlKey && !e.metaKey;
+
+    // Keep Ctrl/Cmd+Enter as an always-available submit shortcut.
+    if (isModEnter && onSubmit) {
       e.preventDefault();
-      onSubmit?.();
+      onSubmit();
       return;
     }
 
-    // Handle Enter key for lists
-    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    if (submitBehavior === 'shift-enter' && isShiftEnter && onSubmit) {
+      e.preventDefault();
+      onSubmit();
+      return;
+    }
+
+    if (submitBehavior === 'enter' && isPlainEnter && onSubmit) {
+      e.preventDefault();
+      onSubmit();
+      return;
+    }
+
+    // Handle Enter key for list continuation when Enter does not submit.
+    if (submitBehavior !== 'enter' && isPlainEnter) {
       const textarea = e.currentTarget;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
@@ -367,6 +386,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
+        aria-keyshortcuts={submitBehavior === 'enter' ? 'Enter,Control+Enter,Meta+Enter' : 'Shift+Enter,Control+Enter,Meta+Enter'}
         placeholder={placeholder}
         disabled={disabled}
         rows={rows}
