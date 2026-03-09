@@ -24,6 +24,17 @@ interface UseGoogleCalendarTokensReturn {
   connectGoogleCalendar: (projectId?: string) => Promise<void>;
   disconnectGoogleCalendar: () => Promise<void>;
   refreshTokensFromSession: () => Promise<void>;
+  processOAuthCallback: (params: {
+    googleAuthParam: string | null;
+    errorParam: string | null;
+    projectId?: string;
+  }) => Promise<{
+    handled: boolean;
+    status: 'success' | 'error' | 'none';
+    message?: string;
+    infoMessage?: string;
+    redirectTo?: string;
+  }>;
 }
 
 /**
@@ -41,6 +52,10 @@ export function useGoogleCalendarTokens(): UseGoogleCalendarTokensReturn {
   const [authMethod, setAuthMethod] = useState<'google_login' | 'manual_link' | null>(null);
   const [isGoogleUser, setIsGoogleUser] = useState(false);
   const [needsReconnect, setNeedsReconnect] = useState(false);
+
+  const getRedirectPath = useCallback((projectId?: string) => {
+    return projectId ? `/projects/${projectId}/calendar` : '/dashboard';
+  }, []);
 
   // Cargar tokens al montar (prioriza sesión de Google, luego tabla manual)
   useEffect(() => {
@@ -181,6 +196,95 @@ export function useGoogleCalendarTokens(): UseGoogleCalendarTokensReturn {
     }
   }, [user?.id, authMethod, supabase, disconnect]);
 
+  const processOAuthCallback = useCallback(async ({
+    googleAuthParam,
+    errorParam,
+    projectId,
+  }: {
+    googleAuthParam: string | null;
+    errorParam: string | null;
+    projectId?: string;
+  }) => {
+    const redirectTo = getRedirectPath(projectId);
+
+    if (!googleAuthParam && !errorParam) {
+      return { handled: false, status: 'none' as const };
+    }
+
+    if (errorParam) {
+      return {
+        handled: true,
+        status: 'error' as const,
+        message: decodeURIComponent(errorParam),
+        redirectTo,
+      };
+    }
+
+    try {
+      const authJson = atob(googleAuthParam as string);
+      const authData = JSON.parse(authJson);
+      const { tokens: oauthTokens, userEmail: newUserEmail } = authData;
+
+      let infoMessage: string | undefined;
+      if (userEmail && newUserEmail && userEmail !== newUserEmail) {
+        disconnect();
+        infoMessage = `Cambiando a cuenta de Google: ${newUserEmail}`;
+      }
+
+      const existingUserId = user?.id || newUserEmail;
+      const expiresAt = oauthTokens.expiry_date
+        ? new Date(oauthTokens.expiry_date).toISOString()
+        : null;
+
+      const { data: existing } = await supabase
+        .from('google_calendar_tokens')
+        .select('id')
+        .eq('user_id', existingUserId)
+        .maybeSingle();
+
+      const tokenData = {
+        access_token: oauthTokens.access_token,
+        refresh_token: oauthTokens.refresh_token || null,
+        scope: oauthTokens.scope || 'https://www.googleapis.com/auth/calendar',
+        token_type: oauthTokens.token_type || 'Bearer',
+        expires_at: expiresAt,
+        user_email: newUserEmail,
+        ...(existing && { updated_at: new Date().toISOString() }),
+      };
+
+      const { error: saveError } = existing
+        ? await supabase
+          .from('google_calendar_tokens')
+          .update(tokenData)
+          .eq('user_id', existingUserId)
+        : await supabase
+          .from('google_calendar_tokens')
+          .insert({ ...tokenData, user_id: existingUserId });
+
+      if (saveError) {
+        throw saveError;
+      }
+
+      setTokens(oauthTokens, newUserEmail);
+
+      return {
+        handled: true,
+        status: 'success' as const,
+        message: 'Google Calendar conectado exitosamente',
+        infoMessage,
+        redirectTo,
+      };
+    } catch (error) {
+      console.error('Error al procesar callback OAuth de Google Calendar:', error);
+      return {
+        handled: true,
+        status: 'error' as const,
+        message: 'Error al conectar con Google Calendar',
+        redirectTo,
+      };
+    }
+  }, [disconnect, getRedirectPath, setTokens, supabase, user?.id, userEmail]);
+
   return {
     tokens,
     isConnected,
@@ -192,5 +296,6 @@ export function useGoogleCalendarTokens(): UseGoogleCalendarTokensReturn {
     connectGoogleCalendar,
     disconnectGoogleCalendar,
     refreshTokensFromSession,
+    processOAuthCallback,
   };
 }

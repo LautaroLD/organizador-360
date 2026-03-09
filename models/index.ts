@@ -55,6 +55,19 @@ export type {
   UpdateRoadmapPhaseDTO,
 } from './roadmap';
 
+// OKR / Epic Models
+export type {
+  OkrCycle,
+  OkrStatus,
+  OkrKeyResultTrackingMode,
+  OkrObjective,
+  OkrKeyResult,
+  Epic,
+  CreateObjectiveDTO,
+  CreateKeyResultDTO,
+  CreateEpicDTO,
+} from './okr';
+
 // Task Models
 export type { Task, TaskAssignment, TaskImage, TaskChecklistItem, CreateTaskDTO, UpdateTaskDTO } from './task';
 

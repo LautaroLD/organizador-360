@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/Button';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import { Calendar as CalendarIcon, Plus, ArrowUp } from 'lucide-react';
-import { useGoogleCalendarStore } from '@/store/googleCalendarStore';
 import { useGoogleCalendarTokens } from '@/hooks/useGoogleCalendarTokens';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { EventModal } from '@/components/calendar/EventModal';
@@ -51,6 +50,7 @@ export const CalendarView: React.FC = () => {
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const oauthProcessedRef = useRef(false);
   const { user } = useAuthStore();
@@ -58,17 +58,17 @@ export const CalendarView: React.FC = () => {
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { tokens, isConnected, userEmail, setTokens, disconnect, clearIfDifferentUser } = useGoogleCalendarStore();
   const {
-    tokens: unifiedTokens,
-    isConnected: isGoogleConnected,
+    tokens: activeTokens,
+    isConnected: activeIsConnected,
     isLoading: isGoogleLoading,
-    userEmail: googleUserEmail,
+    userEmail: activeUserEmail,
     authMethod,
     isGoogleUser,
     needsReconnect,
     connectGoogleCalendar: connectGoogle,
     disconnectGoogleCalendar: disconnectGoogle,
+    processOAuthCallback,
   } = useGoogleCalendarTokens();
   const userTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', []);
 
@@ -101,51 +101,6 @@ export const CalendarView: React.FC = () => {
     }
   };
 
-  // Cargar tokens desde Supabase al montar el componente
-
-  useEffect(() => {
-    const loadTokensFromSupabase = async () => {
-      if (!user?.id) return;
-
-      try {
-        const { data, error } = await supabase
-          .from('google_calendar_tokens')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        if (error || !data) return;
-        const now = new Date();
-        const expiresAt = data.expires_at ? new Date(data.expires_at) : null;
-
-        if (expiresAt && now > expiresAt) {
-          toast.warning('Sesión de Google expirada. Por favor, vuelve a conectar.');
-          await supabase.from('google_calendar_tokens').delete().eq('user_id', user.id);
-          disconnect();
-          return;
-        }
-
-        if (data.user_id !== user.id) {
-          clearIfDifferentUser(data.user_email);
-
-        }
-        const tokens = {
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-          scope: data.scope,
-          token_type: data.token_type,
-          expiry_date: expiresAt ? expiresAt.getTime() : null,
-        };
-
-        setTokens(tokens, data.user_email);
-      } catch (error) {
-        console.error('Error cargando tokens:', error);
-      }
-    };
-
-    loadTokensFromSupabase();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
   // Manejar callback de Google OAuth (solo una vez)
   useEffect(() => {
     const handleGoogleAuth = async () => {
@@ -153,98 +108,37 @@ export const CalendarView: React.FC = () => {
       if (oauthProcessedRef.current) return;
 
       const googleAuthParam = searchParams?.get('google_auth');
-      const error = searchParams?.get('error');
+      const errorParam = searchParams?.get('error');
 
-      if (!googleAuthParam && !error) return;
+      if (!googleAuthParam && !errorParam) return;
 
       oauthProcessedRef.current = true;
 
-      // Procesar datos de autenticación de Google Calendar
-      if (googleAuthParam) {
-        try {
-          // Decodificar datos desde Base64
-          const authJson = atob(googleAuthParam);
-          const authData = JSON.parse(authJson);
-          const { tokens, userEmail: newUserEmail } = authData;
+      const result = await processOAuthCallback({
+        googleAuthParam,
+        errorParam,
+        projectId: currentProject?.id,
+      });
 
-          // Verificar si hay un usuario diferente ya conectado
-          if (userEmail && newUserEmail && userEmail !== newUserEmail) {
-            disconnect();
-            toast.info(`Cambiando a cuenta de Google: ${newUserEmail}`);
-          }
+      if (result.infoMessage) {
+        toast.info(result.infoMessage);
+      }
 
-          // Guardar tokens en Supabase
-          try {
-            const existingUserId = user?.id || newUserEmail;
-            const expiresAt = tokens.expiry_date
-              ? new Date(tokens.expiry_date).toISOString()
-              : null;
-
-            const { data: existing } = await supabase
-              .from('google_calendar_tokens')
-              .select('id')
-              .eq('user_id', existingUserId)
-              .maybeSingle();
-
-            const tokenData = {
-              access_token: tokens.access_token,
-              refresh_token: tokens.refresh_token || null,
-              scope: tokens.scope || 'https://www.googleapis.com/auth/calendar',
-              token_type: tokens.token_type || 'Bearer',
-              expires_at: expiresAt,
-              user_email: newUserEmail,
-              ...(existing && { updated_at: new Date().toISOString() }),
-            };
-
-            const { error } = existing
-              ? await supabase
-                .from('google_calendar_tokens')
-                .update(tokenData)
-                .eq('user_id', existingUserId)
-              : await supabase
-                .from('google_calendar_tokens')
-                .insert({ ...tokenData, user_id: existingUserId });
-
-            if (error) {
-              console.error('Error guardando tokens:', error);
-              toast.error('Error al guardar tokens en la base de datos');
-              return;
-            }
-          } catch (saveError) {
-            console.error('Error al guardar tokens:', saveError);
-            toast.error('Error al guardar tokens en la base de datos');
-            return;
-          }
-
-          setTokens(tokens, newUserEmail);
-
-          toast.success('Google Calendar conectado exitosamente');
-        } catch (error) {
-          console.error('Error al procesar datos de autenticación:', error);
-          toast.error('Error al conectar con Google Calendar');
-        }
-
-        // Limpiar URL
-        if (currentProject?.id) {
-          router.replace(`/projects/${currentProject.id}/calendar`);
-        } else {
-          router.replace('/dashboard');
+      if (result.message) {
+        if (result.status === 'error') {
+          toast.error(result.message);
+        } else if (result.status === 'success') {
+          toast.success(result.message);
         }
       }
 
-      if (error) {
-        toast.error(decodeURIComponent(error));
-        if (currentProject?.id) {
-          router.replace(`/projects/${currentProject.id}/calendar`);
-        } else {
-          router.replace('/dashboard');
-        }
+      if (result.redirectTo) {
+        router.replace(result.redirectTo);
       }
     };
 
     handleGoogleAuth();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentProject?.id, processOAuthCallback, router, searchParams]);
 
   // Conectar con Google Calendar (usando hook unificado)
   const connectGoogleCalendar = async () => {
@@ -266,11 +160,6 @@ export const CalendarView: React.FC = () => {
       toast.error('Error al desconectar Google Calendar');
     }
   };
-
-  // Obtener los tokens activos (del hook unificado o del callback manual)
-  const activeTokens = unifiedTokens || tokens;
-  const activeIsConnected = isGoogleConnected || isConnected;
-  const activeUserEmail = googleUserEmail || userEmail;
 
   // Sincronizar evento con Google Calendar
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -342,13 +231,14 @@ export const CalendarView: React.FC = () => {
     }
 
     setIsSyncing(true);
+    setSyncProgress({ current: 0, total: events.length });
     const loadingToast = toast.loading(`Sincronizando ${events.length} evento(s)...`);
     let successCount = 0;
     let skippedCount = 0;
     let errorCount = 0;
 
     try {
-      for (const event of events) {
+      for (const [index, event] of events.entries()) {
         try {
           // Extraer fecha y hora de start_date y end_date
           const startParts = event.start_date.includes('T')
@@ -378,6 +268,8 @@ export const CalendarView: React.FC = () => {
         } catch (error) {
           console.error(`Error al sincronizar evento ${event.id}:`, error);
           errorCount++;
+        } finally {
+          setSyncProgress({ current: index + 1, total: events.length });
         }
       }
 
@@ -395,6 +287,7 @@ export const CalendarView: React.FC = () => {
       toast.error('Error al sincronizar eventos');
     } finally {
       setIsSyncing(false);
+      setSyncProgress({ current: 0, total: 0 });
     }
   };
 
@@ -445,7 +338,7 @@ export const CalendarView: React.FC = () => {
       toast.success('Evento(s) creado(s) exitosamente');
 
       // Sincronizar con Google Calendar si está conectado
-      if (isConnected && tokens) {
+      if (activeIsConnected && activeTokens) {
         const generatedEvents = generateRecurringEvents(variables);
 
         if (variables.recurrence_type !== 'none' && generatedEvents.length > 0) {
@@ -536,18 +429,15 @@ export const CalendarView: React.FC = () => {
     },
   });
 
-  // Eliminar todos los eventos de una fecha
-  const handleDeleteAllEventsFromDate = async (dateKey: string, eventIds: string[]) => {
+  const deleteEventsAndSync = async (eventIds: string[]) => {
     const loadingToast = toast.loading(`Eliminando ${eventIds.length} evento(s)...`);
 
     try {
-      // Obtener datos de los eventos antes de eliminarlos (para Google Calendar)
       const { data: eventsData } = await supabase
         .from('events')
         .select('*')
         .in('id', eventIds);
 
-      // Eliminar todos los eventos de la base de datos
       const { error } = await supabase
         .from('events')
         .delete()
@@ -555,7 +445,6 @@ export const CalendarView: React.FC = () => {
 
       if (error) throw error;
 
-      // Eliminar de Google Calendar para todas las cuentas conectadas
       if (eventsData) {
         for (const event of eventsData) {
           await deleteEventFromGoogle(event);
@@ -572,40 +461,14 @@ export const CalendarView: React.FC = () => {
     }
   };
 
+  // Eliminar todos los eventos de una fecha
+  const handleDeleteAllEventsFromDate = async (_dateKey: string, eventIds: string[]) => {
+    await deleteEventsAndSync(eventIds);
+  };
+
   // Eliminar múltiples eventos seleccionados
   const handleDeleteMultipleEvents = async (eventIds: string[]) => {
-    const loadingToast = toast.loading(`Eliminando ${eventIds.length} evento(s)...`);
-
-    try {
-      // Obtener datos de los eventos antes de eliminarlos (para Google Calendar)
-      const { data: eventsData } = await supabase
-        .from('events')
-        .select('*')
-        .in('id', eventIds);
-
-      // Eliminar todos los eventos de la base de datos
-      const { error } = await supabase
-        .from('events')
-        .delete()
-        .in('id', eventIds);
-
-      if (error) throw error;
-
-      // Eliminar de Google Calendar para todas las cuentas conectadas
-      if (eventsData) {
-        for (const event of eventsData) {
-          await deleteEventFromGoogle(event);
-        }
-      }
-
-      queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast.dismiss(loadingToast);
-      toast.success(`${eventIds.length} evento(s) eliminado(s)`);
-    } catch (error: unknown) {
-      toast.dismiss(loadingToast);
-      const errorMessage = error instanceof Error ? error.message : 'Error al eliminar eventos';
-      toast.error(errorMessage);
-    }
+    await deleteEventsAndSync(eventIds);
   };
 
   // Memoizar eventos agrupados por fecha
@@ -680,7 +543,7 @@ export const CalendarView: React.FC = () => {
                       variant="secondary"
                       disabled={isSyncing || !events || events.length === 0}
                     >
-                      🔄 Sincronizar Todos
+                      {isSyncing ? `🔄 Sincronizando (${syncProgress.current}/${syncProgress.total})` : '🔄 Sincronizar Todos'}
                     </Button>
                     {authMethod !== 'google_login' && (
                       <Button

@@ -12,10 +12,11 @@ import { formatLocalDate } from '@/lib/utils';
 interface KanbanTaskProps {
   task: Task;
   phaseLabel?: string | null;
+  epicLabel?: string | null;
   onEdit?: () => void;
 }
 
-export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, phaseLabel, onEdit }) => {
+export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, phaseLabel, epicLabel, onEdit }) => {
   const {
     attributes,
     listeners,
@@ -69,6 +70,11 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, phaseLabel, onEdit
         {phaseLabel && (
           <p className="text-xs text-[var(--text-secondary)] line-clamp-1 uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] text-ellipsis">
             Fase: {phaseLabel}
+          </p>
+        )}
+        {epicLabel && (
+          <p className="text-xs text-[var(--text-secondary)] line-clamp-1 uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] text-ellipsis">
+            Epica: {epicLabel}
           </p>
         )}
         {task.done_estimated_at && (

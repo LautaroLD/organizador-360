@@ -795,6 +795,7 @@ export const ChatView: React.FC = () => {
                             <RichTextEditor
                               value={editContent}
                               onChange={setEditContent}
+                              submitBehavior="enter"
                               onSubmit={() => {
                                 if (editContent.trim()) {
                                   updateMessageMutation.mutate({ messageId: message.id, content: editContent });
@@ -937,6 +938,7 @@ export const ChatView: React.FC = () => {
                   value={messageContent}
                   onChange={setMessageContent}
                   onSubmit={onSubmitMessage}
+                  submitBehavior="enter"
                   placeholder={`Mensaje en #${selectedChannel.name}`}
                   disabled={sendMessageMutation.isPending}
                   className="flex-1"
@@ -951,7 +953,7 @@ export const ChatView: React.FC = () => {
                   <Button
                     type="button"
                     className='flex-1'
-                    title="Enviar mensaje (Shift + Enter)"
+                    title="Enviar mensaje (Enter)"
                     onClick={onSubmitMessage}
                     disabled={sendMessageMutation.isPending || !messageContent.trim()}
                     aria-label="Enviar mensaje"
