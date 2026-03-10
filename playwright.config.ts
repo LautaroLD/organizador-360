@@ -3,6 +3,8 @@ import dotenv from 'dotenv';
 
 dotenv.config({ path: '.env' });
 
+const isWindows = process.platform === 'win32';
+
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -62,14 +64,19 @@ export default defineConfig({
       dependencies: ['setup'],
     },
 
-    {
-      name: 'firefox',
-      use: { 
-        ...devices['Desktop Firefox'],
-        storageState: 'e2e/.auth/user.json',
-      },
-      dependencies: ['setup'],
-    },
+    // Firefox headless is unstable on some Windows environments (GPU/compositor crashes).
+    ...(isWindows
+      ? []
+      : [
+        {
+          name: 'firefox',
+          use: {
+            ...devices['Desktop Firefox'],
+            storageState: 'e2e/.auth/user.json',
+          },
+          dependencies: ['setup'],
+        },
+      ]),
 
     {
       name: 'webkit',
