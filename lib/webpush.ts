@@ -39,10 +39,27 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
     try {
         const registration = await navigator.serviceWorker.register('/sw.js', {
             scope: '/',
+            updateViaCache: 'none',
         });
 
         // Force update check to ensure we have the latest version
         await registration.update();
+
+        // If there is an updated worker waiting, activate it immediately.
+        if (registration.waiting) {
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+
+        registration.addEventListener('updatefound', () => {
+            const installingWorker = registration.installing;
+            if (!installingWorker) return;
+
+            installingWorker.addEventListener('statechange', () => {
+                if (installingWorker.state === 'installed' && registration.waiting) {
+                    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                }
+            });
+        });
 
         return registration;
     } catch (error) {

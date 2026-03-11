@@ -12,7 +12,7 @@ import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { MessageContent } from '@/components/ui/MessageContent';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
-import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check, Reply, ChevronDown, ChevronUp, FileText, Sparkles, Lock } from 'lucide-react';
+import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check, Reply, FileText, Sparkles } from 'lucide-react';
 import useGemini from '@/hooks/useGemini';
 import { formatTime } from '@/lib/utils';
 import clsx from 'clsx';
@@ -478,7 +478,15 @@ export const ChatView: React.FC = () => {
       setTimeout(() => setHighlightedMessageId(null), 2000);
     }
   };
+  const [showToolbar, setShowToolbar] = useState(window.innerWidth >= 768); // Show toolbar by default on desktop, hide on mobile 
+  useEffect(() => {
+    const handleResize = () => {
+      setShowToolbar(window.innerWidth >= 768);
+    };
 
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   const handleChannelSelect = (channel: Channel) => {
     setSelectedChannel(channel);
     // Close sidebar on mobile after selecting channel
@@ -487,7 +495,7 @@ export const ChatView: React.FC = () => {
     }
   };
 
-  const [showToolbar, setShowToolbar] = useState(true);
+
   if (!currentProject) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -944,12 +952,6 @@ export const ChatView: React.FC = () => {
                   className="flex-1"
                 />
                 <div className='flex flex-col justify-between gap-2'>
-                  <Button aria-label={showToolbar ? 'Ocultar barra de herramientas' : 'Mostrar barra de herramientas'} title={showToolbar ? 'Ocultar barra de herramientas' : 'Mostrar barra de herramientas'} variant='ghost' onClick={() => setShowToolbar(!showToolbar)}>
-                    {
-                      !showToolbar ? <ChevronUp className="h-5 w-5" /> :
-                        <ChevronDown className="h-5 w-5" />
-                    }
-                  </Button>
                   <Button
                     type="button"
                     className='flex-1'

@@ -2,7 +2,6 @@
 import { useProjectStore } from '@/store/projectStore';
 import { ChatView } from '@/components/dashboard/ChatView';
 
-
 export default function ChatPage() {
   const { currentProject } = useProjectStore();
 

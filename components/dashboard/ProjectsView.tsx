@@ -10,7 +10,6 @@ import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/Card';
@@ -34,6 +33,7 @@ import type { ProjectFormData, InviteFormData, Project } from '@/models';
 import { StorageIndicator } from './StorageIndicator';
 import { getPlanLimits, getUserPlanTier } from '@/lib/subscriptionUtils';
 import { MessageContent } from '@/components/ui/MessageContent';
+import clsx from 'clsx';
 
 export const ProjectsView: React.FC = () => {
   const supabase = createClient();
@@ -372,15 +372,17 @@ export const ProjectsView: React.FC = () => {
                     <span className='text-xs px-2 py-1 rounded-full bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] font-medium'>
                       {project.userRole}
                     </span>
-                    <span className='text-xs text-[var(--text-secondary)] flex gap-2'>
-                      <p className={`text-[${project.enabled ? 'var(--accent-primary)' : 'var(--text-secondary)'}]`}>
+                    <div className='text-xs text-[var(--text-secondary)] flex gap-2'>
+                      <span
+                        className={clsx(
+                          project.enabled ? 'text-[var(--accent-primary)]' : 'text-[var(--text-secondary)]'
+                        )}
+                      >
                         {project.enabled ? 'Activo' : 'Inactivo'}
-                      </p>
-                      |
-                      <p>
-                        {formatDate(project.created_at)}
-                      </p>
-                    </span>
+                      </span>
+                      <span>|</span>
+                      <span>{formatDate(project.created_at)}</span>
+                    </div>
                   </div>
                 </div>
                 <CardTitle className='mt-3 flex items-center justify-between'>
@@ -389,13 +391,13 @@ export const ProjectsView: React.FC = () => {
                     <ArrowRight className='h-5 w-5 text-[var(--text-secondary)] group-hover:text-[var(--accent-primary)] transition-colors group-hover:translate-x-1 transition-transform' />
                   }
                 </CardTitle>
-                <CardDescription className='line-clamp-2'>
+                <div className='text-sm text-[var(--text-secondary)] line-clamp-2'>
                   {project.description ? (
                     <MessageContent content={project.description} />
                   ) : (
                     'Sin descripción'
                   )}
-                </CardDescription>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className='mb-4'>
