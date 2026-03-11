@@ -7,6 +7,149 @@ import { SupabaseClient } from '@supabase/supabase-js';
 
 export type PlanTier = 'free' | 'starter' | 'pro' | 'enterprise';
 
+type MercadoPagoStatus = 'authorized' | 'pending' | 'paused' | 'cancelled';
+
+type SubscriptionAccessSnapshot = {
+  status?: string | null;
+  cancel_at_period_end?: boolean | null;
+  current_period_end?: string | null;
+};
+
+const KNOWN_PAID_TIERS: ReadonlyArray<PlanTier> = ['starter', 'pro', 'enterprise'];
+
+function normalizeTier(value?: string | null): PlanTier {
+  const normalized = value?.toLowerCase();
+  if (normalized === 'starter' || normalized === 'pro' || normalized === 'enterprise') {
+    return normalized;
+  }
+  return 'free';
+}
+
+function buildPlanIdMap(useServerEnv: boolean): Record<'starter' | 'pro' | 'enterprise', string[]> {
+  const env = process.env;
+  const pick = (serverName: string, publicName: string) => {
+    const serverValue = useServerEnv ? env[serverName] : undefined;
+    return serverValue ?? env[publicName] ?? '';
+  };
+
+  return {
+    starter: [
+      pick('MP_STARTER_MENSUAL_PLAN_ID', 'NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID'),
+      pick('MP_STARTER_ANUAL_PLAN_ID', 'NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID'),
+    ].filter(Boolean),
+    pro: [
+      pick('MP_PRO_MENSUAL_PLAN_ID', 'NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID'),
+      pick('MP_PRO_ANUAL_PLAN_ID', 'NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID'),
+    ].filter(Boolean),
+    enterprise: [
+      pick('MP_ENTERPRISE_MENSUAL_PLAN_ID', 'NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID'),
+      pick('MP_ENTERPRISE_ANUAL_PLAN_ID', 'NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID'),
+    ].filter(Boolean),
+  };
+}
+
+export function getPublicMercadoPagoPlanIdMap() {
+  return buildPlanIdMap(false);
+}
+
+export function getServerMercadoPagoPlanIdMap() {
+  return buildPlanIdMap(true);
+}
+
+export function mapMercadoPagoPlanIdToTier(
+  planId?: string | null,
+  useServerEnv = false
+): PlanTier {
+  if (!planId) return 'free';
+  const map = buildPlanIdMap(useServerEnv);
+  if (map.starter.includes(planId)) return 'starter';
+  if (map.pro.includes(planId)) return 'pro';
+  if (map.enterprise.includes(planId)) return 'enterprise';
+  return 'free';
+}
+
+export function resolveEffectivePlanTier(input: {
+  planTier?: string | null;
+  internalPlanTier?: string | null;
+  priceId?: string | null;
+  useServerEnv?: boolean;
+}): PlanTier {
+  const fromDb = normalizeTier(input.planTier);
+  if (KNOWN_PAID_TIERS.includes(fromDb)) return fromDb;
+
+  const fromInternal = normalizeTier(input.internalPlanTier);
+  if (KNOWN_PAID_TIERS.includes(fromInternal)) return fromInternal;
+
+  return mapMercadoPagoPlanIdToTier(input.priceId, input.useServerEnv);
+}
+
+export function normalizeMercadoPagoStatus(status?: string | null): MercadoPagoStatus | null {
+  if (!status) return null;
+  const normalized = status.toLowerCase();
+  if (
+    normalized === 'authorized' ||
+    normalized === 'pending' ||
+    normalized === 'paused' ||
+    normalized === 'cancelled'
+  ) {
+    return normalized;
+  }
+  return null;
+}
+
+export function mapMercadoPagoStatusToDbStatus(status?: string | null): string {
+  const normalized = normalizeMercadoPagoStatus(status);
+  switch (normalized) {
+    case 'authorized':
+      return 'active';
+    case 'pending':
+      return 'incomplete';
+    case 'paused':
+      return 'paused';
+    case 'cancelled':
+      return 'canceled';
+    default:
+      return 'active';
+  }
+}
+
+export function hasPaidAccess(
+  snapshot: SubscriptionAccessSnapshot | null | undefined,
+  mercadoPagoStatus?: string | null
+): boolean {
+  if (!snapshot) return false;
+
+  const now = new Date();
+  const normalizedMpStatus = normalizeMercadoPagoStatus(mercadoPagoStatus);
+
+  if (normalizedMpStatus === 'authorized') {
+    return true;
+  }
+
+  const periodEnd = snapshot.current_period_end ? new Date(snapshot.current_period_end) : null;
+  const hasFuturePeriodEnd = Boolean(periodEnd && !Number.isNaN(periodEnd.getTime()) && periodEnd > now);
+
+  const status = snapshot.status?.toLowerCase();
+  const dbStatusIsActive =
+    status === 'active' ||
+    status === 'authorized' ||
+    status === 'trialing' ||
+    status === 'past_due';
+
+  if (dbStatusIsActive) {
+    return true;
+  }
+
+  const canceled =
+    normalizedMpStatus === 'cancelled' || status === 'canceled' || status === 'cancelled';
+
+  if (canceled && snapshot.cancel_at_period_end && hasFuturePeriodEnd) {
+    return true;
+  }
+
+  return false;
+}
+
 export const SUBSCRIPTION_LIMITS = {
   FREE: {
     MAX_PROJECTS: 3,

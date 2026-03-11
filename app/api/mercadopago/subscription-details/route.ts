@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { preapproval } from '@/lib/mercadopago';
+import { mapMercadoPagoPlanIdToTier, resolveEffectivePlanTier } from '@/lib/subscriptionUtils';
 import { NextResponse } from 'next/server';
 
 /**
@@ -34,29 +35,6 @@ export async function GET() {
         details: null
       });
     }
-
-    const planIdMap: Record<string, string[]> = {
-      starter: [
-        process.env.MP_STARTER_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '',
-        process.env.MP_STARTER_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID ?? ''
-      ],
-      pro: [
-        process.env.MP_PRO_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '',
-        process.env.MP_PRO_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID ?? ''
-      ],
-      enterprise: [
-        process.env.MP_ENTERPRISE_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID ?? '',
-        process.env.MP_ENTERPRISE_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID ?? ''
-      ],
-    };
-
-    const getInternalPlanId = (planId?: string | null) => {
-      if (!planId) return 'free';
-      if (planIdMap.starter.includes(planId)) return 'starter';
-      if (planIdMap.pro.includes(planId)) return 'pro';
-      if (planIdMap.enterprise.includes(planId)) return 'enterprise';
-      return 'free';
-    };
 
     // Obtener detalles de MercadoPago
     try {
@@ -156,7 +134,7 @@ export async function GET() {
       // DETERMINAR PLAN (Lógica del Servidor)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const subscriptionPlanId = (mpSubscription as any).preapproval_plan_id as string | undefined;
-      const internalPlanId = getInternalPlanId(subscriptionPlanId);
+      const internalPlanId = mapMercadoPagoPlanIdToTier(subscriptionPlanId, true);
 
       return NextResponse.json({
         hasSubscription: true,
@@ -173,7 +151,11 @@ export async function GET() {
       
       // Devolver datos de la BD si no podemos obtener de MP
       
-      const internalPlanId = subscription.plan_tier ? subscription.plan_tier : getInternalPlanId(subscription.price_id);
+      const internalPlanId = resolveEffectivePlanTier({
+        planTier: subscription.plan_tier,
+        priceId: subscription.price_id,
+        useServerEnv: true,
+      });
 
       return NextResponse.json({
         hasSubscription: true,

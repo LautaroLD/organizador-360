@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { preapproval } from '@/lib/mercadopago'; // Importamos solo lo necesario
+import { mapMercadoPagoPlanIdToTier } from '@/lib/subscriptionUtils';
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
@@ -34,29 +35,6 @@ export async function POST(request: NextRequest) {
       const userId = subscription.external_reference;
       const status = subscription.status;
 
-      const planIdMap: Record<string, string[]> = {
-        starter: [
-          process.env.MP_STARTER_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '',
-          process.env.MP_STARTER_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID ?? ''
-        ],
-        pro: [
-          process.env.MP_PRO_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '',
-          process.env.MP_PRO_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID ?? ''
-        ],
-        enterprise: [
-          process.env.MP_ENTERPRISE_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID ?? '',
-          process.env.MP_ENTERPRISE_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID ?? ''
-        ],
-      };
-
-      const getInternalPlanId = (planId?: string | null) => {
-        if (!planId) return 'free';
-        if (planIdMap.starter.includes(planId)) return 'starter';
-        if (planIdMap.pro.includes(planId)) return 'pro';
-        if (planIdMap.enterprise.includes(planId)) return 'enterprise';
-        return 'free';
-      };
-
       // Mapear estado o usar directamente si la migración se aplicó
       // Estados MP: authorized, paused, cancelled, pending
       
@@ -71,7 +49,7 @@ export async function POST(request: NextRequest) {
         // Esto corrige el problema de "no carga como pro" si el checkout inicial falló en guardar la BD
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const mpPlanId = (subscription as any).preapproval_plan_id as string | undefined;
-        const planTier = getInternalPlanId(mpPlanId);
+        const planTier = mapMercadoPagoPlanIdToTier(mpPlanId, true);
 
         const { error } = await supabaseAdmin
           .from('subscriptions')

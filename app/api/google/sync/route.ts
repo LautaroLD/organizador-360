@@ -23,6 +23,27 @@ interface GoogleTokens {
   expiry_date?: number;
 }
 
+interface SyncEventPayload {
+  title: string;
+  start_date: string;
+  [key: string]: unknown;
+}
+
+const normalizeTitle = (title: string) => title.trim().toLowerCase();
+
+const getEventStartDate = (event: calendar_v3.Schema$Event): string | null => {
+  const dateTime = event.start?.dateTime;
+  if (dateTime) {
+    return dateTime.split('T')[0] || null;
+  }
+
+  return event.start?.date || null;
+};
+
+const buildEventSignature = (title: string, startDate: string) => {
+  return `${normalizeTitle(title)}|${startDate}`;
+};
+
 const toGoogleTokens = (row: GoogleTokenRow): GoogleTokens => ({
   access_token: row.access_token,
   refresh_token: row.refresh_token,
@@ -39,8 +60,8 @@ const deleteMatchingEvents = async (
   const calendarService = new GoogleCalendarService(tokens);
   const events = await calendarService.getEvents();
   const matchingEvents = events.filter((event: calendar_v3.Schema$Event) =>
-    event.summary === eventTitle &&
-    event.start?.dateTime?.startsWith(startDate)
+    normalizeTitle(event.summary || '') === normalizeTitle(eventTitle) &&
+    getEventStartDate(event) === startDate
   );
 
   let deleted = 0;
@@ -91,7 +112,12 @@ const getProjectGoogleTokens = async (projectId: string) => {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { tokens, event, checkDuplicate = false } = body;
+    const { tokens, event, events, checkDuplicate = false } = body as {
+      tokens?: GoogleTokens;
+      event?: SyncEventPayload;
+      events?: SyncEventPayload[];
+      checkDuplicate?: boolean;
+    };
 
     if (!tokens) {
       return NextResponse.json(
@@ -101,23 +127,88 @@ export async function POST(request: NextRequest) {
     }
 
     const calendarService = new GoogleCalendarService(tokens);
-    
-    // Si se solicita verificar duplicados
+
+    // Sincronizacion en lote
+    if (Array.isArray(events)) {
+      if (events.length === 0) {
+        return NextResponse.json({
+          success: true,
+          created: 0,
+          skipped: 0,
+          errors: 0,
+        });
+      }
+
+      const existingSignatures = new Set<string>();
+      if (checkDuplicate) {
+        const existingEvents = await calendarService.getEvents();
+        existingEvents.forEach((googleEvent: calendar_v3.Schema$Event) => {
+          const title = googleEvent.summary;
+          const startDate = getEventStartDate(googleEvent);
+          if (!title || !startDate) return;
+          existingSignatures.add(buildEventSignature(title, startDate));
+        });
+      }
+
+      let created = 0;
+      let skipped = 0;
+      let errors = 0;
+
+      for (const currentEvent of events) {
+        try {
+          const signature = buildEventSignature(currentEvent.title, currentEvent.start_date);
+
+          if (checkDuplicate && existingSignatures.has(signature)) {
+            skipped += 1;
+            continue;
+          }
+
+          const googleEvent = formatEventForGoogle(currentEvent);
+          await calendarService.createEvent(googleEvent);
+          created += 1;
+
+          if (checkDuplicate) {
+            existingSignatures.add(signature);
+          }
+        } catch (batchError) {
+          errors += 1;
+          console.error('Error al sincronizar evento en lote:', batchError);
+        }
+      }
+
+      return NextResponse.json({
+        success: errors === 0,
+        partial: errors > 0,
+        created,
+        skipped,
+        errors,
+      });
+    }
+
+    if (!event) {
+      return NextResponse.json(
+        { error: 'No event payload provided' },
+        { status: 400 }
+      );
+    }
+
+    // Sincronizacion individual
     if (checkDuplicate) {
       const existingEvents = await calendarService.getEvents();
-      const startDate = event.start_date;
-      
-      // Buscar eventos duplicados por título y fecha
-      const isDuplicate = existingEvents.some((e: calendar_v3.Schema$Event) => 
-        e.summary === event.title && 
-        e.start?.dateTime?.startsWith(startDate)
-      );
-      
+      const eventSignature = buildEventSignature(event.title, event.start_date);
+
+      const isDuplicate = existingEvents.some((googleEvent: calendar_v3.Schema$Event) => {
+        const title = googleEvent.summary;
+        const startDate = getEventStartDate(googleEvent);
+        if (!title || !startDate) return false;
+        return buildEventSignature(title, startDate) === eventSignature;
+      });
+
       if (isDuplicate) {
-        return NextResponse.json({ 
-          success: true, 
+        return NextResponse.json({
+          success: true,
           skipped: true,
-          message: 'Event already exists' 
+          message: 'Event already exists'
         });
       }
     }
