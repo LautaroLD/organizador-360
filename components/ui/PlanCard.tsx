@@ -4,22 +4,41 @@ import React from 'react';
 import { Check, Star, Zap } from 'lucide-react';
 import { Button } from './Button';
 import { useRouter } from 'next/navigation';
+import { resolveEffectivePlanTier } from '@/lib/subscriptionUtils';
+
+type PlanResponse = {
+  reason?: string;
+  init_point?: string;
+  auto_recurring?: {
+    transaction_amount?: number;
+    frequency_type?: string;
+    frequency?: number;
+    free_trial?: {
+      frequency?: number;
+    };
+  };
+};
 
 export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference }: { planId: string; isCurrent: boolean; isCanceled: boolean; plan_reference: string; }) {
   const router = useRouter();
-  const { data: plan, isLoading, error } = useQuery({
+  const { data: plan, isLoading, error } = useQuery<PlanResponse>({
     queryKey: ['plan', planId],
     queryFn: async () => {
-      const res = await fetch(`/api/mercadopago/plan/${planId}`);
+      const res = await fetch(`/api/mercadopago/plan/${planId}`, {
+        credentials: 'include',
+      });
       if (!res.ok) {
         throw new Error('Error fetching plan data');
       }
       return res.json();
     },
     enabled: !!planId,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: 1,
   });
   const isPlanIdMissing = !planId;
-  const isLoadingState = isLoading || isPlanIdMissing;
+  const isLoadingState = isLoading;
 
   const planFeatures: Record<string, { icon: React.ReactNode; description: string; features: string[]; }> = {
     free: {
@@ -91,21 +110,18 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
       ]
     }
   };
-  function getPlanType(planReason: string, planRef: string): string {
+  function inferTierFromReference(planRef: string): 'free' | 'starter' | 'pro' | 'enterprise' {
     const ref = planRef.toLowerCase();
     if (ref.includes('free')) return 'free';
     if (ref.includes('starter')) return 'starter';
     if (ref.includes('enterprise')) return 'enterprise';
-    if (ref.includes('pro')) return 'pro';
-
-    const reason = planReason.toLowerCase();
-    if (reason.includes('free')) return 'free';
-    if (reason.includes('starter')) return 'starter';
-    if (reason.includes('enterprise')) return 'enterprise';
     return 'pro';
   }
   const planReason = (!isLoadingState && plan && typeof plan.reason === 'string') ? plan.reason : '';
-  const type = getPlanType(planReason, plan_reference);
+  const type = resolveEffectivePlanTier({
+    planTier: inferTierFromReference(plan_reference),
+    internalPlanTier: planReason,
+  });
   const features = planFeatures[type]?.features || [];
   const icon = planFeatures[type]?.icon || <Star className='h-8 w-8' />;
   const description = planFeatures[type]?.description || '';
@@ -130,8 +146,17 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
         </div>
       )}
 
+      {!isLoadingState && isPlanIdMissing && (
+        <div className='rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-6 flex items-center justify-center min-h-80'>
+          <div className='text-center'>
+            <p className='text-[var(--accent-danger)] font-bold mb-2'>Plan no disponible</p>
+            <p className='text-[var(--text-secondary)] text-xs'>Falta configurar el ID del plan en variables de entorno.</p>
+          </div>
+        </div>
+      )}
+
       {/* Error */}
-      {!isLoadingState && (!plan || error) && (
+      {!isLoadingState && !isPlanIdMissing && (!plan || error) && (
         <div className='rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-6 flex items-center justify-center min-h-80'>
           <div className='text-center'>
             <p className='text-[var(--accent-danger)] font-bold mb-2'>No se pudo cargar el plan</p>
@@ -215,7 +240,11 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
               className='w-full mt-auto'
               variant={isCurrent && !isCanceled ? 'primary' : 'secondary'}
               disabled={(isCurrent && !isCanceled) || isLoadingState || isFree}
-              onClick={() => { if (!isFree) handleSubscribe(plan.init_point); }}
+              onClick={() => {
+                if (!isFree && plan.init_point) {
+                  handleSubscribe(plan.init_point);
+                }
+              }}
             >
               {isFree
                 ? 'Ya estás aquí'

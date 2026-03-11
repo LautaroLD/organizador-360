@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { preapproval } from '@/lib/mercadopago';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { mapMercadoPagoPlanIdToTier, mapMercadoPagoStatusToDbStatus } from '@/lib/subscriptionUtils';
 
 /**
  * GET /api/mercadopago/sync-preapproval?preapproval_id=xxx
@@ -42,26 +43,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Mapear estado de MP a estados permitidos en nuestra BD
-    // Estados de MP: pending, authorized, paused, cancelled
-    // Estados en nuestra BD: active, canceled, past_due, trialing, incomplete, etc.
-    let dbStatus = 'active';
-    switch (mpSubscription.status) {
-      case 'authorized':
-        dbStatus = 'active';
-        break;
-      case 'pending':
-        dbStatus = 'incomplete';
-        break;
-      case 'paused':
-        dbStatus = 'paused';
-        break;
-      case 'cancelled':
-        dbStatus = 'canceled';
-        break;
-      default:
-        dbStatus = mpSubscription.status || 'active';
-    }
+    const dbStatus = mapMercadoPagoStatusToDbStatus(mpSubscription.status);
 
     // Calcular fechas
     const now = new Date();
@@ -69,32 +51,9 @@ export async function GET(request: NextRequest) {
       ? new Date(mpSubscription.next_payment_date)
       : new Date(now.setMonth(now.getMonth() + 1));
 
-    const planIdMap: Record<string, string[]> = {
-      starter: [
-        process.env.MP_STARTER_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '',
-        process.env.MP_STARTER_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID ?? ''
-      ],
-      pro: [
-        process.env.MP_PRO_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '',
-        process.env.MP_PRO_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID ?? ''
-      ],
-      enterprise: [
-        process.env.MP_ENTERPRISE_MENSUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID ?? '',
-        process.env.MP_ENTERPRISE_ANUAL_PLAN_ID ?? process.env.NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID ?? ''
-      ],
-    };
-
-    const getInternalPlanId = (planId?: string | null) => {
-      if (!planId) return 'free';
-      if (planIdMap.starter.includes(planId)) return 'starter';
-      if (planIdMap.pro.includes(planId)) return 'pro';
-      if (planIdMap.enterprise.includes(planId)) return 'enterprise';
-      return 'free';
-    };
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mpPlanId = (mpSubscription as any).preapproval_plan_id as string | undefined;
-    const planTier = getInternalPlanId(mpPlanId);
+    const planTier = mapMercadoPagoPlanIdToTier(mpPlanId, true);
 
     // Upsert en la tabla de subscriptions
     const { error: upsertError } = await supabaseAdmin

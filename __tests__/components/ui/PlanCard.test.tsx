@@ -24,10 +24,9 @@ describe('PlanCard', () => {
     queryClient.clear();
   });
 
-  it('muestra loading mientras carga el plan', () => {
-    // Simula que no hay planId (no se habilita la query)
+  it('muestra estado de plan no disponible cuando falta planId', () => {
     renderComponent({ planId: '', isCurrent: false, isCanceled: false, plan_reference: 'PRO_MENSUAL' });
-    expect(screen.getByText('Cargando plan...')).toBeInTheDocument();
+    expect(screen.getByText('Plan no disponible')).toBeInTheDocument();
   });
 
   it('muestra error si falla la carga', () => {

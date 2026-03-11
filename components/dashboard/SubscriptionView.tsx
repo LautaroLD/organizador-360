@@ -22,6 +22,10 @@ import {
   Lock,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import {
+  hasPaidAccess,
+  resolveEffectivePlanTier,
+} from '@/lib/subscriptionUtils';
 import PlanCard from '../ui/PlanCard';
 import clsx from 'clsx';
 
@@ -62,7 +66,7 @@ export const SubscriptionView: React.FC = () => {
   const queryClient = useQueryClient();
   const [tabPro, setTabPro] = useState<'mensual' | 'anual'>('anual');
   const [tabStarter, setTabStarter] = useState<'mensual' | 'anual'>('anual');
-  const [tabEnterprise, setTabEnterprise] = useState<'mensual' | 'anual'>('anual');
+  const tabEnterprise: 'mensual' | 'anual' = 'anual';
   // Fetch subscription data from local DB
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({
     queryKey: ['subscription', user?.id],
@@ -194,33 +198,24 @@ export const SubscriptionView: React.FC = () => {
   };
 
   // Determinar si es Pro: Status activo O (status cancelado Y fecha fin futura)
-  const planIdMap: Record<string, string[]> = {
-    starter: [
-      process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '',
-      process.env.NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID ?? ''
-    ],
-    pro: [
-      process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '',
-      process.env.NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID ?? ''
-    ],
-    enterprise: [
-      process.env.NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID ?? '',
-      process.env.NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID ?? ''
-    ],
-  };
-
-  const mapPlanIdToTier = (planId?: string | null) => {
-    if (!planId) return 'free';
-    if (planIdMap.starter.includes(planId)) return 'starter';
-    if (planIdMap.pro.includes(planId)) return 'pro';
-    if (planIdMap.enterprise.includes(planId)) return 'enterprise';
-    return 'free';
-  };
-
-  const currentPlanTier = mpData?.internalPlanId ?? mapPlanIdToTier(subscription?.price_id ?? null);
-  const isPaid = currentPlanTier !== 'free' && (mpData?.details?.isActive ?? true);
+  const currentPlanTier = resolveEffectivePlanTier({
+    planTier: subscription?.plan_tier,
+    internalPlanTier: mpData?.internalPlanId,
+    priceId: subscription?.price_id ?? null,
+  });
+  const isPaid =
+    currentPlanTier !== 'free' &&
+    hasPaidAccess(
+      {
+        status: subscription?.status,
+        cancel_at_period_end: subscription?.cancel_at_period_end,
+        current_period_end: subscription?.current_period_end,
+      },
+      mpData?.details?.status
+    );
   const isCanceled = Boolean(
     subscription?.cancel_at_period_end ||
+    mpData?.details?.isCancelled ||
     subscription?.status === 'canceled' ||
     subscription?.status === 'cancelled'
   );
@@ -242,7 +237,6 @@ export const SubscriptionView: React.FC = () => {
   const pro_anual_id = process.env.NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID ?? '';
   const starter_mensual_id = process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '';
   const starter_anual_id = process.env.NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID ?? '';
-  const enterprise_mensual_id = process.env.NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID ?? '';
   const enterprise_anual_id = process.env.NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID ?? '';
   return (
     <div className='p-6  mx-auto'>
@@ -433,10 +427,6 @@ export const SubscriptionView: React.FC = () => {
           </div>
           { /* Enterprise Plan Cards */}
           <div className='space-y-2 relative'>
-            {
-              tabEnterprise === 'mensual' &&
-              <PlanCard planId={enterprise_mensual_id} isCurrent={currentPlanTier === 'enterprise'} isCanceled={isCanceled} plan_reference="ENTERPRISE_MENSUAL" />
-            }
             {tabEnterprise === 'anual' &&
               <PlanCard planId={enterprise_anual_id} isCurrent={currentPlanTier === 'enterprise'} isCanceled={isCanceled} plan_reference="ENTERPRISE_ANUAL" />
             }
