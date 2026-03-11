@@ -32,10 +32,17 @@ interface ChannelFormData {
   description: string;
 }
 
+interface RenameChannelFormData {
+  name: string;
+  description: string;
+}
+
 export const ChatView: React.FC = () => {
   const supabase = createClient();
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
+  const [isRenameChannelModalOpen, setIsRenameChannelModalOpen] = useState(false);
+  const [channelToRename, setChannelToRename] = useState<Channel | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNotificationLoading, setIsNotificationLoading] = useState(false);
   const { user } = useAuthStore();
@@ -139,6 +146,12 @@ export const ChatView: React.FC = () => {
     useForm<MessageFormData>();
   const { register: registerChannel, handleSubmit: handleSubmitChannel, reset: resetChannel, formState: { errors } } =
     useForm<ChannelFormData>();
+  const {
+    register: registerRenameChannel,
+    handleSubmit: handleSubmitRenameChannel,
+    reset: resetRenameChannel,
+    formState: { errors: renameChannelErrors }
+  } = useForm<RenameChannelFormData>();
 
   // Fetch channels
   const { data: channels, isLoading: channelsLoading } = useQuery({
@@ -280,6 +293,39 @@ export const ChatView: React.FC = () => {
     },
     onError: (error) => {
       toast.error(error.message || 'Error al eliminar canal');
+    },
+  });
+
+  // Rename channel mutation
+  const renameChannelMutation = useMutation({
+    mutationFn: async ({ channelId, name, description }: { channelId: string; name: string; description: string; }) => {
+      const { error } = await supabase
+        .from('channels')
+        .update({
+          name,
+          description: description || null,
+        })
+        .eq('id', channelId);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+      setSelectedChannel((prev) => {
+        if (!prev || prev.id !== variables.channelId) return prev;
+        return {
+          ...prev,
+          name: variables.name,
+          description: variables.description || '',
+        };
+      });
+      toast.success('Canal actualizado');
+      setIsRenameChannelModalOpen(false);
+      setChannelToRename(null);
+      resetRenameChannel();
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Error al renombrar canal');
     },
   });
 
@@ -445,6 +491,34 @@ export const ChatView: React.FC = () => {
     createChannelMutation.mutate(data);
   };
 
+  const onSubmitRenameChannel = (data: RenameChannelFormData) => {
+    if (!channelToRename) return;
+    if (channelToRename.name === 'general') {
+      toast.error('El canal general no se puede renombrar');
+      return;
+    }
+
+    renameChannelMutation.mutate({
+      channelId: channelToRename.id,
+      name: data.name,
+      description: data.description,
+    });
+  };
+
+  const openRenameChannelModal = (channel: Channel) => {
+    if (channel.name === 'general') {
+      toast.error('El canal general no se puede renombrar');
+      return;
+    }
+
+    setChannelToRename(channel);
+    resetRenameChannel({
+      name: channel.name,
+      description: channel.description || '',
+    });
+    setIsRenameChannelModalOpen(true);
+  };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const scrollToMessage = async (repliedMessage: any) => {
     if (!repliedMessage) return;
@@ -563,16 +637,50 @@ export const ChatView: React.FC = () => {
                   <span className="truncate">{channel.name}</span>
                 </div>
                 {channel.name !== 'general' && selectedChannel?.id === channel.id && (
-                  <Trash2
-                    className="h-4 w-4 cursor-pointer hover:bg-white/20 rounded flex-shrink-0 ml-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm('¿Eliminar este canal?')) {
-                        deleteChannelMutation.mutate(channel.id);
-                      }
-                    }}
-                    aria-label="Eliminar canal"
-                  />
+                  <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="h-6 w-6 flex items-center justify-center cursor-pointer hover:bg-white/20 rounded"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openRenameChannelModal(channel);
+                      }}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openRenameChannelModal(channel);
+                        }
+                      }}
+                      aria-label="Renombrar canal"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
+                    </span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="h-6 w-6 flex items-center justify-center cursor-pointer hover:bg-white/20 rounded"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm('¿Eliminar este canal?')) {
+                          deleteChannelMutation.mutate(channel.id);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          if (confirm('¿Eliminar este canal?')) {
+                            deleteChannelMutation.mutate(channel.id);
+                          }
+                        }
+                      }}
+                      aria-label="Eliminar canal"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </span>
+                  </div>
                 )}
               </button>
             ))
@@ -1068,8 +1176,15 @@ export const ChatView: React.FC = () => {
           />
           <Input
             label="Descripción"
-            {...registerChannel('description')}
+            {...registerChannel('description', {
+              maxLength: {
+                value: 100,
+                message: 'Máximo 100 caracteres',
+              },
+            })}
+            error={errors.description?.message}
             placeholder="Descripción del canal"
+            maxLength={100}
           />
           <div className="flex justify-end space-x-2">
             <Button
@@ -1081,6 +1196,61 @@ export const ChatView: React.FC = () => {
             </Button>
             <Button type="submit" disabled={createChannelMutation.isPending}>
               {createChannelMutation.isPending ? 'Creando...' : 'Crear Canal'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Rename Channel Modal */}
+      <Modal
+        isOpen={isRenameChannelModalOpen}
+        onClose={() => {
+          setIsRenameChannelModalOpen(false);
+          setChannelToRename(null);
+        }}
+        title="Editar Canal"
+      >
+        <form onSubmit={handleSubmitRenameChannel(onSubmitRenameChannel)} className="space-y-4">
+          <Input
+            label="Nuevo nombre del canal"
+            {...registerRenameChannel('name', {
+              required: 'El nombre es requerido',
+              pattern: {
+                value: /^[a-z0-9-]+$/,
+                message: 'Solo letras minúsculas, números y guiones',
+              },
+              validate: {
+                notGeneral: (value) => value !== 'general' || 'El canal general está reservado',
+              },
+            })}
+            error={renameChannelErrors.name?.message}
+            placeholder="nuevo-nombre-del-canal"
+          />
+          <Input
+            label="Descripción"
+            {...registerRenameChannel('description', {
+              maxLength: {
+                value: 100,
+                message: 'Máximo 100 caracteres',
+              },
+            })}
+            error={renameChannelErrors.description?.message}
+            placeholder="Descripción del canal"
+            maxLength={100}
+          />
+          <div className="flex justify-end space-x-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setIsRenameChannelModalOpen(false);
+                setChannelToRename(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={renameChannelMutation.isPending}>
+              {renameChannelMutation.isPending ? 'Guardando...' : 'Guardar'}
             </Button>
           </div>
         </form>
