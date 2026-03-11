@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
   closestCorners,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragStartEvent,
@@ -15,7 +16,7 @@ import {
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { KanbanColumn } from './KanbanColumn';
-import { KanbanTask } from './KanbanTask';
+import { KanbanTaskCard } from './KanbanTask';
 import { TaskModal } from './TaskModal';
 import { useTasks } from '@/hooks/useTasks';
 import { Button } from '@/components/ui/Button';
@@ -26,7 +27,7 @@ import SuggestionsModal from './SuggestionsModal';
 import { createClient } from '@/lib/supabase/client';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 import CreateRoadmap from './CreateRoadmap';
-import { Epic, RoadmapPhase } from '@/models';
+import { Epic, RoadmapPhase, Task } from '@/models';
 
 interface KanbanBoardProps {
   projectId: string;
@@ -49,6 +50,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   const [isPremium, setIsPremium] = useState(false);
   const [selectedPhaseId, setSelectedPhaseId] = useState<'all' | 'none' | number>('all');
   const [selectedEpicId, setSelectedEpicId] = useState<'all' | 'none' | string>('all');
+  const [dragTasks, setDragTasks] = useState<Task[] | null>(null);
   const { generateSuggestedTasks } = useGemini();
   const supabase = createClient();
   const [openPhaseStats, setOpenPhaseStats] = useState(false);
@@ -103,14 +105,21 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
     enabled: !!projectId,
   });
 
-  const editingTask = React.useMemo(() =>
+  const editingTask = useMemo(() =>
     tasks?.find(t => t.id === editingTaskId) || null
     , [tasks, editingTaskId]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 6,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        // Allow vertical scroll gestures before starting drag on mobile.
+        delay: 180,
+        tolerance: 10,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -118,39 +127,60 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
     })
   );
 
-  const filteredTasks = React.useMemo(() => {
-    if (!tasks) {
-      return [];
-    }
+  const boardTasks = useMemo(() => dragTasks ?? tasks ?? [], [dragTasks, tasks]);
 
-    if (selectedPhaseId === 'all') {
-      return tasks;
-    }
+  const filteredTasks = useMemo(() => {
+    return boardTasks.filter((task) => {
+      const phaseMatches =
+        selectedPhaseId === 'all'
+          ? true
+          : selectedPhaseId === 'none'
+            ? !task.phase_roadmap_id
+            : task.phase_roadmap_id === selectedPhaseId;
 
-    if (selectedPhaseId === 'none') {
-      return tasks.filter((task) => !task.phase_roadmap_id);
-    }
+      if (!phaseMatches) {
+        return false;
+      }
 
-    const phaseFiltered = tasks.filter((task) => task.phase_roadmap_id === selectedPhaseId);
+      if (selectedEpicId === 'all') {
+        return true;
+      }
 
-    if (selectedEpicId === 'all') {
-      return phaseFiltered;
-    }
+      if (selectedEpicId === 'none') {
+        return !task.epic_id;
+      }
 
-    if (selectedEpicId === 'none') {
-      return phaseFiltered.filter((task) => !task.epic_id);
-    }
+      return task.epic_id === selectedEpicId;
+    });
+  }, [boardTasks, selectedEpicId, selectedPhaseId]);
 
-    return phaseFiltered.filter((task) => task.epic_id === selectedEpicId);
-  }, [selectedEpicId, selectedPhaseId, tasks]);
+  const columns = useMemo(
+    () => filteredTasks.reduce<Record<Task['status'], Task[]>>((acc, task) => {
+      acc[task.status].push(task);
+      return acc;
+    }, {
+      todo: [],
+      'in-progress': [],
+      done: [],
+    }),
+    [filteredTasks]
+  );
 
-  const columns = {
-    todo: filteredTasks.filter((task) => task.status === 'todo'),
-    'in-progress': filteredTasks.filter((task) => task.status === 'in-progress'),
-    done: filteredTasks.filter((task) => task.status === 'done'),
-  };
+  const tasksById = useMemo(() => {
+    return (boardTasks || []).reduce<Record<string, Task>>((acc, task) => {
+      acc[task.id] = task;
+      return acc;
+    }, {});
+  }, [boardTasks]);
 
-  const phaseStats = React.useMemo(() => {
+  const persistedTasksById = useMemo(() => {
+    return (tasks || []).reduce<Record<string, Task>>((acc, task) => {
+      acc[task.id] = task;
+      return acc;
+    }, {});
+  }, [tasks]);
+
+  const phaseStats = useMemo(() => {
     const allTasks = tasks || [];
 
     const stats = roadmapPhases.map((phase) => {
@@ -187,56 +217,107 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
     return stats;
   }, [roadmapPhases, tasks]);
 
-  const phaseLabels = React.useMemo(() => {
+  const phaseLabels = useMemo(() => {
     return roadmapPhases.reduce<Record<number, string>>((acc, phase) => {
       acc[phase.id] = phase.name;
       return acc;
     }, {});
   }, [roadmapPhases]);
 
-  const epicLabels = React.useMemo(() => {
+  const epicLabels = useMemo(() => {
     return epics.reduce<Record<string, string>>((acc, epic) => {
       acc[epic.id] = epic.title;
       return acc;
     }, {});
   }, [epics]);
 
-  const handleDragStart = (event: DragStartEvent) => {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(event.active.id as string);
-  };
+    setDragTasks(tasks || []);
+  }, [tasks]);
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleDragOver = (_event: DragOverEvent) => {
-    // Optional: Add logic for visual feedback during drag
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event;
 
     if (!over) {
+      return;
+    }
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    setDragTasks((prev) => {
+      if (!prev) {
+        return prev;
+      }
+
+      const activeTask = prev.find((task) => task.id === activeId);
+      if (!activeTask) {
+        return prev;
+      }
+
+      let nextStatus: Task['status'] | null = null;
+
+      if (overId === 'todo' || overId === 'in-progress' || overId === 'done') {
+        nextStatus = overId;
+      } else {
+        const overTask = prev.find((task) => task.id === overId);
+        if (overTask) {
+          nextStatus = overTask.status;
+        }
+      }
+
+      if (!nextStatus || nextStatus === activeTask.status) {
+        return prev;
+      }
+
+      return prev.map((task) =>
+        task.id === activeTask.id
+          ? { ...task, status: nextStatus }
+          : task
+      );
+    });
+  }, []);
+
+  const handleDragCancel = useCallback(() => {
+    setDragTasks(null);
+    setActiveId(null);
+  }, []);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over) {
+      setDragTasks(null);
       setActiveId(null);
       return;
     }
 
-    const activeTask = tasks?.find(t => t.id === active.id);
+    const currentTasks = dragTasks ?? tasks ?? [];
+    const currentTasksById = currentTasks.reduce<Record<string, Task>>((acc, task) => {
+      acc[task.id] = task;
+      return acc;
+    }, {});
+
+    const activeTask = currentTasksById[active.id as string];
+    const persistedTask = persistedTasksById[active.id as string];
     const overId = over.id as string;
 
     if (activeTask) {
-      let newStatus = activeTask.status;
+      let newStatus: Task['status'] = activeTask.status;
 
       // If dropped over a column
       if (overId === 'todo' || overId === 'in-progress' || overId === 'done') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        newStatus = overId as any;
+        newStatus = overId;
       } else {
         // If dropped over another task
-        const overTask = tasks?.find(t => t.id === overId);
+        const overTask = currentTasksById[overId];
         if (overTask) {
           newStatus = overTask.status;
         }
       }
 
-      if (activeTask.status !== newStatus) {
+      if (persistedTask && persistedTask.status !== newStatus) {
         updateTask.mutate({
           id: activeTask.id,
           data: { status: newStatus }
@@ -244,8 +325,16 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
       }
     }
 
+    setDragTasks(null);
     setActiveId(null);
-  };
+  }, [dragTasks, persistedTasksById, tasks, updateTask]);
+
+  const activeTask = activeId ? tasksById[activeId] : null;
+
+  const handleEditTask = useCallback((task: Task) => {
+    setEditingTaskId(task.id);
+    setIsModalOpen(true);
+  }, []);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleCreateTask = (data: any) => {
@@ -403,6 +492,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
+        onDragCancel={handleDragCancel}
         onDragEnd={handleDragEnd}
       >
         <div className="flex-1 flex gap-5 overflow-x-auto  overflow-y-hidden p-4 min-h-0 h-full">
@@ -412,7 +502,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             tasks={columns.todo}
             phaseLabels={phaseLabels}
             epicLabels={epicLabels}
-            onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }}
+            onEditTask={handleEditTask}
           />
           <KanbanColumn
             id="in-progress"
@@ -420,7 +510,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             tasks={columns['in-progress']}
             phaseLabels={phaseLabels}
             epicLabels={epicLabels}
-            onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }}
+            onEditTask={handleEditTask}
           />
           <KanbanColumn
             id="done"
@@ -428,13 +518,17 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             tasks={columns.done}
             phaseLabels={phaseLabels}
             epicLabels={epicLabels}
-            onEditTask={(task) => { setEditingTaskId(task.id); setIsModalOpen(true); }}
+            onEditTask={handleEditTask}
           />
         </div>
 
         <DragOverlay>
-          {activeId && tasks?.find((t) => t.id === activeId) ? (
-            <KanbanTask task={tasks.find((t) => t.id === activeId)!} />
+          {activeTask ? (
+            <KanbanTaskCard
+              task={activeTask}
+              phaseLabel={activeTask.phase_roadmap_id ? phaseLabels[activeTask.phase_roadmap_id] : null}
+              epicLabel={activeTask.epic_id ? epicLabels[activeTask.epic_id] : null}
+            />
           ) : null}
         </DragOverlay>
       </DndContext>

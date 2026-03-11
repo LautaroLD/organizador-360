@@ -16,19 +16,108 @@ interface KanbanTaskProps {
   onEdit?: () => void;
 }
 
-export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, phaseLabel, epicLabel, onEdit }) => {
+interface KanbanTaskCardProps {
+  task: Task;
+  phaseLabel?: string | null;
+  epicLabel?: string | null;
+}
+
+const KanbanTaskCardComponent: React.FC<KanbanTaskCardProps> = ({ task, phaseLabel, epicLabel }) => {
+  return (
+    <Card className="p-2 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)] transition-colors hover:border-2 border-2 border-transparent flex flex-col gap-1">
+      <p className="font-medium text-[var(--text-primary)]  text-ellipsis overflow-hidden whitespace-nowrap w-full">{task.title}</p>
+
+      {task.tags && task.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 ">
+          {task.tags.map((t) => (
+            <span
+              key={t.id}
+              className="px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
+              style={{ backgroundColor: t.tag.color }}
+            >
+              {t.tag.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {task.description && (
+        <p className="text-sm text-[var(--text-secondary)] line-clamp-2 text-ellipsis overflow-hidden whitespace-nowrap w-full">
+          {task.description}
+        </p>
+      )}
+      {task.priority && (
+        <p className={clsx("text-xs  text-[var(--text-secondary)] line-clamp-2 text-ellipsis uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] w-fit", task.priority === 'alta' ? 'text-red-500' : task.priority === 'media' ? 'text-yellow-500' : 'text-green-500')}>
+          {task.priority}
+        </p>
+      )}
+      {phaseLabel && (
+        <p className="text-xs text-[var(--text-secondary)] line-clamp-1 uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] text-ellipsis">
+          Fase: {phaseLabel}
+        </p>
+      )}
+      {epicLabel && (
+        <p className="text-xs text-[var(--text-secondary)] line-clamp-1 uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] text-ellipsis">
+          Epica: {epicLabel}
+        </p>
+      )}
+      {task.done_estimated_at && (
+        <p className="text-xs  text-[var(--text-secondary)] line-clamp-2 text-ellipsis uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] ">
+          Cierre estimado: {formatLocalDate(task.done_estimated_at)}
+        </p>
+      )}
+
+      <div className="flex justify-between items-center mt-2">
+        <div className="flex items-center gap-2">
+          {task.checklist && task.checklist.length > 0 && (
+            <div className="flex items-center text-xs text-[var(--text-secondary)] bg-[var(--bg-secondary)] px-2 py-1 rounded">
+              <CheckSquare className="w-3 h-3 mr-1" />
+              <span>
+                {task.checklist.filter(i => i.is_completed).length}/{task.checklist.length}
+              </span>
+            </div>
+          )}
+
+          {task.images && task.images.length > 0 && (
+            <div className="flex items-center text-xs text-[var(--text-secondary)] bg-[var(--bg-secondary)] px-2 py-1 rounded">
+              <ImageIcon className="w-3 h-3 mr-1" />
+              <span>{task.images.length}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex -space-x-2 ml-auto">
+          {task.assignments?.map((assignment) => (
+            <div
+              key={assignment.user_id}
+              className="w-6 h-6 rounded-full bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] flex items-center justify-center text-xs border-2 border-[var(--bg-primary)]"
+              title={assignment.user?.name}
+            >
+              {assignment.user?.name?.[0] || '?'}
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+export const KanbanTaskCard = React.memo(KanbanTaskCardComponent);
+
+const KanbanTaskComponent: React.FC<KanbanTaskProps> = ({ task, phaseLabel, epicLabel, onEdit }) => {
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
     transition,
+    isDragging,
   } = useSortable({ id: task.id });
 
-  const style = {
+  const style = React.useMemo(() => ({
     transform: CSS.Transform.toString(transform),
     transition,
-  };
+  }), [transform, transition]);
 
 
   return (
@@ -38,83 +127,11 @@ export const KanbanTask: React.FC<KanbanTaskProps> = ({ task, phaseLabel, epicLa
       {...attributes}
       {...listeners}
       onClick={onEdit}
-      className="cursor-pointer touch-none"
+      className={clsx('cursor-pointer touch-pan-y', isDragging && 'opacity-90')}
     >
-      <Card className="p-1 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)] transition-colors hover:border-2 border-2 border-transparent flex flex-col gap-1">
-        <p className="font-medium text-[var(--text-primary)]  text-ellipsis overflow-hidden whitespace-nowrap w-full">{task.title}</p>
-
-        {task.tags && task.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 ">
-            {task.tags.map((t) => (
-              <span
-                key={t.id}
-                className="px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
-                style={{ backgroundColor: t.tag.color }}
-              >
-                {t.tag.label}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {task.description && (
-          <p className="text-sm text-[var(--text-secondary)] line-clamp-2 text-ellipsis overflow-hidden whitespace-nowrap w-full">
-            {task.description}
-          </p>
-        )}
-        {task.priority && (
-          <p className={clsx("text-xs  text-[var(--text-secondary)] line-clamp-2 text-ellipsis uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] w-fit", task.priority === 'alta' ? 'text-red-500' : task.priority === 'media' ? 'text-yellow-500' : 'text-green-500')}>
-            {task.priority}
-          </p>
-        )}
-        {phaseLabel && (
-          <p className="text-xs text-[var(--text-secondary)] line-clamp-1 uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] text-ellipsis">
-            Fase: {phaseLabel}
-          </p>
-        )}
-        {epicLabel && (
-          <p className="text-xs text-[var(--text-secondary)] line-clamp-1 uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] text-ellipsis">
-            Epica: {epicLabel}
-          </p>
-        )}
-        {task.done_estimated_at && (
-          <p className="text-xs  text-[var(--text-secondary)] line-clamp-2 text-ellipsis uppercase border-1 overflow-hidden whitespace-nowrap py-1 px-2 rounded-full bg-[var(--bg-secondary)] ">
-            Cierre estimado: {formatLocalDate(task.done_estimated_at)}
-          </p>
-        )}
-
-        <div className="flex justify-between items-center mt-2">
-          <div className="flex items-center gap-2">
-            {task.checklist && task.checklist.length > 0 && (
-              <div className="flex items-center text-xs text-[var(--text-secondary)] bg-[var(--bg-secondary)] px-2 py-1 rounded">
-                <CheckSquare className="w-3 h-3 mr-1" />
-                <span>
-                  {task.checklist.filter(i => i.is_completed).length}/{task.checklist.length}
-                </span>
-              </div>
-            )}
-
-            {task.images && task.images.length > 0 && (
-              <div className="flex items-center text-xs text-[var(--text-secondary)] bg-[var(--bg-secondary)] px-2 py-1 rounded">
-                <ImageIcon className="w-3 h-3 mr-1" />
-                <span>{task.images.length}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex -space-x-2 ml-auto">
-            {task.assignments?.map((assignment) => (
-              <div
-                key={assignment.user_id}
-                className="w-6 h-6 rounded-full bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] flex items-center justify-center text-xs border-2 border-[var(--bg-primary)]"
-                title={assignment.user?.name}
-              >
-                {assignment.user?.name?.[0] || '?'}
-              </div>
-            ))}
-          </div>
-        </div>
-      </Card>
+      <KanbanTaskCard task={task} phaseLabel={phaseLabel} epicLabel={epicLabel} />
     </div>
   );
 };
+
+export const KanbanTask = React.memo(KanbanTaskComponent);

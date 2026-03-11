@@ -15,10 +15,12 @@ interface KanbanColumnProps {
   onEditTask?: (task: Task) => void;
 }
 
-export const KanbanColumn: React.FC<KanbanColumnProps> = ({ id, title, tasks, phaseLabels, epicLabels, onEditTask }) => {
+const KanbanColumnComponent: React.FC<KanbanColumnProps> = ({ id, title, tasks, phaseLabels, epicLabels, onEditTask }) => {
   const { setNodeRef } = useDroppable({
     id: id,
   });
+
+  const sortableTaskIds = React.useMemo(() => tasks.map((task) => task.id), [tasks]);
 
   return (
     <div id={id} className="flex flex-col w-72 md:w-96  rounded-lg py-2 h-fit max-h-full flex-shrink-0" >
@@ -29,8 +31,8 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({ id, title, tasks, ph
         </span>
       </h3>
 
-      <div ref={setNodeRef} className="flex-1 px-7 overflow-y-auto space-y-3 min-h-[100px]">
-        <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+      <div ref={setNodeRef} className="flex-1 px-3 overflow-y-auto space-y-2 min-h-[100px]">
+        <SortableContext items={sortableTaskIds} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
             <KanbanTask
               key={task.id}
@@ -45,3 +47,5 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({ id, title, tasks, ph
     </div>
   );
 };
+
+export const KanbanColumn = React.memo(KanbanColumnComponent);

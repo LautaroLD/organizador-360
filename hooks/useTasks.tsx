@@ -4,6 +4,22 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { Task, CreateTaskDTO, UpdateTaskDTO } from '@/models';
 
+const buildOptimisticTaskPatch = (data: UpdateTaskDTO): Partial<Task> => {
+  const patch: Partial<Task> = {};
+
+  if (data.phase_roadmap_id !== undefined) patch.phase_roadmap_id = data.phase_roadmap_id;
+  if (data.epic_id !== undefined) patch.epic_id = data.epic_id;
+  if (data.key_result_id !== undefined) patch.key_result_id = data.key_result_id;
+  if (data.title !== undefined) patch.title = data.title;
+  if (data.description !== undefined) patch.description = data.description;
+  if (data.status !== undefined) patch.status = data.status;
+  if (data.position !== undefined) patch.position = data.position;
+  if (data.priority !== undefined) patch.priority = data.priority;
+  if (data.done_estimated_at !== undefined) patch.done_estimated_at = data.done_estimated_at;
+
+  return patch;
+};
+
 export function useTasks(projectId: string) {
   const supabase = createClient();
   const queryClient = useQueryClient();
@@ -280,7 +296,36 @@ export function useTasks(projectId: string) {
         }
       }
     },
-    onSuccess: () => {
+    onMutate: ({ id, data }) => {
+      const previousTasks = queryClient.getQueryData<Task[]>(['tasks', projectId]);
+      const optimisticPatch = buildOptimisticTaskPatch(data);
+
+      if (previousTasks) {
+        queryClient.setQueryData<Task[]>(
+          ['tasks', projectId],
+          previousTasks.map((task) =>
+            task.id === id
+              ? {
+                ...task,
+                ...optimisticPatch,
+                updated_at: new Date().toISOString(),
+              }
+              : task
+          )
+        );
+      }
+
+      // Cancel in-flight fetches after optimistic update to avoid stale response overwriting UI.
+      queryClient.cancelQueries({ queryKey: ['tasks', projectId] });
+
+      return { previousTasks };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(['tasks', projectId], context.previousTasks);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
     },
   });
