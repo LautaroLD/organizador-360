@@ -14,7 +14,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check, Reply, FileText, Sparkles } from 'lucide-react';
 import useGemini from '@/hooks/useGemini';
-import { formatTime } from '@/lib/utils';
+import { formatChatTimestamp } from '@/lib/utils';
 import clsx from 'clsx';
 import { Channel } from '@/models';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -352,11 +352,47 @@ export const ChatView: React.FC = () => {
         .eq('id', messageId);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onMutate: async (messageId: string) => {
+      if (!selectedChannel?.id) {
+        return { previousMessages: undefined, channelId: null };
+      }
+
+      const queryKey = ['messages', selectedChannel.id] as const;
+
+      await queryClient.cancelQueries({ queryKey });
+
+      const previousMessages = queryClient.getQueryData(queryKey);
+
+      queryClient.setQueryData(queryKey, (oldData: unknown) => {
+        const currentMessages = Array.isArray(oldData) ? oldData : [];
+        return currentMessages.filter((msg: { id: string; }) => msg.id !== messageId);
+      });
+
+      return { previousMessages, channelId: selectedChannel.id };
+    },
+    onSuccess: (_data, messageId, context) => {
+      if (context?.channelId) {
+        const queryKey = ['messages', context.channelId] as const;
+        queryClient.setQueryData(queryKey, (oldData: unknown) => {
+          const currentMessages = Array.isArray(oldData) ? oldData : [];
+          return currentMessages.filter((msg: { id: string; }) => msg.id !== messageId);
+        });
+      }
+
       toast.success('Mensaje eliminado');
       setOpenMenuMessageId(null);
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error, _messageId, context) => {
+      if (context?.channelId) {
+        queryClient.setQueryData(['messages', context.channelId], context.previousMessages);
+      }
+      toast.error(error.message);
+    },
+    onSettled: (_data, _error, _messageId, context) => {
+      if (context?.channelId) {
+        queryClient.invalidateQueries({ queryKey: ['messages', context.channelId] });
+      }
+    },
   });
 
   // Update Message Mutation
@@ -881,7 +917,7 @@ export const ChatView: React.FC = () => {
                           {message.user?.name || 'Usuario'}
                         </span>
                         <span className="text-xs text-[var(--text-secondary)] flex-shrink-0">
-                          {formatTime(message.created_at)}
+                          {formatChatTimestamp(message.created_at)}
                         </span>
                         {message.is_pinned && (
                           <Pin className="h-3 w-3 text-[var(--accent-primary)]" />

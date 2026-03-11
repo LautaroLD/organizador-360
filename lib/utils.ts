@@ -41,6 +41,25 @@ export function formatTime(date: string | Date) {
   });
 }
 
+export function formatChatTimestamp(date: string | Date, now: Date = new Date()) {
+  const messageDate = new Date(date);
+
+  if (Number.isNaN(messageDate.getTime())) {
+    return 'Fecha invalida';
+  }
+
+  const isSameDay =
+    messageDate.getFullYear() === now.getFullYear() &&
+    messageDate.getMonth() === now.getMonth() &&
+    messageDate.getDate() === now.getDate();
+
+  if (isSameDay) {
+    return formatTime(messageDate);
+  }
+
+  return `${formatDate(messageDate)} ${formatTime(messageDate)}`;
+}
+
 export function formatDateTime(date: string | Date) {
   return `${formatDate(date)} ${formatTime(date)}`;
 }

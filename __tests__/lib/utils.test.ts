@@ -1,4 +1,4 @@
-import { cn, formatDate, formatTime, formatDateTime } from '@/lib/utils';
+import { cn, formatDate, formatTime, formatDateTime, formatChatTimestamp } from '@/lib/utils';
 
 describe('Utility Functions', () => {
   describe('cn (className merger)', () => {
@@ -72,6 +72,25 @@ describe('Utility Functions', () => {
     it('returns a string', () => {
       const formatted = formatDateTime(new Date());
       expect(typeof formatted).toBe('string');
+    });
+  });
+
+  describe('formatChatTimestamp', () => {
+    it('muestra solo hora para mensajes del mismo dia', () => {
+      const now = new Date(2024, 0, 15, 18, 0, 0);
+      const messageDate = new Date(2024, 0, 15, 14, 30, 0);
+      const formatted = formatChatTimestamp(messageDate, now);
+
+      expect(formatted).toMatch(/^\d{2}:\d{2}$/);
+    });
+
+    it('muestra fecha y hora para mensajes de dias anteriores', () => {
+      const now = new Date(2024, 0, 16, 10, 0, 0);
+      const messageDate = new Date(2024, 0, 15, 14, 30, 0);
+      const formatted = formatChatTimestamp(messageDate, now);
+
+      expect(formatted).toContain('2024');
+      expect(formatted).toMatch(/\d{2}:\d{2}$/);
     });
   });
 });
