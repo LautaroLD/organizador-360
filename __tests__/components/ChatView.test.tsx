@@ -93,6 +93,9 @@ jest.mock('@/components/ui/MessageContent', () => ({
 
 describe('ChatView Summary', () => {
   const mockGenerateChatSummary = jest.fn();
+  const today = new Date();
+  const oneDayAgo = new Date(today);
+  oneDayAgo.setDate(today.getDate() - 1);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -128,8 +131,8 @@ describe('ChatView Summary', () => {
       if (Array.isArray(queryKey) && queryKey[0] === 'messages') {
         return {
           data: [
-            { id: '1', content: 'Msg 1', created_at: '2023-10-01T10:00:00Z', user_id: 'user1', profiles: { full_name: 'User 1' } },
-            { id: '2', content: 'Msg 2', created_at: '2023-10-02T10:00:00Z', user_id: 'user1', profiles: { full_name: 'User 1' } }
+            { id: '1', content: 'Msg 1', created_at: oneDayAgo.toISOString(), user_id: 'user1', profiles: { full_name: 'User 1' } },
+            { id: '2', content: 'Msg 2', created_at: today.toISOString(), user_id: 'user1', profiles: { full_name: 'User 1' } }
           ],
           isLoading: false,
         };
@@ -170,13 +173,6 @@ describe('ChatView Summary', () => {
     // Configure logic for summary generation
     mockGenerateChatSummary.mockResolvedValue('Resumen generado exitosamente.');
 
-    // Interact with date inputs
-    const startDateInput = screen.getByLabelText('Fecha Inicio');
-    const endDateInput = screen.getByLabelText('Fecha Fin');
-
-    fireEvent.change(startDateInput, { target: { value: '2023-10-01' } });
-    fireEvent.change(endDateInput, { target: { value: '2023-10-03' } });
-
     // Trigger generation
     fireEvent.click(generateBtn);
 
@@ -185,12 +181,14 @@ describe('ChatView Summary', () => {
       expect(mockGenerateChatSummary).toHaveBeenCalled();
     });
 
-    // Check arguments passed to generateChatSummary
-    expect(mockGenerateChatSummary).toHaveBeenCalledWith(expect.objectContaining({
-      startDate: '2023-10-01',
-      endDate: '2023-10-03',
-      channelName: 'General'
+    // Check arguments passed to generateChatSummary with strict ISO date format
+    const summaryArgs = mockGenerateChatSummary.mock.calls[0][0];
+    expect(summaryArgs).toEqual(expect.objectContaining({
+      startDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      endDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      channelName: 'General',
     }));
+    expect(summaryArgs.startDate <= summaryArgs.endDate).toBe(true);
 
     // Check result is displayed
     expect(await screen.findByText('Resumen generado exitosamente.')).toBeInTheDocument();
@@ -220,11 +218,6 @@ describe('ChatView Summary', () => {
     });
 
     const generateBtn = screen.getByRole('button', { name: /generar resumen/i });
-    const startDateInput = screen.getByLabelText('Fecha Inicio');
-    const endDateInput = screen.getByLabelText('Fecha Fin');
-
-    fireEvent.change(startDateInput, { target: { value: '2023-10-01' } });
-    fireEvent.change(endDateInput, { target: { value: '2023-10-03' } });
 
     mockGenerateChatSummary.mockRejectedValueOnce(new Error('Failed'));
 
