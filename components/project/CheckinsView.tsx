@@ -7,8 +7,8 @@ import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Input } from '@/components/ui/Input';
-import { formatDateTime, formatLocalDate } from '@/lib/utils';
+import { DatePicker } from '@/components/ui/DatePicker';
+import { formatDateTime, formatLocalDate, parseDateValue } from '@/lib/utils';
 import { toast } from 'react-toastify';
 import { AlertTriangle, CheckSquare, Clock, Filter, Save } from 'lucide-react';
 import type { ProjectCheckin, UpsertCheckinDTO } from '@/models';
@@ -310,11 +310,10 @@ export const CheckinsView: React.FC = () => {
 
           {dateScope === 'date' && (
             <div className="max-w-xs">
-              <Input
-                type="date"
-                label="Filtrar por fecha"
-                value={listDate}
-                onChange={(e) => setListDate(e.target.value)}
+              <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">Filtrar por fecha</label>
+              <DatePicker
+                value={parseDateValue(listDate) ?? undefined}
+                onChange={(date) => setListDate(date ? toISODate(date) : todayDate)}
               />
             </div>
           )}

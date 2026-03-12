@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { Modal } from '@/components/ui/Modal';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { MessageContent } from '@/components/ui/MessageContent';
@@ -14,7 +15,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check, Reply, FileText, Sparkles } from 'lucide-react';
 import useGemini from '@/hooks/useGemini';
-import { formatChatTimestamp } from '@/lib/utils';
+import { formatChatTimestamp, parseDateValue } from '@/lib/utils';
 import clsx from 'clsx';
 import { Channel } from '@/models';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -36,6 +37,13 @@ interface RenameChannelFormData {
   name: string;
   description: string;
 }
+
+const toISODate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export const ChatView: React.FC = () => {
   const supabase = createClient();
@@ -1133,11 +1141,10 @@ export const ChatView: React.FC = () => {
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
                 Desde
               </label>
-              <Input
-                type="date"
-                aria-label="Fecha Inicio"
-                value={summaryStartDate}
-                onChange={(e) => setSummaryStartDate(e.target.value)}
+              <DatePicker
+                value={parseDateValue(summaryStartDate) ?? undefined}
+                onChange={(date) => setSummaryStartDate(date ? toISODate(date) : '')}
+                placeholder="Fecha inicio"
                 className="w-full"
               />
             </div>
@@ -1145,11 +1152,11 @@ export const ChatView: React.FC = () => {
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
                 Hasta
               </label>
-              <Input
-                type="date"
-                aria-label="Fecha Fin"
-                value={summaryEndDate}
-                onChange={(e) => setSummaryEndDate(e.target.value)}
+              <DatePicker
+                value={parseDateValue(summaryEndDate) ?? undefined}
+                onChange={(date) => setSummaryEndDate(date ? toISODate(date) : '')}
+                minDate={parseDateValue(summaryStartDate) ?? undefined}
+                placeholder="Fecha fin"
                 className="w-full"
               />
             </div>

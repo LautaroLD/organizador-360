@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { Task, CreateTaskDTO, UpdateTaskDTO, RoadmapPhase, Epic } from '@/models';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
@@ -12,6 +13,7 @@ import { createClient } from '@/lib/supabase/client';
 import { CheckSquare, Plus, Trash2, ImageIcon, X, Sparkles, Lock } from 'lucide-react';
 import useGemini from '@/hooks/useGemini';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
+import { parseDateValue } from '@/lib/utils';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -24,6 +26,13 @@ interface TaskModalProps {
 
 type RoadmapPhaseOption = Pick<RoadmapPhase, 'id' | 'name' | 'init_at' | 'end_at' | 'description'>;
 type EpicOption = Pick<Epic, 'id' | 'title' | 'key_result_id'>;
+
+const toISODate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export const TaskModal: React.FC<TaskModalProps> = ({
   isOpen,
@@ -589,10 +598,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
               Cierre estimado
             </label>
-            <Input
-              type="date"
-              {...register('done_estimated_at')}
-              className="w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+            <input type="hidden" {...register('done_estimated_at')} />
+            <DatePicker
+              value={parseDateValue(watch('done_estimated_at') || '') ?? undefined}
+              onChange={(date) => setValue('done_estimated_at', date ? toISODate(date) : '')}
+              className="w-full"
             />
           </div>
         </div>
