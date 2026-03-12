@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { Modal } from '@/components/ui/Modal';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -12,6 +13,7 @@ import { Map } from 'lucide-react';
 import React from 'react';
 import { toast } from 'react-toastify';
 import { useQueryClient } from '@tanstack/react-query';
+import { parseDateValue } from '@/lib/utils';
 
 type RoadmapPhaseForm = Omit<RoadmapPhase, 'id' | 'created_at' | 'roadmap_id' | 'description'> & {
   id?: number;
@@ -20,6 +22,13 @@ type RoadmapPhaseForm = Omit<RoadmapPhase, 'id' | 'created_at' | 'roadmap_id' | 
 
 type CreateRoadmapProps = {
   projectId: string;
+};
+
+const toISODate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 export default function CreateRoadmap({ projectId }: CreateRoadmapProps) {
@@ -349,24 +358,25 @@ export default function CreateRoadmap({ projectId }: CreateRoadmapProps) {
                     }}
                   />
                   <div className="flex gap-4">
-                    <Input
-                      value={phase.init_at}
-                      label="Fecha de inicio"
-                      type="date"
-                      className="mt-2"
-                      onChange={(event) => {
-                        updatePhase(index, { init_at: event?.currentTarget.value || '' });
-                      }}
-                    />
-                    <Input
-                      value={phase.end_at}
-                      label="Fecha de fin"
-                      type="date"
-                      className="mt-2"
-                      onChange={(event) => {
-                        updatePhase(index, { end_at: event?.currentTarget.value || '' });
-                      }}
-                    />
+                    <div className="mt-2 w-full">
+                      <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">Fecha de inicio</label>
+                      <DatePicker
+                        value={parseDateValue(phase.init_at) ?? undefined}
+                        onChange={(date) => {
+                          updatePhase(index, { init_at: date ? toISODate(date) : '' });
+                        }}
+                      />
+                    </div>
+                    <div className="mt-2 w-full">
+                      <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">Fecha de fin</label>
+                      <DatePicker
+                        value={parseDateValue(phase.end_at) ?? undefined}
+                        onChange={(date) => {
+                          updatePhase(index, { end_at: date ? toISODate(date) : '' });
+                        }}
+                        minDate={parseDateValue(phase.init_at) ?? undefined}
+                      />
+                    </div>
                   </div>
                   {phase.init_at && phase.end_at && phase.init_at > phase.end_at && (
                     <p className="text-xs text-red-500">

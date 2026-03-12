@@ -4,9 +4,11 @@ import React, { useMemo } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { Repeat } from 'lucide-react';
 import { UseFormRegister, UseFormSetValue, UseFormWatch, FieldErrors, UseFormHandleSubmit } from 'react-hook-form';
 import { generateRecurringEvents } from '@/lib/calendarUtils';
+import { parseDateValue } from '@/lib/utils';
 
 interface EventFormData {
   title: string;
@@ -29,6 +31,13 @@ const WEEKDAYS = [
   { id: 'saturday', label: 'Sábado', short: 'S' },
   { id: 'sunday', label: 'Domingo', short: 'D' },
 ];
+
+const toISODate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 interface EventModalProps {
   isOpen: boolean;
@@ -121,13 +130,17 @@ export const EventModal: React.FC<EventModalProps> = ({
           <h4 className="font-medium text-[var(--text-primary)] text-sm">Fecha y Hora</h4>
 
           <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Fecha"
-              type="date"
-              {...register('start_date', { required: 'La fecha es requerida' })}
-              error={errors.start_date?.message}
-              min={new Date().toISOString().split('T')[0]}
-            />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">Fecha</label>
+              <input type="hidden" {...register('start_date', { required: 'La fecha es requerida' })} />
+              <DatePicker
+                value={parseDateValue(startDate) ?? undefined}
+                onChange={(date) => setValue('start_date', date ? toISODate(date) : '', { shouldValidate: true })}
+                minDate={new Date()}
+                placeholder="Seleccionar fecha"
+              />
+              {errors.start_date?.message && <p className="mt-1 text-sm text-red-500">{errors.start_date.message}</p>}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -197,13 +210,16 @@ export const EventModal: React.FC<EventModalProps> = ({
                 <p className="text-xs text-red-500">Selecciona al menos un día</p>
               )}
 
-              <Input
-                label="Hasta (fecha final)"
-                type="date"
-                {...register('recurrence_end_date')}
-                min={startDate || new Date().toISOString().split('T')[0]}
-                placeholder="Fecha final de repetición"
-              />
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">Hasta (fecha final)</label>
+                <input type="hidden" {...register('recurrence_end_date')} />
+                <DatePicker
+                  value={parseDateValue(recurrenceEndDate || '') ?? undefined}
+                  onChange={(date) => setValue('recurrence_end_date', date ? toISODate(date) : '')}
+                  minDate={parseDateValue(startDate || '') ?? new Date()}
+                  placeholder="Fecha final de repeticion"
+                />
+              </div>
             </div>
           )}
 

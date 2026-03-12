@@ -8,9 +8,11 @@ import { useProjectStore } from '@/store/projectStore';
 import type { OkrObjective, OkrKeyResult, Epic, Task, OkrKeyResultTrackingMode } from '@/models';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { Modal } from '@/components/ui/Modal';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { parseDateValue } from '@/lib/utils';
 
 type PlanningTaskRow = Pick<Task, 'id' | 'status' | 'epic_id'>;
 
@@ -81,6 +83,13 @@ const objectiveStatusLabels: Record<ObjectiveFormState['status'], string> = {
   active: 'Activo',
   completed: 'Completado',
   archived: 'Archivado',
+};
+
+const toISODate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 const objectiveCycleLabels: Record<ObjectiveFormState['cycle'], string> = {
@@ -802,18 +811,21 @@ export const PlanningView: React.FC = () => {
             </div>
           </div>
           <div className='grid grid-cols-2 gap-3'>
-            <Input
-              label='Inicio del ciclo'
-              type='date'
-              value={objectiveForm.start_date}
-              onChange={(event) => setObjectiveForm((prev) => ({ ...prev, start_date: event.target.value }))}
-            />
-            <Input
-              label='Fin del ciclo'
-              type='date'
-              value={objectiveForm.end_date}
-              onChange={(event) => setObjectiveForm((prev) => ({ ...prev, end_date: event.target.value }))}
-            />
+            <div>
+              <label className='mb-1 block text-sm font-medium text-[var(--text-primary)]'>Inicio del ciclo</label>
+              <DatePicker
+                value={parseDateValue(objectiveForm.start_date) ?? undefined}
+                onChange={(date) => setObjectiveForm((prev) => ({ ...prev, start_date: date ? toISODate(date) : '' }))}
+              />
+            </div>
+            <div>
+              <label className='mb-1 block text-sm font-medium text-[var(--text-primary)]'>Fin del ciclo</label>
+              <DatePicker
+                value={parseDateValue(objectiveForm.end_date) ?? undefined}
+                onChange={(date) => setObjectiveForm((prev) => ({ ...prev, end_date: date ? toISODate(date) : '' }))}
+                minDate={parseDateValue(objectiveForm.start_date) ?? undefined}
+              />
+            </div>
           </div>
           <div className='flex justify-end gap-2 pt-2'>
             <Button type='button' variant='ghost' onClick={resetObjectiveModal}>Cancelar</Button>
