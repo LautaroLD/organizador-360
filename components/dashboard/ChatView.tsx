@@ -7,7 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { DatePicker } from '@/components/ui/DatePicker';
+import { DateRangePicker } from '@/components/ui/DateRangePicker';
 import { Modal } from '@/components/ui/Modal';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { MessageContent } from '@/components/ui/MessageContent';
@@ -1136,31 +1136,16 @@ export const ChatView: React.FC = () => {
         title="Resumen del Chat con IA"
       >
         <div className="space-y-4">
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-                Desde
-              </label>
-              <DatePicker
-                value={parseDateValue(summaryStartDate) ?? undefined}
-                onChange={(date) => setSummaryStartDate(date ? toISODate(date) : '')}
-                placeholder="Fecha inicio"
-                className="w-full"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-                Hasta
-              </label>
-              <DatePicker
-                value={parseDateValue(summaryEndDate) ?? undefined}
-                onChange={(date) => setSummaryEndDate(date ? toISODate(date) : '')}
-                minDate={parseDateValue(summaryStartDate) ?? undefined}
-                placeholder="Fecha fin"
-                className="w-full"
-              />
-            </div>
-          </div>
+          <DateRangePicker
+            startValue={parseDateValue(summaryStartDate) ?? undefined}
+            endValue={parseDateValue(summaryEndDate) ?? undefined}
+            onStartChange={(date) => setSummaryStartDate(date ? toISODate(date) : '')}
+            onEndChange={(date) => setSummaryEndDate(date ? toISODate(date) : '')}
+            startLabel='Desde'
+            endLabel='Hasta'
+            startPlaceholder='Fecha inicio'
+            endPlaceholder='Fecha fin'
+          />
 
           <Button
             onClick={handleGenerateSummary}
