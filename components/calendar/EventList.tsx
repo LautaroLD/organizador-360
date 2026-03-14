@@ -332,7 +332,7 @@ export const EventList: React.FC<EventListProps> = ({
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Buscar por título o descripción..."
-              className="h-9 w-full rounded-lg border border-[var(--text-secondary)]/25 bg-[var(--bg-secondary)] pl-9 pr-8 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+              className="h-9 w-full rounded-lg border border-[var(--text-secondary)]/25 bg-[var(--bg-secondary)] px-8 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
             />
             {searchQuery && (
               <button
@@ -348,8 +348,8 @@ export const EventList: React.FC<EventListProps> = ({
             type="button"
             onClick={() => setIsFilterOpen(v => !v)}
             className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-all ${isFilterOpen || activeFilterCount > 0
-                ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]'
-                : 'border-[var(--text-secondary)]/25 bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)]/50'
+              ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]'
+              : 'border-[var(--text-secondary)]/25 bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)]/50'
               }`}
           >
             <SlidersHorizontal className="h-4 w-4" />
@@ -373,8 +373,8 @@ export const EventList: React.FC<EventListProps> = ({
                     type="button"
                     onClick={() => setFilterType(type)}
                     className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${filterType === type
-                        ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
-                        : 'border border-[var(--text-secondary)]/25 bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)]/50 hover:text-[var(--text-primary)]'
+                      ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
+                      : 'border border-[var(--text-secondary)]/25 bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)]/50 hover:text-[var(--text-primary)]'
                       }`}
                   >
                     {TYPE_LABELS[type]}
