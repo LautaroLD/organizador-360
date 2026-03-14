@@ -8,7 +8,7 @@ import { useProjectStore } from '@/store/projectStore';
 import { Button } from '@/components/ui/Button';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
-import { Calendar as CalendarIcon, Plus, ArrowUp, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, ArrowUp, RefreshCw, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
 import { useGoogleCalendarTokens } from '@/hooks/useGoogleCalendarTokens';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { EventModal } from '@/components/calendar/EventModal';
@@ -545,6 +545,21 @@ export const CalendarView: React.FC = () => {
     await deleteEventsAndSync(eventIds);
   };
 
+  // Eliminar todos los eventos que ya pasaron
+  const handleDeletePastEvents = async () => {
+    if (!events) return;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const pastEventIds = events
+      .filter(e => new Date(e.start_date) < now)
+      .map(e => e.id);
+    if (pastEventIds.length === 0) {
+      toast.info('No hay eventos pasados para eliminar');
+      return;
+    }
+    await deleteEventsAndSync(pastEventIds);
+  };
+
   // Memoizar eventos agrupados por fecha
   const groupedAndSortedEvents = useMemo(() => {
     if (!events) return {};
@@ -579,14 +594,31 @@ export const CalendarView: React.FC = () => {
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-[var(--bg-primary)] relative">
         <div className="p-4 md:p-6  mx-auto">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-8">
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-primary)]">
-                📅 Calendario
+              <h2 className="flex items-center gap-2 text-2xl md:text-3xl font-bold text-[var(--text-primary)]">
+                <CalendarIcon className="h-7 w-7 text-[var(--accent-primary)]" />
+                Calendario
               </h2>
-              <p className="text-sm md:text-base text-[var(--text-secondary)] mt-1">
-                {events?.length || 0} evento(s) programado(s)
-              </p>
+              <div className="mt-1 flex items-center gap-3">
+                <p className="text-sm text-[var(--text-secondary)]">
+                  {events?.length || 0} evento{events?.length !== 1 ? 's' : ''} en total
+                </p>
+                {(() => {
+                  const now = new Date();
+                  now.setHours(0, 0, 0, 0);
+                  const pastCount = events?.filter(e => new Date(e.start_date) < now).length ?? 0;
+                  const upcomingCount = (events?.length ?? 0) - pastCount;
+                  return pastCount > 0 ? (
+                    <>
+                      <span className="text-[var(--text-secondary)]/40">·</span>
+                      <span className="text-xs text-[var(--accent-primary)] font-medium">{upcomingCount} próximos</span>
+                      <span className="text-[var(--text-secondary)]/40">·</span>
+                      <span className="text-xs text-[var(--text-secondary)]">{pastCount} pasados</span>
+                    </>
+                  ) : null;
+                })()}
+              </div>
             </div>
 
             {/* Google Calendar Integration */}
@@ -649,6 +681,16 @@ export const CalendarView: React.FC = () => {
                   <Plus className="h-4 w-4 mr-2" />
                   Nuevo Evento
                 </Button>
+                {events && events.some(e => new Date(e.start_date) < (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })()) && (
+                  <Button
+                    variant="secondary"
+                    onClick={handleDeletePastEvents}
+                    title="Eliminar todos los eventos que ya pasaron"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Limpiar pasados
+                  </Button>
+                )}
               </div>
 
               {activeIsConnected && (
@@ -707,6 +749,7 @@ export const CalendarView: React.FC = () => {
               onDeleteEvent={(eventId) => deleteEventMutation.mutate(eventId)}
               onDeleteAllEventsFromDate={handleDeleteAllEventsFromDate}
               onDeleteMultipleEvents={handleDeleteMultipleEvents}
+              onDeletePastEvents={handleDeletePastEvents}
             />
           ) : (
             <div className="flex flex-col items-center justify-center py-16 px-4">

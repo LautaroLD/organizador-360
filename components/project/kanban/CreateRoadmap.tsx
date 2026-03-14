@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { DatePicker } from '@/components/ui/DatePicker';
+import { DateRangePicker } from '@/components/ui/DateRangePicker';
 import { Modal } from '@/components/ui/Modal';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -357,27 +357,21 @@ export default function CreateRoadmap({ projectId }: CreateRoadmapProps) {
                       updatePhase(index, { description: event?.currentTarget.value || '' });
                     }}
                   />
-                  <div className="flex gap-4">
-                    <div className="mt-2 w-full">
-                      <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">Fecha de inicio</label>
-                      <DatePicker
-                        value={parseDateValue(phase.init_at) ?? undefined}
-                        onChange={(date) => {
-                          updatePhase(index, { init_at: date ? toISODate(date) : '' });
-                        }}
-                      />
-                    </div>
-                    <div className="mt-2 w-full">
-                      <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">Fecha de fin</label>
-                      <DatePicker
-                        value={parseDateValue(phase.end_at) ?? undefined}
-                        onChange={(date) => {
-                          updatePhase(index, { end_at: date ? toISODate(date) : '' });
-                        }}
-                        minDate={parseDateValue(phase.init_at) ?? undefined}
-                      />
-                    </div>
-                  </div>
+                  <DateRangePicker
+                    startValue={parseDateValue(phase.init_at) ?? undefined}
+                    endValue={parseDateValue(phase.end_at) ?? undefined}
+                    onStartChange={(date) => {
+                      updatePhase(index, { init_at: date ? toISODate(date) : '' });
+                    }}
+                    onEndChange={(date) => {
+                      updatePhase(index, { end_at: date ? toISODate(date) : '' });
+                    }}
+                    startLabel='Fecha de inicio'
+                    endLabel='Fecha de fin'
+                    startPlaceholder='Seleccionar fecha'
+                    endPlaceholder='Seleccionar fecha'
+                    className='mt-2 flex gap-4'
+                  />
                   {phase.init_at && phase.end_at && phase.init_at > phase.end_at && (
                     <p className="text-xs text-red-500">
                       La fecha de fin debe ser posterior a la fecha de inicio.
