@@ -41,7 +41,7 @@ export default async function DashboardPage() {
     ? daysRemaining && daysRemaining > 0
       ? `Plan ${planTier.toUpperCase()} Activo - ${daysRemaining} día${daysRemaining === 1 ? '' : 's'} restante${daysRemaining === 1 ? '' : 's'}`
       : `Plan ${planTier.toUpperCase()} Activo`
-    : 'Plan Gratuito';
+    : <span>Plan gratuito <a href="/settings/subscription" className="font-bold underline ml-1">Ver planes</a></span>;
 
   return (
     <div className="min-h-dvh bg-[var(--bg-primary)]">
@@ -51,8 +51,8 @@ export default async function DashboardPage() {
       />
 
       <main className='m-6 space-y-6'>
-        {planTier === 'free' && (
-          <div className='bg-[var(--bg-secondary)] rounded-md'>
+        {/* {planTier === 'free' && (
+          <div className=' rounded-md'>
             <div className="p-3 bg-[var(--accent-warning)]/10  rounded-md border border-[var(--accent-warning)]">
               <p className="text-[var(--accent-warning)] text-sm">
                 Estás limitado a 3 proyectos.
@@ -60,7 +60,7 @@ export default async function DashboardPage() {
               </p>
             </div>
           </div>
-        )}
+        )} */}
         {/* Sincroniza la suscripción al volver de Stripe con session_id */}
         <SubscriptionSync />
         <InvitationsWidget />
