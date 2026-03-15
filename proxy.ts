@@ -38,12 +38,15 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+  const mode = request.nextUrl.searchParams.get('mode');
 
   if (pathname.startsWith('/api/webhooks')) {
     return response;
   }
 
   const isAuthPage = pathname.startsWith('/auth');
+  const isAuthCallbackRoute = pathname.startsWith('/auth/callback');
+  const isRecoveryAuthPage = pathname === '/auth' && mode === 'recovery';
 
   const publicApiRoutes = [
     '/api/health',
@@ -71,7 +74,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && isAuthPage) {
+  if (user && isAuthPage && !isAuthCallbackRoute && !isRecoveryAuthPage) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/dashboard';
     return NextResponse.redirect(redirectUrl);
