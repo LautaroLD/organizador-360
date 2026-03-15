@@ -80,16 +80,20 @@ export const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
         success?: boolean;
         error?: string;
         message?: string;
+        code?: string;
         invitationUrl?: string;
         isNewUser?: boolean;
+        fallbackUsed?: boolean;
       };
 
-      if (!response.ok) {
+      if (!response.ok || !result?.success) {
+        if (resolvedInviteType === 'email' && result?.code === 'SMTP_SPAM_REJECTED') {
+          throw new Error('El proveedor bloqueó el correo por spam. No se creó la invitación. Si deseas, usa el método "Por Enlace".');
+        }
+
         throw new Error(result?.error || result?.message || `Error al enviar invitación (${response.status})`);
       }
-      if (!result?.success) {
-        throw new Error(result?.error || 'Error al enviar invitación');
-      }
+
       return result;
     },
     onSuccess: (data, variables) => {

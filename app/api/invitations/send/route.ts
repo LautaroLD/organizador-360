@@ -14,11 +14,22 @@ type EdgeResponsePayload = {
   error?: string;
   message?: string;
   code?: number | string;
+  invitationUrl?: string;
+  isNewUser?: boolean;
+  inviteType?: 'email' | 'link';
 };
 
 function isAuthError(status: number, data: EdgeResponsePayload | null) {
   const message = `${data?.error ?? ''} ${data?.message ?? ''}`.toLowerCase();
   return status === 401 || message.includes('invalid jwt') || message.includes('unauthorized');
+}
+
+function isSmtpSpamRejected(data: EdgeResponsePayload | null) {
+  const message = `${data?.error ?? ''} ${data?.message ?? ''}`.toLowerCase();
+  return (
+    message.includes('550') &&
+    (message.includes('spam') || message.includes('mensaje rechazado') || message.includes('message failed'))
+  );
 }
 
 function decodeJwtIss(token: string) {
@@ -37,21 +48,17 @@ async function callInvitationFunction(params: {
   anonKey: string;
   accessToken: string;
   payload: SendInvitationPayload;
-  useUserTokenHeader?: boolean;
 }) {
-  const { supabaseUrl, anonKey, accessToken, payload, useUserTokenHeader = false } = params;
+  const { supabaseUrl, anonKey, accessToken, payload } = params;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     apikey: anonKey,
+    // Use anon key for function gateway auth and pass user JWT separately.
+    // The edge function validates x-user-token and enforces project permissions.
+    Authorization: `Bearer ${anonKey}`,
+    'x-user-token': `Bearer ${accessToken}`,
   };
-
-  if (useUserTokenHeader) {
-    headers.Authorization = `Bearer ${anonKey}`;
-    headers['x-user-token'] = `Bearer ${accessToken}`;
-  } else {
-    headers.Authorization = `Bearer ${accessToken}`;
-  }
 
   const response = await fetch(`${supabaseUrl}/functions/v1/send-invitation`, {
     method: 'POST',
@@ -122,7 +129,7 @@ export async function POST(request: NextRequest) {
       userToken: token,
     });
 
-    // Attempt 1: standard Authorization bearer user token
+    // Attempt 1: use authenticated user token in Authorization.
     let { response, data } = await callInvitationFunction({
       supabaseUrl,
       anonKey,
@@ -130,18 +137,7 @@ export async function POST(request: NextRequest) {
       payload: withToken(accessToken),
     });
 
-    // Attempt 2: x-user-token mode (some environments require anon in Authorization)
-    if (isAuthError(response.status, data)) {
-      ({ response, data } = await callInvitationFunction({
-        supabaseUrl,
-        anonKey,
-        accessToken,
-        payload: withToken(accessToken),
-        useUserTokenHeader: true,
-      }));
-    }
-
-    // Attempt 3/4: refresh one more time and retry both modes
+    // Attempt 2: refresh and retry with fresh user token.
     if (isAuthError(response.status, data)) {
       const refreshedAgain = await supabase.auth.refreshSession();
       const refreshedToken = refreshedAgain.data.session?.access_token;
@@ -153,16 +149,6 @@ export async function POST(request: NextRequest) {
           accessToken: refreshedToken,
           payload: withToken(refreshedToken),
         }));
-
-        if (isAuthError(response.status, data)) {
-          ({ response, data } = await callInvitationFunction({
-            supabaseUrl,
-            anonKey,
-            accessToken: refreshedToken,
-            payload: withToken(refreshedToken),
-            useUserTokenHeader: true,
-          }));
-        }
       }
     }
 
@@ -180,6 +166,22 @@ export async function POST(request: NextRequest) {
           },
         },
         { status: 401 }
+      );
+    }
+
+    const edgeFailed = !response.ok || data?.success === false;
+    if (edgeFailed && isSmtpSpamRejected(data)) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'SMTP_SPAM_REJECTED',
+          error:
+            'El proveedor de correo rechazó la invitación por políticas anti-spam. Intenta nuevamente con invitación por enlace.',
+          invitationUrl: data?.invitationUrl,
+          inviteType: data?.inviteType,
+          isNewUser: data?.isNewUser,
+        },
+        { status: 422 }
       );
     }
 

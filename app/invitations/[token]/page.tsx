@@ -187,23 +187,32 @@ export default function InvitationPage() {
 
     setIsProcessing(true);
     try {
-      if (invitation.invite_type !== 'link') {
-        const { error } = await supabase
-          .from('project_invitations')
-          .update({
-            status: 'rejected',
-            responded_at: new Date().toISOString()
-          })
-          .eq('id', invitation.id);
+      const response = await fetch('/api/invitations/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
 
-        if (error) throw error;
+      const result = await response.json().catch(() => null) as {
+        success?: boolean;
+        error?: string;
+        status?: string;
+      } | null;
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'No se pudo rechazar la invitación');
       }
+
+      setInvitation((prev) => (prev ? { ...prev, status: 'rejected' } : prev));
 
       // Clear stored invitation token
       if (typeof window !== 'undefined') {
         localStorage.removeItem('pending_invitation');
         localStorage.removeItem('just_registered');
       }
+
+      await queryClient.invalidateQueries({ queryKey: ['pending-invitations'], exact: false });
+      await queryClient.refetchQueries({ queryKey: ['pending-invitations'], exact: false, type: 'active' });
 
       toast.info('Invitación rechazada');
 
