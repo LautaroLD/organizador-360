@@ -82,81 +82,79 @@ export const InvitationsWidget: React.FC = () => {
   };
 
   return (
-    <div className='p-6'>
-      <Card className='border-[var(--accent-primary)] bg-[var(--bg-secondary)]'>
-        <CardHeader>
-          <div className='flex items-center justify-between'>
-            <div className='flex items-center'>
-              <div className='bg-[var(--accent-primary)] p-2 rounded-lg mr-3'>
-                <Mail className='h-5 w-5 text-[var(--accent-primary-contrast)]' />
-              </div>
-              <div>
-                <CardTitle className='text-lg'>
-                  Invitaciones Pendientes
-                </CardTitle>
-                <CardDescription>
-                  Tienes {invitations.length} {invitations.length === 1 ? 'invitación' : 'invitaciones'} para revisar
-                </CardDescription>
-              </div>
+    <Card className='border-[var(--accent-primary)] bg-[var(--bg-secondary)]'>
+      <CardHeader>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center'>
+            <div className='bg-[var(--accent-primary)] p-2 rounded-lg mr-3'>
+              <Mail className='h-5 w-5 text-[var(--accent-primary-contrast)]' />
+            </div>
+            <div>
+              <CardTitle className='text-lg'>
+                Invitaciones Pendientes
+              </CardTitle>
+              <CardDescription>
+                Tienes {invitations.length} {invitations.length === 1 ? 'invitación' : 'invitaciones'} para revisar
+              </CardDescription>
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className='space-y-3'>
-            {invitations.map((invitation) => {
-              const timeAgo = formatTimeAgo(invitation.created_at);
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className='space-y-3'>
+          {invitations.map((invitation) => {
+            const timeAgo = formatTimeAgo(invitation.created_at);
 
-              const daysUntilExpiration = Math.ceil(
-                (new Date(invitation.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-              );
+            const daysUntilExpiration = Math.ceil(
+              (new Date(invitation.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+            );
 
-              return (
-                <div
-                  key={invitation.id}
-                  className='bg-[var(--bg-primary)] rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow'
-                >
-                  <div className='flex items-start justify-between'>
-                    <div className='flex-1'>
-                      <div className='flex items-center mb-2'>
-                        <UserPlus className='h-4 w-4 text-[var(--accent-primary)] mr-2' />
-                        <h4 className='font-semibold text-[var(--text-primary)]'>
-                          {invitation.project?.name ?? 'Proyecto sin nombre'}
-                        </h4>
-                      </div>
-
-                      <p className='text-sm  mb-2'>
-                        {(invitation.inviter?.name ?? invitation.inviter?.email ?? 'Usuario desconocido')} te invitó como <strong>{invitation.role}</strong>
-                      </p>
-
-                      <div className='flex items-center gap-3 text-xs text-[var(--text-secondary)]'>
-                        <span className='flex items-center'>
-                          <Clock className='h-3 w-3 mr-1' />
-                          {timeAgo}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-full ${daysUntilExpiration <= 2
-                          ? 'border-[var(--accent-danger)] border text-[var(--accent-danger)] font-semibold'
-                          : 'border-[var(--accent-warning)] border text-[var(--accent-warning)] font-semibold'
-                          }`}>
-                          Expira en {daysUntilExpiration}d
-                        </span>
-                      </div>
+            return (
+              <div
+                key={invitation.id}
+                className='bg-[var(--bg-primary)] rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow'
+              >
+                <div className='flex items-start justify-between'>
+                  <div className='flex-1'>
+                    <div className='flex items-center mb-2'>
+                      <UserPlus className='h-4 w-4 text-[var(--accent-primary)] mr-2' />
+                      <h4 className='font-semibold text-[var(--text-primary)]'>
+                        {invitation.project?.name ?? 'Proyecto sin nombre'}
+                      </h4>
                     </div>
 
-                    <Button
-                      size='sm'
-                      onClick={() => router.push(`/invitations/${invitation.token}`)}
-                      className='ml-4'
-                    >
-                      Ver
-                      <ChevronRight className='h-4 w-4 ml-1' />
-                    </Button>
+                    <p className='text-sm  mb-2'>
+                      {(invitation.inviter?.name ?? invitation.inviter?.email ?? 'Usuario desconocido')} te invitó como <strong>{invitation.role}</strong>
+                    </p>
+
+                    <div className='flex items-center gap-3 text-xs text-[var(--text-secondary)]'>
+                      <span className='flex items-center'>
+                        <Clock className='h-3 w-3 mr-1' />
+                        {timeAgo}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full ${daysUntilExpiration <= 2
+                        ? 'border-[var(--accent-danger)] border text-[var(--accent-danger)] font-semibold'
+                        : 'border-[var(--accent-warning)] border text-[var(--accent-warning)] font-semibold'
+                        }`}>
+                        Expira en {daysUntilExpiration}d
+                      </span>
+                    </div>
                   </div>
+
+                  <Button
+                    size='sm'
+                    onClick={() => router.push(`/invitations/${invitation.token}`)}
+                    className='ml-4'
+                  >
+                    Ver
+                    <ChevronRight className='h-4 w-4 ml-1' />
+                  </Button>
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 };

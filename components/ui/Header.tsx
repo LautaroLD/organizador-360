@@ -163,9 +163,9 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
       {
         title && subtitle &&
         <div className='px-6 py-1'>
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">{title}</h2>
+          <h2 className=" font-bold text-[var(--text-primary)]">{title}</h2>
           {subtitle && (
-            <p className="text-sm text-[var(--text-secondary)]">{subtitle}</p>
+            <p className="text-xs text-[var(--text-secondary)]">{subtitle}</p>
           )}
         </div>
       }

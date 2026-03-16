@@ -39,6 +39,54 @@ const getMedian = (values: number[]) => {
 
 const INITIAL_NOW_MS = Date.now();
 
+const getToneStyles = (tone: 'success' | 'warning' | 'danger' | 'neutral'): React.CSSProperties => {
+  const toneMap = {
+    success: 'var(--accent-success)',
+    warning: 'var(--accent-warning)',
+    danger: 'var(--accent-danger)',
+    neutral: 'var(--text-secondary)',
+  } as const;
+
+  const color = toneMap[tone];
+
+  return {
+    color,
+    borderColor: `color-mix(in srgb, ${color} 35%, transparent)`,
+    backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)`,
+  };
+};
+
+const getOnTimeTone = (rate: number | null): 'success' | 'warning' | 'danger' | 'neutral' => {
+  if (rate === null) return 'neutral';
+  if (rate >= 80) return 'success';
+  if (rate >= 60) return 'warning';
+  return 'danger';
+};
+
+const getStartOfLocalDayMs = (date: Date) => new Date(
+  date.getFullYear(),
+  date.getMonth(),
+  date.getDate(),
+  0,
+  0,
+  0,
+  0,
+).getTime();
+
+const getEndOfLocalDayMs = (date: Date) => new Date(
+  date.getFullYear(),
+  date.getMonth(),
+  date.getDate(),
+  23,
+  59,
+  59,
+  999,
+).getTime();
+
+const getCalendarDayDeltaMs = (estimatedAt: Date, doneAt: Date) => {
+  return getStartOfLocalDayMs(doneAt) - getStartOfLocalDayMs(estimatedAt);
+};
+
 
 interface TaskRow {
   id: string;
@@ -223,7 +271,7 @@ export const AnalyticsView: React.FC = () => {
         const estimatedAt = parseDateValue(t.done_estimated_at as string);
         const doneAt = parseDateValue(t.done_at as string);
         if (!estimatedAt || !doneAt) return null;
-        return doneAt.getTime() - estimatedAt.getTime();
+        return getCalendarDayDeltaMs(estimatedAt, doneAt);
       })
       .filter((v): v is number => v !== null);
 
@@ -233,6 +281,9 @@ export const AnalyticsView: React.FC = () => {
 
     const onTimeCount = estimatedDoneDeltas.filter((v) => v <= 0).length;
     const lateCount = estimatedDoneDeltas.filter((v) => v > 0).length;
+    const onTimeRate = estimatedDoneDeltas.length
+      ? Math.round((onTimeCount / estimatedDoneDeltas.length) * 100)
+      : null;
     const estimateComparisons = tasks
       .filter((t) => t.done_estimated_at && t.done_at)
       .map((t) => ({
@@ -278,6 +329,7 @@ export const AnalyticsView: React.FC = () => {
       avgEstimateDeltaMs,
       onTimeCount,
       lateCount,
+      onTimeRate,
       estimateComparisons,
       estimatedDoneCount: estimatedDoneDeltas.length,
       phaseBreakdown,
@@ -289,7 +341,7 @@ export const AnalyticsView: React.FC = () => {
     if (task.status === 'done') return false;
     if (!task.done_estimated_at) return false;
     const estimatedAt = parseDateValue(task.done_estimated_at);
-    return estimatedAt ? estimatedAt.getTime() < INITIAL_NOW_MS : false;
+    return estimatedAt ? getEndOfLocalDayMs(estimatedAt) < INITIAL_NOW_MS : false;
   };
 
   const getSortDateValue = (task: TaskRow) => {
@@ -339,6 +391,11 @@ export const AnalyticsView: React.FC = () => {
     );
   }
 
+  const donePct = analytics.total > 0 ? (analytics.done / analytics.total) * 100 : 0;
+  const inProgressPct = analytics.total > 0 ? (analytics.inProgress / analytics.total) * 100 : 0;
+  const todoPct = analytics.total > 0 ? (analytics.todo / analytics.total) * 100 : 0;
+  const onTimeTone = getOnTimeTone(analytics.onTimeRate);
+
   return (
     <main className="flex grow flex-col max-h-full overflow-y-auto">
       <div className="p-6 space-y-6">
@@ -385,7 +442,7 @@ export const AnalyticsView: React.FC = () => {
           )}
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Avance</CardTitle>
@@ -394,6 +451,38 @@ export const AnalyticsView: React.FC = () => {
             <CardContent>
               <p className="text-3xl font-bold text-[var(--text-primary)]">{analytics.progress}%</p>
               <p className="text-xs text-[var(--text-secondary)]">{analytics.done} completadas / {analytics.total} tareas</p>
+              <div className="mt-3 h-2 rounded-full bg-[var(--bg-primary)] overflow-hidden">
+                <div className="h-full bg-[var(--accent-primary)] transition-all" style={{ width: `${analytics.progress}%` }} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Entrega en plazo</CardTitle>
+              <CardDescription>Calidad de estimación y cumplimiento</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold text-[var(--text-primary)]">
+                {analytics.onTimeRate === null ? 'Sin datos' : `${analytics.onTimeRate}%`}
+              </p>
+              <p className="text-xs text-[var(--text-secondary)] mb-3">
+                {analytics.estimatedDoneCount
+                  ? `${analytics.onTimeCount} en plazo / ${analytics.lateCount} con retraso`
+                  : 'No hay tareas cerradas con fecha estimada'}
+              </p>
+              <span
+                className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold border"
+                style={getToneStyles(onTimeTone)}
+              >
+                {analytics.onTimeRate === null
+                  ? 'Sin referencia'
+                  : analytics.onTimeRate >= 80
+                    ? 'Saludable'
+                    : analytics.onTimeRate >= 60
+                      ? 'A vigilar'
+                      : 'Riesgo alto'}
+              </span>
             </CardContent>
           </Card>
 
@@ -424,6 +513,13 @@ export const AnalyticsView: React.FC = () => {
               <CardDescription>Distribución por estado</CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-[var(--text-secondary)] space-y-1">
+              <div className="h-2 rounded-full bg-[var(--bg-primary)] overflow-hidden mb-3">
+                <div className="h-full flex">
+                  <div className="bg-[var(--accent-primary)]" style={{ width: `${todoPct}%` }} />
+                  <div className="bg-[var(--accent-warning)]" style={{ width: `${inProgressPct}%` }} />
+                  <div className="bg-[var(--accent-success)]" style={{ width: `${donePct}%` }} />
+                </div>
+              </div>
               <div>Por hacer: <span className="text-[var(--text-primary)] font-medium">{analytics.todo}</span></div>
               <div>En progreso: <span className="text-[var(--text-primary)] font-medium">{analytics.inProgress}</span></div>
               <div>Completadas: <span className="text-[var(--text-primary)] font-medium">{analytics.done}</span></div>
@@ -485,7 +581,7 @@ export const AnalyticsView: React.FC = () => {
                   const estimatedAtDate = parseDateValue(task.done_estimated_at);
                   const doneAtDate = parseDateValue(task.done_at);
                   const deltaMs = estimatedAtDate && doneAtDate
-                    ? doneAtDate.getTime() - estimatedAtDate.getTime()
+                    ? getCalendarDayDeltaMs(estimatedAtDate, doneAtDate)
                     : 0;
                   const isLate = deltaMs > 0;
                   return (
@@ -495,7 +591,10 @@ export const AnalyticsView: React.FC = () => {
                         <p className="text-xs text-[var(--text-secondary)]">Estimado: {estimatedAt} | Real: {doneAt}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isLate ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                        <span
+                          className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+                          style={getToneStyles(isLate ? 'danger' : 'success')}
+                        >
                           {isLate ? 'Retraso' : 'En plazo'}
                         </span>
                         <span className="text-xs font-semibold text-[var(--accent-primary)]">Delta: {formatDelta(deltaMs)}</span>
@@ -587,7 +686,14 @@ export const AnalyticsView: React.FC = () => {
                               <p className="text-sm text-[var(--text-primary)]">{task.title}</p>
                               <p>
                                 Estado: {task.status}
-                                {overdue && <span className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Vencida</span>}
+                                {overdue && (
+                                  <span
+                                    className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+                                    style={getToneStyles('danger')}
+                                  >
+                                    Vencida
+                                  </span>
+                                )}
                               </p>
                               {task.status === 'done'
                                 ? <p>Cerrado: {doneText}</p>
