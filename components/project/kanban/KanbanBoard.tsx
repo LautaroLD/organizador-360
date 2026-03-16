@@ -20,7 +20,7 @@ import { KanbanTaskCard } from './KanbanTask';
 import { TaskModal } from './TaskModal';
 import { useTasks } from '@/hooks/useTasks';
 import { Button } from '@/components/ui/Button';
-import { Plus, Sparkles, CheckCircleIcon, ClockIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
+import { Plus, Sparkles, CheckCircleIcon, ClockIcon, ChevronDownIcon, ChevronUpIcon, ListTodo, CircleDashed, CircleCheckBig } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import useGemini from '@/hooks/useGemini';
 import SuggestionsModal from './SuggestionsModal';
@@ -35,6 +35,49 @@ interface KanbanBoardProps {
 
 type RoadmapPhaseOption = Pick<RoadmapPhase, 'id' | 'name' | 'init_at' | 'end_at' | 'description'>;
 type EpicOption = Pick<Epic, 'id' | 'title'>;
+
+const parseAISuggestions = (payload: unknown): string[] => {
+  const toStringArray = (candidate: unknown): string[] => {
+    if (!Array.isArray(candidate)) {
+      return [];
+    }
+
+    return candidate
+      .map((item) => {
+        if (typeof item === 'string') return item.trim();
+        if (item && typeof item === 'object' && 'title' in item && typeof item.title === 'string') {
+          return item.title.trim();
+        }
+        return '';
+      })
+      .filter((item) => item.length > 0);
+  };
+
+  if (Array.isArray(payload)) {
+    return toStringArray(payload);
+  }
+
+  if (typeof payload === 'string') {
+    const trimmed = payload.trim();
+    if (!trimmed) return [];
+
+    try {
+      return toStringArray(JSON.parse(trimmed));
+    } catch {
+      const embedded = trimmed.match(/\[[\s\S]*\]/)?.[0];
+      if (embedded) {
+        try {
+          return toStringArray(JSON.parse(embedded));
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    }
+  }
+
+  return [];
+};
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   const {
@@ -164,6 +207,18 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
       done: [],
     }),
     [filteredTasks]
+  );
+
+  const allProjectColumns = useMemo(
+    () => (tasks || []).reduce<Record<Task['status'], Task[]>>((acc, task) => {
+      acc[task.status].push(task);
+      return acc;
+    }, {
+      todo: [],
+      'in-progress': [],
+      done: [],
+    }),
+    [tasks]
   );
 
   const tasksById = useMemo(() => {
@@ -358,104 +413,175 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   };
   const generateSuggestions = useMutation(
     {
-      mutationFn: async () => await generateSuggestedTasks({ currentTasks: columns }),
+      mutationFn: async () => await generateSuggestedTasks({
+        currentTasks: {
+          columns: allProjectColumns,
+          phaseLabels,
+          epicLabels,
+          filters: {
+            selectedPhaseId,
+            selectedEpicId,
+          },
+        }
+      }),
       onSuccess: (data) => {
-        setSuggestions(JSON.parse(data));
+        const parsedSuggestions = parseAISuggestions(data);
+        setSuggestions(parsedSuggestions);
+
+        if (parsedSuggestions.length === 0) {
+          alert('No se pudieron generar sugerencias accionables con el estado actual del proyecto.');
+        }
       },
       onError: (error) => {
         console.error('Error generating suggestions:', error);
         alert('Error al generar sugerencias. Por favor, intenta de nuevo más tarde.');
       }
     });
+
+  const boardOverview = useMemo(() => {
+    const visibleTotal = filteredTasks.length;
+    const visibleDone = columns.done.length;
+    const visibleInProgress = columns['in-progress'].length;
+    const visibleTodo = columns.todo.length;
+    const overdue = filteredTasks.filter((task) => {
+      if (!task.done_estimated_at || task.status === 'done') {
+        return false;
+      }
+
+      const ts = Date.parse(task.done_estimated_at);
+      // eslint-disable-next-line react-hooks/purity
+      return Number.isFinite(ts) && ts < Date.now();
+    }).length;
+
+    const progress = visibleTotal > 0 ? Math.round((visibleDone / visibleTotal) * 100) : 0;
+
+    return {
+      visibleTotal,
+      visibleDone,
+      visibleInProgress,
+      visibleTodo,
+      overdue,
+      progress,
+    };
+  }, [columns.done.length, columns.todo.length, columns, filteredTasks]);
+
   return (
     <div className="min-h-full flex flex-col overflow-hidden w-full">
-      <div className="flex-none flex justify-between items-center p-4">
-        <div className="flex flex-col">
-          <h2 className="text-2xl font-bold text-[var(--text-primary)]">Tablero Kanban</h2>
-          {(roadmapPhases.length > 0 || epics.length > 0) && (
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <label className="text-xs text-[var(--text-secondary)]">Filtrar por fase:</label>
-              <select
-                value={selectedPhaseId}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (value === 'all' || value === 'none') {
-                    setSelectedPhaseId(value);
-                    return;
-                  }
-                  setSelectedPhaseId(Number(value));
-                }}
-                className="text-xs bg-[var(--bg-primary)] border border-[var(--text-secondary)]/30 rounded-md px-2 py-1 text-[var(--text-primary)]"
-              >
-                <option value="all">Todas</option>
-                {roadmapPhases.map((phase) => (
-                  <option key={phase.id} value={phase.id}>
-                    {phase.name}
-                  </option>
-                ))}
-                <option value="none">Sin fase</option>
-              </select>
-
-              <label className="text-xs text-[var(--text-secondary)]">Epica:</label>
-              <select
-                value={selectedEpicId}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (value === 'all' || value === 'none') {
-                    setSelectedEpicId(value);
-                    return;
-                  }
-                  setSelectedEpicId(value);
-                }}
-                className="text-xs bg-[var(--bg-primary)] border border-[var(--text-secondary)]/30 rounded-md px-2 py-1 text-[var(--text-primary)]"
-              >
-                <option value="all">Todas</option>
-                {epics.map((epic) => (
-                  <option key={epic.id} value={epic.id}>
-                    {epic.title}
-                  </option>
-                ))}
-                <option value="none">Sin epica</option>
-              </select>
+      <div className="flex-none p-4 border-b border-[var(--text-secondary)]/15 bg-gradient-to-r from-[var(--bg-secondary)] to-[var(--bg-primary)]">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+          <div className="flex flex-col gap-3">
+            <div>
+              <h2 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Tablero Kanban</h2>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">Gestiona tareas por estado, foco y prioridad en una sola vista.</p>
             </div>
-          )}
-        </div>
-        <div className='flex gap-3 items-center mb-auto'>
-          <div className="relative group">
-            <Button
-              size='sm'
-              variant='ghost'
-              className='text-[var(--accent-primary)]'
-              onClick={() => generateSuggestions.mutate()}
-              disabled={generateSuggestions.isPending || !isPremium}
-              title={!isPremium ? 'Función disponible solo en Plan Pro' : ''}
-            >
-              <p className='hidden md:flex md:mr-2'>
-                {generateSuggestions.isPending ? 'Generando...' : 'Sugerir tareas con IA'}
-              </p>
-              {<Sparkles size={20} />}
-            </Button>
-            {!isPremium && (
-              <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
-                <p>Función disponible solo en Plan Pro</p>
+
+            <div className="flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] text-[var(--text-secondary)]">
+                <ListTodo className="w-3 h-3" /> {boardOverview.visibleTotal} visibles
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] text-[var(--text-secondary)]">
+                <CircleCheckBig className="w-3 h-3 text-emerald-600" /> {boardOverview.progress}% completado
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] text-[var(--text-secondary)]">
+                <CircleDashed className="w-3 h-3 text-amber-600" /> {boardOverview.visibleInProgress} en progreso
+              </span>
+              {boardOverview.overdue > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border border-red-500/30 bg-red-500/10 text-red-700">
+                  <ClockIcon className="w-3 h-3" /> {boardOverview.overdue} vencidas
+                </span>
+              )}
+            </div>
+
+            {(roadmapPhases.length > 0 || epics.length > 0) && (
+              <div className="flex items-end gap-2 flex-wrap">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-medium text-[var(--text-secondary)]">Filtrar por fase</label>
+                  <select
+                    value={selectedPhaseId}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (value === 'all' || value === 'none') {
+                        setSelectedPhaseId(value);
+                        return;
+                      }
+                      setSelectedPhaseId(Number(value));
+                    }}
+                    className="text-xs bg-[var(--bg-primary)] border border-[var(--text-secondary)]/30 rounded-md px-2.5 py-1.5 text-[var(--text-primary)] min-w-[150px]"
+                  >
+                    <option value="all">Todas</option>
+                    {roadmapPhases.map((phase) => (
+                      <option key={phase.id} value={phase.id}>
+                        {phase.name}
+                      </option>
+                    ))}
+                    <option value="none">Sin fase</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-medium text-[var(--text-secondary)]">Filtrar por epica</label>
+                  <select
+                    value={selectedEpicId}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (value === 'all' || value === 'none') {
+                        setSelectedEpicId(value);
+                        return;
+                      }
+                      setSelectedEpicId(value);
+                    }}
+                    className="text-xs bg-[var(--bg-primary)] border border-[var(--text-secondary)]/30 rounded-md px-2.5 py-1.5 text-[var(--text-primary)] min-w-[150px]"
+                  >
+                    <option value="all">Todas</option>
+                    {epics.map((epic) => (
+                      <option key={epic.id} value={epic.id}>
+                        {epic.title}
+                      </option>
+                    ))}
+                    <option value="none">Sin epica</option>
+                  </select>
+                </div>
               </div>
             )}
           </div>
-          <Button size='sm' onClick={() => { setEditingTaskId(null); setIsModalOpen(true); }}>
-            <Plus size={20} />
-            <p className='hidden md:flex md:ml-1'>
-              Nueva Tarea
-            </p>
-          </Button>
-          <CreateRoadmap projectId={projectId} />
+
+          <div className='flex gap-2.5 items-center md:self-start'>
+            <div className="relative group">
+              <Button
+                size='sm'
+                variant='outline'
+                className='text-[var(--accent-primary)] border-[var(--accent-primary)]/30 bg-[var(--bg-primary)]'
+                onClick={() => generateSuggestions.mutate()}
+                disabled={generateSuggestions.isPending || !isPremium}
+                title={!isPremium ? 'Función disponible solo en Plan Pro' : ''}
+              >
+                <p className='hidden md:flex md:mr-2'>
+                  {generateSuggestions.isPending ? 'Generando...' : 'Sugerir tareas con IA'}
+                </p>
+                {<Sparkles size={20} className={generateSuggestions.isPending ? 'animate-pulse' : ''} />}
+              </Button>
+              {!isPremium && (
+                <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
+                  <p>Función disponible solo en Plan Pro</p>
+                </div>
+              )}
+            </div>
+            <Button size='sm' onClick={() => { setEditingTaskId(null); setIsModalOpen(true); }}>
+              <Plus size={20} />
+              <p className='hidden md:flex md:ml-1'>
+                Nueva Tarea
+              </p>
+            </Button>
+            <CreateRoadmap projectId={projectId} />
+          </div>
         </div>
       </div>
 
       {phaseStats.length > 0 && (
-        <div className="px-4 bg-[var(--bg-secondary)]">
-          <div hidden={!openPhaseStats} className="flex flex-nowrap overflow-x-auto py-2 gap-3">
+        <div className="px-4 py-2 bg-[var(--bg-secondary)] border-b border-[var(--text-secondary)]/10">
+          <div hidden={!openPhaseStats} className="flex flex-nowrap overflow-x-auto py-1 gap-3">
             {phaseStats.map((phase) => (
-              <div key={phase.id} className=" min-w-[200px] max-w-[200px] px-2 py-1 rounded-md border border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex flex-col gap-1">
+              <div key={phase.id} className="min-w-[210px] max-w-[210px] px-2.5 py-2 rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] flex flex-col gap-1.5">
                 <div className="flex items-center flex-wrap justify-between">
                   <p className="text-sm font-medium text-[var(--text-primary)] text-ellipsis overflow-hidden whitespace-nowrap">{phase.name}</p>
                   <span className="text-xs text-[var(--text-secondary)]">{phase.percent}%</span>
@@ -473,17 +599,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
               </div>
             ))}
           </div>
-          {
-            <div onClick={() => setOpenPhaseStats(!openPhaseStats)}>
-              {openPhaseStats ? (
-                <ChevronUpIcon size={24} className="mx-auto text-[var(--text-secondary)]" />
-
-              ) : (
-
-                <ChevronDownIcon size={24} className="mx-auto text-[var(--text-secondary)]" />
-              )}
-            </div>
-          }
+          <button
+            onClick={() => setOpenPhaseStats(!openPhaseStats)}
+            className="mx-auto flex items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            type="button"
+          >
+            {openPhaseStats ? 'Ocultar avance por fase' : 'Ver avance por fase'}
+            {openPhaseStats ? <ChevronUpIcon size={16} /> : <ChevronDownIcon size={16} />}
+          </button>
         </div>
       )}
 
@@ -495,7 +618,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
         onDragCancel={handleDragCancel}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex-1 flex gap-5 overflow-x-auto  overflow-y-hidden p-4 min-h-0 h-full">
+        <div className="flex-1 flex gap-4 overflow-x-auto overflow-y-hidden p-4 min-h-0 h-full bg-[var(--bg-primary)]">
           <KanbanColumn
             id="todo"
             title="Por hacer"
