@@ -15,13 +15,11 @@ export interface InviteFormData {
 export interface InviteMemberModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: InviteFormData) => void;
-  isLoading: boolean;
+  projectId: string | null;
   projectName?: string;
   currentMemberCount?: number;
   memberLimit?: number;
   isPremium?: boolean;
   planTier?: 'free' | 'starter' | 'pro' | 'enterprise';
-  generatedLink?: string | null;
-  onCopyLink?: () => void;
+  onSuccess?: () => void;
 }

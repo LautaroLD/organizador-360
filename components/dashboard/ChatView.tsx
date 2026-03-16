@@ -1096,6 +1096,7 @@ export const ChatView: React.FC = () => {
                 <RichTextEditor
                   showToolbar={showToolbar}
                   value={messageContent}
+                  rows={showToolbar ? 3 : 1}
                   onChange={setMessageContent}
                   onSubmit={onSubmitMessage}
                   submitBehavior="enter"

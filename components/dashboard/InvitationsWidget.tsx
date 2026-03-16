@@ -56,6 +56,8 @@ export const InvitationsWidget: React.FC = () => {
       return data as PendingInvitation[];
     },
     enabled: !!user?.email,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   if (isLoading) {

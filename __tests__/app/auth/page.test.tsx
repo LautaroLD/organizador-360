@@ -18,6 +18,7 @@ jest.mock('react-toastify', () => ({
 // Mock de next/navigation
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
+let mockSearchParams = new URLSearchParams();
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -25,13 +26,16 @@ jest.mock('next/navigation', () => ({
     replace: mockReplace,
     prefetch: jest.fn(),
   }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => mockSearchParams,
 }));
 
 // Mock de Supabase
 const mockSignInWithPassword = jest.fn();
 const mockSignUp = jest.fn();
 const mockSignInWithOAuth = jest.fn();
+const mockResetPasswordForEmail = jest.fn();
+const mockUpdateUser = jest.fn();
+const mockSignOut = jest.fn();
 
 jest.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
@@ -39,6 +43,9 @@ jest.mock('@/lib/supabase/client', () => ({
       signInWithPassword: mockSignInWithPassword,
       signUp: mockSignUp,
       signInWithOAuth: mockSignInWithOAuth,
+      resetPasswordForEmail: mockResetPasswordForEmail,
+      updateUser: mockUpdateUser,
+      signOut: mockSignOut,
     },
     from: jest.fn(() => ({
       select: jest.fn().mockReturnThis(),
@@ -51,6 +58,8 @@ jest.mock('@/lib/supabase/client', () => ({
 describe('AuthPage - Google Authentication', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSearchParams = new URLSearchParams();
+    mockSignOut.mockResolvedValue({ error: null });
     // Mock window.location
     Object.defineProperty(window, 'location', {
       value: { origin: 'http://localhost:3000' },
@@ -151,6 +160,8 @@ describe('AuthPage - Google Authentication', () => {
 describe('AuthPage - Email/Password Login', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSearchParams = new URLSearchParams();
+    mockSignOut.mockResolvedValue({ error: null });
   });
 
   it('debería renderizar el formulario de login', () => {
@@ -190,9 +201,72 @@ describe('AuthPage - Email/Password Login', () => {
       });
     });
   });
+
+  it('debería mostrar link de recuperación en modo login', () => {
+    render(<AuthPage />);
+
+    expect(screen.getByRole('button', { name: /olvidaste tu contraseña/i })).toBeInTheDocument();
+  });
+});
+
+describe('AuthPage - Password Recovery', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockSearchParams = new URLSearchParams();
+    mockSignOut.mockResolvedValue({ error: null });
+    Object.defineProperty(window, 'location', {
+      value: { origin: 'http://localhost:3000' },
+      writable: true,
+    });
+  });
+
+  it('debería solicitar email de recuperación en modo forgot', async () => {
+    mockSearchParams = new URLSearchParams('mode=forgot');
+    mockResetPasswordForEmail.mockResolvedValue({ error: null });
+
+    render(<AuthPage />);
+
+    fireEvent.change(screen.getByPlaceholderText('tu@email.com'), {
+      target: { value: 'recover@test.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /enviar enlace de recuperación/i }));
+
+    await waitFor(() => {
+      expect(mockResetPasswordForEmail).toHaveBeenCalledWith(
+        'recover@test.com',
+        expect.objectContaining({
+          redirectTo: 'http://localhost:3000/auth?mode=recovery',
+        })
+      );
+    });
+  });
+
+  it('debería actualizar contraseña en modo recovery', async () => {
+    mockSearchParams = new URLSearchParams('mode=recovery');
+    mockUpdateUser.mockResolvedValue({ error: null });
+
+    render(<AuthPage />);
+
+    const passwordInputs = screen.getAllByPlaceholderText('••••••••');
+    fireEvent.change(passwordInputs[0], { target: { value: 'StrongP@ss1' } });
+    fireEvent.change(passwordInputs[1], { target: { value: 'StrongP@ss1' } });
+    fireEvent.click(screen.getByRole('button', { name: /guardar nueva contraseña/i }));
+
+    await waitFor(() => {
+      expect(mockUpdateUser).toHaveBeenCalledWith({
+        password: 'StrongP@ss1',
+      });
+      expect(mockSignOut).toHaveBeenCalled();
+      expect(mockPush).toHaveBeenCalledWith('/auth?mode=login');
+    });
+  });
 });
 
 describe('AuthPage - UI Elements', () => {
+  beforeEach(() => {
+    mockSearchParams = new URLSearchParams();
+  });
+
   it('debería mostrar el título correcto en modo login', () => {
     render(<AuthPage />);
 

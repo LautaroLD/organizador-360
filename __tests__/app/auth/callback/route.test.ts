@@ -15,6 +15,8 @@ jest.mock('@/lib/supabase/server', () => ({
   }),
 }));
 
+import { GET } from '@/app/auth/callback/route';
+
 describe('Auth Callback Route - Logic Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -149,5 +151,40 @@ describe('Auth Callback Route - Logic Tests', () => {
 
       expect(invitationUrl).toBe('http://localhost:3000/invitations/inv-789');
     });
+  });
+
+  describe('Route GET - redirecciones', () => {
+    it('debería redirigir a next cuando viene en query y el intercambio es exitoso', async () => {
+      mockExchangeCodeForSession.mockResolvedValue({
+        data: { session: { provider_token: null } },
+        error: null,
+      });
+
+      const request = new Request(
+        'http://localhost:3000/auth/callback?code=abc123&next=%2Fauth%3Fmode%3Drecovery'
+      );
+
+      const response = await GET(request);
+
+      expect(response.status).toBe(307);
+      expect(response.headers.get('location')).toBe('http://localhost:3000/auth?mode=recovery');
+    });
+
+    it('debería priorizar invitation sobre next cuando ambos existen', async () => {
+      mockExchangeCodeForSession.mockResolvedValue({
+        data: { session: { provider_token: null } },
+        error: null,
+      });
+
+      const request = new Request(
+        'http://localhost:3000/auth/callback?code=abc123&invitation=inv-1&next=%2Fauth%3Fmode%3Drecovery'
+      );
+
+      const response = await GET(request);
+
+      expect(response.status).toBe(307);
+      expect(response.headers.get('location')).toBe('http://localhost:3000/invitations/inv-1');
+    });
+
   });
 });

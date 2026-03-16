@@ -5,13 +5,21 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
   const origin = requestUrl.origin;
+  const next = requestUrl.searchParams.get('next');
+  const pendingInvitation = requestUrl.searchParams.get('invitation');
 
   if (code) {
     const supabase = await createClient();
-    
-    // Intercambiar el código por una sesión
+
+    const targetRedirect = pendingInvitation
+      ? `${origin}/invitations/${pendingInvitation}`
+      : next
+        ? `${origin}${next}`
+        : `${origin}/dashboard`;
+
+    // Flow OAuth/Email code exchange
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-    
+
     if (error) {
       console.error('Error exchanging code for session:', error);
       return NextResponse.redirect(`${origin}/auth?error=${encodeURIComponent(error.message)}`);
@@ -23,12 +31,7 @@ export async function GET(request: Request) {
       // Se pueden usar directamente sin necesidad de guardarlos aparte
     }
 
-    // Verificar si hay una invitación pendiente
-    const pendingInvitation = requestUrl.searchParams.get('invitation');
-    
-    if (pendingInvitation) {
-      return NextResponse.redirect(`${origin}/invitations/${pendingInvitation}`);
-    }
+    return NextResponse.redirect(targetRedirect);
   }
 
   // Redirigir al dashboard por defecto

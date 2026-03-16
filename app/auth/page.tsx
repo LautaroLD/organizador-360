@@ -3,19 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
-import {
-  createClient
-} from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { toast } from 'react-toastify';
-import { LogIn, UserPlus } from 'lucide-react';
+import { LogIn, UserPlus, KeyRound } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
 import { PASSWORD_REQUIREMENTS_MESSAGE, isStrongPassword } from '@/lib/passwordValidation';
 
-// Icono de Google SVG
 const GoogleIcon = () => (
   <svg viewBox="0 0 24 24" className="h-5 w-5 mr-2">
     <path
@@ -40,6 +37,7 @@ const GoogleIcon = () => (
 interface AuthFormData {
   email: string;
   password: string;
+  confirmPassword?: string;
   name?: string;
 }
 
@@ -51,13 +49,13 @@ export default function AuthPage() {
   const router = useRouter();
   const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<AuthFormData>();
 
-  // Lee los parámetros de la URL
   const mode = searchParams?.get('mode');
   const email = searchParams?.get('email');
   const redirect = searchParams?.get('redirect');
   const preapprovalId = searchParams?.get('preapproval_id');
+  const isForgotPassword = mode === 'forgot';
+  const isRecoveryMode = mode === 'recovery';
 
-  // Construir URL de redirección con preapproval_id si existe
   const buildRedirectUrl = (baseUrl: string) => {
     if (!preapprovalId) return baseUrl;
     const url = new URL(baseUrl, window.location.origin);
@@ -66,14 +64,12 @@ export default function AuthPage() {
   };
 
   useEffect(() => {
-    // Si hay un modo en la URL, úsalo
     if (mode === 'signup') {
       setIsLogin(false);
     } else if (mode === 'login') {
       setIsLogin(true);
     }
 
-    // Si hay un email en la URL, pre-llénalo
     if (email) {
       setValue('email', email);
     }
@@ -82,6 +78,47 @@ export default function AuthPage() {
   const onSubmit = async (data: AuthFormData) => {
     setIsLoading(true);
     try {
+      if (isForgotPassword) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+        const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+          redirectTo: `${appUrl}/auth?mode=recovery`,
+        });
+
+        if (error) throw error;
+
+        toast.success('Te enviamos un enlace para recuperar tu contraseña.');
+        return;
+      }
+
+      if (isRecoveryMode) {
+        if (!data.password) {
+          throw new Error('La nueva contraseña es requerida');
+        }
+        if (data.password !== data.confirmPassword) {
+          throw new Error('Las contraseñas no coinciden');
+        }
+
+        const passwordValidation = isStrongPassword(data.password)
+          ? null
+          : PASSWORD_REQUIREMENTS_MESSAGE;
+
+        if (passwordValidation) {
+          throw new Error(passwordValidation);
+        }
+
+        const { error } = await supabase.auth.updateUser({
+          password: data.password,
+        });
+
+        if (error) throw error;
+
+        await supabase.auth.signOut();
+
+        toast.success('Contraseña actualizada exitosamente. Ya puedes iniciar sesión.');
+        router.push('/auth?mode=login');
+        return;
+      }
+
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({
           email: data.email,
@@ -92,7 +129,6 @@ export default function AuthPage() {
 
         toast.success('¡Bienvenido de nuevo!');
 
-        // Verifica si hay una invitación pendiente o un redirect
         const pendingInvitation = typeof window !== 'undefined'
           ? localStorage.getItem('pending_invitation')
           : null;
@@ -105,7 +141,6 @@ export default function AuthPage() {
           router.push(buildRedirectUrl('/dashboard'));
         }
       } else {
-        // Verifica si el usuario ya existe en la base de datos
         const { data: existingUsers, error: checkError } = await supabase
           .from('users')
           .select('id')
@@ -113,7 +148,6 @@ export default function AuthPage() {
           .limit(1);
 
         if (checkError && checkError.code !== 'PGRST116') {
-          // PGRST116 es "no rows returned", lo cual es esperado si no existe
           console.error('Error checking user:', checkError);
         }
 
@@ -132,7 +166,6 @@ export default function AuthPage() {
         });
 
         if (error) {
-          // Verifica si es un error de email duplicado
           if (error.message?.includes('User already registered') ||
             error.message?.includes('already registered')) {
             throw new Error('Este email ya está registrado. Por favor inicia sesión.');
@@ -140,18 +173,14 @@ export default function AuthPage() {
           throw error;
         }
 
-        // Verifica si necesita confirmación de email o si el usuario fue creado inmediatamente
         if (authData.user && authData.session) {
-          // Usuario creado y autenticado inmediatamente (email confirmado automáticamente)
           toast.success('¡Cuenta creada exitosamente!');
 
-          // Verifica si hay una invitación pendiente
           const pendingInvitation = typeof window !== 'undefined'
             ? localStorage.getItem('pending_invitation')
             : null;
 
           if (pendingInvitation) {
-            // Redirige a la página de invitación
             router.push(`/invitations/${pendingInvitation}`);
           } else if (redirect) {
             router.push(buildRedirectUrl(redirect));
@@ -159,9 +188,7 @@ export default function AuthPage() {
             router.push(buildRedirectUrl('/dashboard'));
           }
         } else {
-          // Usuario necesita confirmar email
           toast.success('Cuenta creada exitosamente. Por favor verifica tu email.');
-          // Redirige a la página de confirmación
           router.push(`/auth/confirm?email=${encodeURIComponent(data.email)}`);
         }
       }
@@ -169,7 +196,6 @@ export default function AuthPage() {
       const authError = error instanceof Error ? error : new Error(String(error));
       console.error('Auth error:', authError);
 
-      // Handle Supabase-specific errors
       if (authError?.message) {
         if (authError.message.includes('already registered') ||
           authError.message.includes('User already registered') ||
@@ -190,7 +216,6 @@ export default function AuthPage() {
     }
   };
 
-  // Login con Google (incluye permisos de Calendar)
   const signInWithGoogle = async () => {
     setIsLoading(true);
     try {
@@ -219,6 +244,12 @@ export default function AuthPage() {
     reset();
   };
 
+  const goToLogin = () => {
+    reset();
+    setIsLogin(true);
+    router.push('/auth?mode=login');
+  };
+
   return (
     <div className="min-h-dvh flex items-center justify-center p-4 bg-[var(--bg-primary)]">
       <div className="absolute top-4 right-4">
@@ -231,15 +262,24 @@ export default function AuthPage() {
         <Card className="w-full bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20">
           <CardHeader>
             <CardTitle className="text-center text-[var(--text-primary)]">
-              {isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}
+              {isForgotPassword
+                ? 'Recuperar Contraseña'
+                : isRecoveryMode
+                  ? 'Nueva Contraseña'
+                  : isLogin
+                    ? 'Iniciar Sesión'
+                    : 'Crear Cuenta'}
             </CardTitle>
             <CardDescription className="text-center text-[var(--text-secondary)]">
-              {isLogin
-                ? 'Ingresa a tu cuenta para continuar'
-                : 'Crea una nueva cuenta para comenzar'}
+              {isForgotPassword
+                ? 'Ingresa tu email y te enviaremos un enlace de recuperación'
+                : isRecoveryMode
+                  ? 'Elige una nueva contraseña para tu cuenta'
+                  : isLogin
+                    ? 'Ingresa a tu cuenta para continuar'
+                    : 'Crea una nueva cuenta para comenzar'}
             </CardDescription>
 
-            {/* Mostrar mensaje si viene de una invitación */}
             {email && (
               <div className="mt-4 p-3 bg-[var(--accent-primary)]/10 rounded-lg border border-[var(--accent-primary)]/30">
                 <p className="text-sm text-[var(--text-primary)] text-center">
@@ -251,7 +291,7 @@ export default function AuthPage() {
 
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              {!isLogin && (
+              {!isLogin && !isForgotPassword && !isRecoveryMode && (
                 <Input
                   label="Nombre"
                   {...register('name', {
@@ -262,35 +302,51 @@ export default function AuthPage() {
                 />
               )}
 
-              <Input
-                label="Email"
-                type="email"
-                {...register('email', {
-                  required: 'El email es requerido',
-                  pattern: {
-                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                    message: 'Email inválido',
-                  },
-                })}
-                error={errors.email?.message}
-                placeholder="tu@email.com"
-              />
+              {!isRecoveryMode && (
+                <Input
+                  label="Email"
+                  type="email"
+                  {...register('email', {
+                    required: 'El email es requerido',
+                    pattern: {
+                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                      message: 'Email inválido',
+                    },
+                  })}
+                  error={errors.email?.message}
+                  placeholder="tu@email.com"
+                />
+              )}
 
-              <Input
-                label="Contraseña"
-                type="password"
-                {...register('password', {
-                  required: 'La contraseña es requerida',
-                  validate: (value) => {
-                    if (isLogin) return true;
-                    return isStrongPassword(value) || PASSWORD_REQUIREMENTS_MESSAGE;
-                  },
-                })}
-                error={errors.password?.message}
-                placeholder="••••••••"
-              />
+              {!isForgotPassword && (
+                <Input
+                  label={isRecoveryMode ? 'Nueva Contraseña' : 'Contraseña'}
+                  type="password"
+                  {...register('password', {
+                    required: 'La contraseña es requerida',
+                    validate: (value) => {
+                      if (isLogin) return true;
+                      return isStrongPassword(value) || PASSWORD_REQUIREMENTS_MESSAGE;
+                    },
+                  })}
+                  error={errors.password?.message}
+                  placeholder="••••••••"
+                />
+              )}
 
-              {!isLogin && (
+              {isRecoveryMode && (
+                <Input
+                  label="Confirmar Nueva Contraseña"
+                  type="password"
+                  {...register('confirmPassword', {
+                    required: 'Debes confirmar la contraseña',
+                  })}
+                  error={errors.confirmPassword?.message}
+                  placeholder="••••••••"
+                />
+              )}
+
+              {!isLogin && !isForgotPassword && (
                 <p className="text-xs text-[var(--text-secondary)]">
                   {PASSWORD_REQUIREMENTS_MESSAGE}
                 </p>
@@ -303,6 +359,16 @@ export default function AuthPage() {
               >
                 {isLoading ? (
                   'Cargando...'
+                ) : isForgotPassword ? (
+                  <>
+                    <KeyRound className="mr-2 h-4 w-4" />
+                    Enviar Enlace de Recuperación
+                  </>
+                ) : isRecoveryMode ? (
+                  <>
+                    <KeyRound className="mr-2 h-4 w-4" />
+                    Guardar Nueva Contraseña
+                  </>
                 ) : isLogin ? (
                   <>
                     <LogIn className="mr-2 h-4 w-4" />
@@ -317,47 +383,72 @@ export default function AuthPage() {
               </Button>
             </form>
 
-            {/* Separador */}
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-[var(--text-secondary)]/20" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-[var(--bg-secondary)] px-2 text-[var(--text-secondary)]">
-                  O continúa con
-                </span>
-              </div>
-            </div>
+            {!isForgotPassword && !isRecoveryMode && (
+              <>
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-[var(--text-secondary)]/20" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-[var(--bg-secondary)] px-2 text-[var(--text-secondary)]">
+                      O continúa con
+                    </span>
+                  </div>
+                </div>
 
-            {/* Botón de Google */}
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full border-[var(--text-secondary)]/30 hover:bg-[var(--bg-primary)]"
-              onClick={signInWithGoogle}
-              disabled={isLoading}
-            >
-              <GoogleIcon />
-              Continuar con Google
-            </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full border-[var(--text-secondary)]/30 hover:bg-[var(--bg-primary)]"
+                  onClick={signInWithGoogle}
+                  disabled={isLoading}
+                >
+                  <GoogleIcon />
+                  Continuar con Google
+                </Button>
 
-            <p className="mt-3 text-xs text-center text-[var(--text-secondary)]">
-              Al usar Google, tu calendario se vinculará automáticamente
-            </p>
+                <p className="mt-3 text-xs text-center text-[var(--text-secondary)]">
+                  Al usar Google, tu calendario se vinculará automáticamente
+                </p>
+              </>
+            )}
 
             <div className="mt-4 text-center">
-              <button
-                type="button"
-                onClick={toggleMode}
-                className="text-sm text-[var(--accent-primary)] hover:underline"
-              >
-                {isLogin
-                  ? '¿No tienes cuenta? Regístrate'
-                  : '¿Ya tienes cuenta? Inicia sesión'}
-              </button>
+              {!isForgotPassword && !isRecoveryMode && (
+                <button
+                  type="button"
+                  onClick={toggleMode}
+                  className="text-sm text-[var(--accent-primary)] hover:underline"
+                >
+                  {isLogin
+                    ? '¿No tienes cuenta? Regístrate'
+                    : '¿Ya tienes cuenta? Inicia sesión'}
+                </button>
+              )}
+
+              {isLogin && !isForgotPassword && !isRecoveryMode && (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => router.push('/auth?mode=forgot')}
+                    className="text-sm text-[var(--text-secondary)] hover:text-[var(--accent-primary)] hover:underline"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
+                </div>
+              )}
+
+              {(isForgotPassword || isRecoveryMode) && (
+                <button
+                  type="button"
+                  onClick={goToLogin}
+                  className="text-sm text-[var(--accent-primary)] hover:underline"
+                >
+                  Volver a iniciar sesión
+                </button>
+              )}
             </div>
 
-            {/* Enlaces a políticas */}
             <div className="mt-6 pt-4 border-t border-[var(--text-secondary)]/20">
               <p className="text-xs text-center text-[var(--text-secondary)]">
                 {!isLogin && 'Al crear una cuenta, aceptas nuestros '}

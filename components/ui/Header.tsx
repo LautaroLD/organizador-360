@@ -14,7 +14,7 @@ import Logo from './Logo';
 
 interface HeaderProps {
   title?: string;
-  subtitle?: string;
+  subtitle?: string | React.ReactNode;
 }
 
 export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
