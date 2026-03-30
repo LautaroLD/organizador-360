@@ -2,11 +2,27 @@ import { createClient } from '@/lib/supabase/server';
 import { preapproval } from '@/lib/mercadopago';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { mapMercadoPagoPlanIdToTier, mapMercadoPagoStatusToDbStatus } from '@/lib/subscriptionUtils';
+import {
+  mapMercadoPagoPlanIdToTier,
+  mapMercadoPagoStatusToDbStatus,
+} from '@/lib/subscriptionUtils';
+
+function buildSafePeriodEnd(nextPaymentDate?: string | null): string {
+  if (nextPaymentDate) {
+    const parsed = new Date(nextPaymentDate);
+    if (!Number.isNaN(parsed.getTime()) && parsed.getTime() > Date.now()) {
+      return parsed.toISOString();
+    }
+  }
+
+  const fallback = new Date();
+  fallback.setMonth(fallback.getMonth() + 1);
+  return fallback.toISOString();
+}
 
 /**
  * GET /api/mercadopago/sync-preapproval?preapproval_id=xxx
- * 
+ *
  * Sincroniza una suscripción de MercadoPago después de que el usuario
  * completa el checkout y es redirigido de vuelta a la app.
  */
@@ -18,19 +34,18 @@ export async function GET(request: NextRequest) {
     if (!preapprovalId) {
       return NextResponse.json(
         { error: 'preapproval_id requerido' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Verificar usuario autenticado
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { error: 'No autenticado' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
 
     // Obtener datos de la suscripción desde MercadoPago
@@ -39,20 +54,21 @@ export async function GET(request: NextRequest) {
     if (!mpSubscription) {
       return NextResponse.json(
         { error: 'Suscripción no encontrada en MercadoPago' },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     const dbStatus = mapMercadoPagoStatusToDbStatus(mpSubscription.status);
 
     // Calcular fechas
-    const now = new Date();
-    const nextPaymentDate = mpSubscription.next_payment_date 
-      ? new Date(mpSubscription.next_payment_date)
-      : new Date(now.setMonth(now.getMonth() + 1));
+    const nextPaymentDate = buildSafePeriodEnd(
+      mpSubscription.next_payment_date,
+    );
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mpPlanId = (mpSubscription as any).preapproval_plan_id as string | undefined;
+    const mpPlanId = (mpSubscription as any).preapproval_plan_id as
+      | string
+      | undefined;
     const planTier = mapMercadoPagoPlanIdToTier(mpPlanId, true);
 
     // Upsert en la tabla de subscriptions
@@ -66,40 +82,39 @@ export async function GET(request: NextRequest) {
           status: dbStatus,
           price_id: null, // No usamos price_id para MercadoPago (FK a prices de Stripe)
           plan_tier: planTier,
-          current_period_start: mpSubscription.date_created || new Date().toISOString(),
-          current_period_end: nextPaymentDate.toISOString(),
-          cancel_at_period_end: false,
-          canceled_at: mpSubscription.status === 'cancelled' ? new Date().toISOString() : null,
+          current_period_start:
+            mpSubscription.date_created || new Date().toISOString(),
+          current_period_end: nextPaymentDate,
+          cancel_at_period_end: mpSubscription.status === 'cancelled',
+          canceled_at:
+            mpSubscription.status === 'cancelled'
+              ? new Date().toISOString()
+              : null,
         },
-        { onConflict: 'user_id' }
+        { onConflict: 'user_id' },
       );
 
     if (upsertError) {
       console.error('[SYNC] Error guardando suscripción:', upsertError);
       return NextResponse.json(
         { error: 'Error guardando suscripción' },
-        { status: 500 }
+        { status: 500 },
       );
     }
-
-    console.log('[SYNC] Suscripción sincronizada exitosamente');
 
     return NextResponse.json({
       success: true,
       subscription: {
         id: preapprovalId,
         status: dbStatus,
-      }
+      },
     });
-
   } catch (error: unknown) {
     console.error('[SYNC] Error sincronizando preapproval:', error);
-    
-    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-    
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+
+    const errorMessage =
+      error instanceof Error ? error.message : 'Error desconocido';
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

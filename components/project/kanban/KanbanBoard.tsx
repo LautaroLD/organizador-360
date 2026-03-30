@@ -463,7 +463,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
       overdue,
       progress,
     };
-  }, [columns.done.length, columns.todo.length, columns, filteredTasks]);
+  }, [columns, filteredTasks]);
 
   return (
     <div className="min-h-full flex flex-col overflow-hidden w-full">
