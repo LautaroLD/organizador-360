@@ -168,51 +168,43 @@ export async function POST(req: NextRequest) {
     Descripción: ${project.description}
 
     MIEMBROS DEL EQUIPO:
-    ${
-      members
-        .map(
-          (m: ProjectMember) =>
-            `- ${m.users?.email} (rol: ${m.role}) - (tags: ${m.tags
-              ?.map((tag: MemberTag) => tag.tag?.label)
-              .filter(Boolean)
-              .join(', ')})`,
-        )
-        .join('\n')
-    }
+    ${members
+      .map(
+        (m: ProjectMember) =>
+          `- ${m.users?.email} (rol: ${m.role}) - (tags: ${m.tags
+            ?.map((tag: MemberTag) => tag.tag?.label)
+            .filter(Boolean)
+            .join(', ')})`,
+      )
+      .join('\n')}
 
     ARCHIVOS Y RECURSOS DISPONIBLES (Últimos 30):
-    ${
-      resources
-        .map(
-          (r: ResourceItem) =>
-            `- [${r.type}] ${r.title} (${r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Sin fecha'})`,
-        )
-        .join('\n')
-    }
+    ${resources
+      .map(
+        (r: ResourceItem) =>
+          `- [${r.type}] ${r.title} (${r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Sin fecha'})`,
+      )
+      .join('\n')}
 
     PRÓXIMOS EVENTOS (Calendario):
-    ${
-      events
-        .map(
-          (e: EventItem) =>
-            `- [${e.start_date ? new Date(e.start_date).toLocaleString() : 'Sin fecha'} - ${e.end_date ? new Date(e.end_date).toLocaleTimeString() : 'Sin hora'}] ${e.title}: ${e.description || 'Sin descripción'}`,
-        )
-        .join('\n')
-    }
+    ${events
+      .map(
+        (e: EventItem) =>
+          `- [${e.start_date ? new Date(e.start_date).toLocaleString() : 'Sin fecha'} - ${e.end_date ? new Date(e.end_date).toLocaleTimeString() : 'Sin hora'}] ${e.title}: ${e.description || 'Sin descripción'}`,
+      )
+      .join('\n')}
 
     TAREAS DEL PROYECTO:
     ${tasks.map((t) => `* (Titulo: ${t.title}) - (Prioridad: ${t.priority || 'Sin prioridad'}) - (Estado: ${t.status}) - (Descripcion: ${t.description || 'Sin descripción'})`).join('\n')}
 
     ÚLTIMOS MENSAJES DE CHAT (Contexto de conversación):
-    ${
-      chatMessages
-        .reverse()
-        .map(
-          (m: ChatMessage) =>
-            `[${m.created_at}] ${m.users?.email || 'Usuario'}: ${m.content}`,
-        )
-        .join('\n')
-    }
+    ${chatMessages
+      .reverse()
+      .map(
+        (m: ChatMessage) =>
+          `[${m.created_at}] ${m.users?.email || 'Usuario'}: ${m.content}`,
+      )
+      .join('\n')}
     `;
 
     // 5. Llamada a Gemini
