@@ -1,5 +1,6 @@
 'use client';
 
+import { useThemeStore } from '@/store/themeStore';
 import { CardPayment, initMercadoPago } from '@mercadopago/sdk-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -54,6 +55,7 @@ export default function MercadoPagoCardBrick({
   onCheckoutSuccess,
 }: MercadoPagoCardBrickProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { theme } = useThemeStore();
   const publicKey = process.env.NEXT_PUBLIC_MP_PUBLIC_KEY;
   const isAutomation =
     typeof navigator !== 'undefined' && navigator.webdriver === true;
@@ -140,7 +142,6 @@ export default function MercadoPagoCardBrick({
       </div>
     );
   }
-
   return (
     <div className='rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3'>
       <p className='text-sm font-medium text-[var(--text-primary)] mb-2'>
@@ -149,6 +150,13 @@ export default function MercadoPagoCardBrick({
       <CardPayment
         initialization={initialization}
         onSubmit={handleSubmit}
+        customization={{
+          visual: {
+            style: {
+              theme: theme === 'dark' ? 'dark' : 'light',
+            }
+          }
+        }}
         onError={(error) => {
           console.error('Error en Card Payment Brick:', error);
           toast.error('Hubo un problema en el formulario de pago');
