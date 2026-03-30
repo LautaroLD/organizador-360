@@ -9,16 +9,26 @@ type AgentHistoryMessage = {
 };
 
 type MemberTag = {
-  tag?: {
-    label?: string | null;
-  } | null;
+  tag?:
+    | {
+        label?: string | null;
+      }
+    | {
+        label?: string | null;
+      }[]
+    | null;
 };
 
 type ProjectMember = {
   role?: string | null;
-  users?: {
-    email?: string | null;
-  } | null;
+  users?:
+    | {
+        email?: string | null;
+      }
+    | {
+        email?: string | null;
+      }[]
+    | null;
   tags?: MemberTag[] | null;
 };
 
@@ -38,9 +48,14 @@ type EventItem = {
 type ChatMessage = {
   created_at?: string | null;
   content?: string | null;
-  users?: {
-    email?: string | null;
-  } | null;
+  users?:
+    | {
+        email?: string | null;
+      }
+    | {
+        email?: string | null;
+      }[]
+    | null;
 };
 
 export async function POST(req: NextRequest) {
@@ -169,13 +184,20 @@ export async function POST(req: NextRequest) {
 
     MIEMBROS DEL EQUIPO:
     ${members
-      .map(
-        (m: ProjectMember) =>
-          `- ${m.users?.email} (rol: ${m.role}) - (tags: ${m.tags
-            ?.map((tag: MemberTag) => tag.tag?.label)
-            .filter(Boolean)
-            .join(', ')})`,
-      )
+      .map((m: ProjectMember) => {
+        const user = Array.isArray(m.users) ? m.users[0] : m.users;
+        const tags = (m.tags || [])
+          .map((memberTag: MemberTag) => {
+            const rawTag = Array.isArray(memberTag.tag)
+              ? memberTag.tag[0]
+              : memberTag.tag;
+            return rawTag?.label || null;
+          })
+          .filter((label): label is string => Boolean(label))
+          .join(', ');
+
+        return `- ${user?.email || 'Sin email'} (rol: ${m.role || 'Sin rol'}) - (tags: ${tags || 'Sin tags'})`;
+      })
       .join('\n')}
 
     ARCHIVOS Y RECURSOS DISPONIBLES (Últimos 30):
@@ -200,10 +222,10 @@ export async function POST(req: NextRequest) {
     ÚLTIMOS MENSAJES DE CHAT (Contexto de conversación):
     ${chatMessages
       .reverse()
-      .map(
-        (m: ChatMessage) =>
-          `[${m.created_at}] ${m.users?.email || 'Usuario'}: ${m.content}`,
-      )
+      .map((m: ChatMessage) => {
+        const user = Array.isArray(m.users) ? m.users[0] : m.users;
+        return `[${m.created_at}] ${user?.email || 'Usuario'}: ${m.content}`;
+      })
       .join('\n')}
     `;
 
