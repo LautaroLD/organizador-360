@@ -221,6 +221,27 @@ export const SubscriptionView: React.FC = () => {
   );
   const isFreeCurrent = currentPlanTier === 'free';
 
+  const handleSubscriptionCreated = async (subscriptionId: string) => {
+    if (subscriptionId) {
+      await fetch(
+        `/api/mercadopago/sync-preapproval?preapproval_id=${encodeURIComponent(subscriptionId)}`,
+        { credentials: 'include' }
+      );
+    }
+
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['subscription', user?.id], exact: false }),
+      queryClient.invalidateQueries({ queryKey: ['subscription-details', user?.id], exact: false }),
+    ]);
+  };
+
+  const handleSubscriptionReactivated = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['subscription', user?.id], exact: false }),
+      queryClient.invalidateQueries({ queryKey: ['subscription-details', user?.id], exact: false }),
+    ]);
+  };
+
   if (subscriptionLoading || mpLoading) {
     return (
       <div className='flex items-center justify-center h-full p-12'>
@@ -405,10 +426,10 @@ export const SubscriptionView: React.FC = () => {
             </div>
             {
               tabStarter === 'mensual' &&
-              <PlanCard planId={starter_mensual_id} isCurrent={currentPlanTier === 'starter'} isCanceled={isCanceled} plan_reference="STARTER_MENSUAL" />
+              <PlanCard planId={starter_mensual_id} isCurrent={currentPlanTier === 'starter'} isCanceled={isCanceled} plan_reference="STARTER_MENSUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
             }
             {tabStarter === 'anual' &&
-              <PlanCard planId={starter_anual_id} isCurrent={currentPlanTier === 'starter'} isCanceled={isCanceled} plan_reference="STARTER_ANUAL" />
+              <PlanCard planId={starter_anual_id} isCurrent={currentPlanTier === 'starter'} isCanceled={isCanceled} plan_reference="STARTER_ANUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
             }
           </div>
           { /* Pro Plan Cards */}
@@ -419,16 +440,16 @@ export const SubscriptionView: React.FC = () => {
             </div>
             {
               tabPro === 'mensual' &&
-              <PlanCard planId={pro_mensual_id} isCurrent={currentPlanTier === 'pro'} isCanceled={isCanceled} plan_reference="PRO_MENSUAL" />
+              <PlanCard planId={pro_mensual_id} isCurrent={currentPlanTier === 'pro'} isCanceled={isCanceled} plan_reference="PRO_MENSUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
             }
             {tabPro === 'anual' &&
-              <PlanCard planId={pro_anual_id} isCurrent={currentPlanTier === 'pro'} isCanceled={isCanceled} plan_reference="PRO_ANUAL" />
+              <PlanCard planId={pro_anual_id} isCurrent={currentPlanTier === 'pro'} isCanceled={isCanceled} plan_reference="PRO_ANUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
             }
           </div>
           { /* Enterprise Plan Cards */}
           <div className='space-y-2 relative'>
             {tabEnterprise === 'anual' &&
-              <PlanCard planId={enterprise_anual_id} isCurrent={currentPlanTier === 'enterprise'} isCanceled={isCanceled} plan_reference="ENTERPRISE_ANUAL" />
+              <PlanCard planId={enterprise_anual_id} isCurrent={currentPlanTier === 'enterprise'} isCanceled={isCanceled} plan_reference="ENTERPRISE_ANUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
             }
           </div>
         </div>

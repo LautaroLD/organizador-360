@@ -15,17 +15,27 @@ type SubscriptionAccessSnapshot = {
   current_period_end?: string | null;
 };
 
-const KNOWN_PAID_TIERS: ReadonlyArray<PlanTier> = ['starter', 'pro', 'enterprise'];
+const KNOWN_PAID_TIERS: ReadonlyArray<PlanTier> = [
+  'starter',
+  'pro',
+  'enterprise',
+];
 
 function normalizeTier(value?: string | null): PlanTier {
   const normalized = value?.toLowerCase();
-  if (normalized === 'starter' || normalized === 'pro' || normalized === 'enterprise') {
+  if (
+    normalized === 'starter' ||
+    normalized === 'pro' ||
+    normalized === 'enterprise'
+  ) {
     return normalized;
   }
   return 'free';
 }
 
-function buildPlanIdMap(useServerEnv: boolean): Record<'starter' | 'pro' | 'enterprise', string[]> {
+function buildPlanIdMap(
+  useServerEnv: boolean,
+): Record<'starter' | 'pro' | 'enterprise', string[]> {
   const env = process.env;
   const pick = (serverName: string, publicName: string) => {
     const serverValue = useServerEnv ? env[serverName] : undefined;
@@ -34,7 +44,10 @@ function buildPlanIdMap(useServerEnv: boolean): Record<'starter' | 'pro' | 'ente
 
   return {
     starter: [
-      pick('MP_STARTER_MENSUAL_PLAN_ID', 'NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID'),
+      pick(
+        'MP_STARTER_MENSUAL_PLAN_ID',
+        'NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID',
+      ),
       pick('MP_STARTER_ANUAL_PLAN_ID', 'NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID'),
     ].filter(Boolean),
     pro: [
@@ -42,8 +55,14 @@ function buildPlanIdMap(useServerEnv: boolean): Record<'starter' | 'pro' | 'ente
       pick('MP_PRO_ANUAL_PLAN_ID', 'NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID'),
     ].filter(Boolean),
     enterprise: [
-      pick('MP_ENTERPRISE_MENSUAL_PLAN_ID', 'NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID'),
-      pick('MP_ENTERPRISE_ANUAL_PLAN_ID', 'NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID'),
+      pick(
+        'MP_ENTERPRISE_MENSUAL_PLAN_ID',
+        'NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID',
+      ),
+      pick(
+        'MP_ENTERPRISE_ANUAL_PLAN_ID',
+        'NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID',
+      ),
     ].filter(Boolean),
   };
 }
@@ -58,7 +77,7 @@ export function getServerMercadoPagoPlanIdMap() {
 
 export function mapMercadoPagoPlanIdToTier(
   planId?: string | null,
-  useServerEnv = false
+  useServerEnv = false,
 ): PlanTier {
   if (!planId) return 'free';
   const map = buildPlanIdMap(useServerEnv);
@@ -83,7 +102,9 @@ export function resolveEffectivePlanTier(input: {
   return mapMercadoPagoPlanIdToTier(input.priceId, input.useServerEnv);
 }
 
-export function normalizeMercadoPagoStatus(status?: string | null): MercadoPagoStatus | null {
+export function normalizeMercadoPagoStatus(
+  status?: string | null,
+): MercadoPagoStatus | null {
   if (!status) return null;
   const normalized = status.toLowerCase();
   if (
@@ -105,9 +126,9 @@ export function mapMercadoPagoStatusToDbStatus(status?: string | null): string {
     case 'pending':
       return 'incomplete';
     case 'paused':
-      return 'paused';
+      return 'past_due';
     case 'cancelled':
-      return 'canceled';
+      return 'cancelled';
     default:
       return 'active';
   }
@@ -115,7 +136,7 @@ export function mapMercadoPagoStatusToDbStatus(status?: string | null): string {
 
 export function hasPaidAccess(
   snapshot: SubscriptionAccessSnapshot | null | undefined,
-  mercadoPagoStatus?: string | null
+  mercadoPagoStatus?: string | null,
 ): boolean {
   if (!snapshot) return false;
 
@@ -126,8 +147,12 @@ export function hasPaidAccess(
     return true;
   }
 
-  const periodEnd = snapshot.current_period_end ? new Date(snapshot.current_period_end) : null;
-  const hasFuturePeriodEnd = Boolean(periodEnd && !Number.isNaN(periodEnd.getTime()) && periodEnd > now);
+  const periodEnd = snapshot.current_period_end
+    ? new Date(snapshot.current_period_end)
+    : null;
+  const hasFuturePeriodEnd = Boolean(
+    periodEnd && !Number.isNaN(periodEnd.getTime()) && periodEnd > now,
+  );
 
   const status = snapshot.status?.toLowerCase();
   const dbStatusIsActive =
@@ -141,7 +166,9 @@ export function hasPaidAccess(
   }
 
   const canceled =
-    normalizedMpStatus === 'cancelled' || status === 'canceled' || status === 'cancelled';
+    normalizedMpStatus === 'cancelled' ||
+    status === 'canceled' ||
+    status === 'cancelled';
 
   if (canceled && snapshot.cancel_at_period_end && hasFuturePeriodEnd) {
     return true;
@@ -209,7 +236,7 @@ export function formatBytes(bytes: number | null, decimals = 2) {
  */
 export async function getUserPlanTier(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
 ): Promise<PlanTier> {
   try {
     const { data, error } = await supabase.rpc('get_user_plan', {
@@ -222,9 +249,44 @@ export async function getUserPlanTier(
     }
 
     const tier = (data as string | null)?.toLowerCase();
+
     if (tier === 'starter' || tier === 'pro' || tier === 'enterprise') {
       return tier;
     }
+
+    // Fallback defensivo: si el RPC devuelve free por datos desfasados,
+    // evaluamos la última suscripción visible del usuario.
+    const { data: subscription, error: subscriptionError } = await supabase
+      .from('subscriptions')
+      .select('plan_tier, status, cancel_at_period_end, current_period_end')
+      .eq('user_id', userId)
+      .order('created', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (subscriptionError || !subscription) {
+      if (subscriptionError) {
+        console.error(
+          'Error reading fallback subscription tier:',
+          subscriptionError,
+        );
+      }
+      return 'free';
+    }
+
+    const fallbackTier = normalizeTier(subscription.plan_tier);
+    if (fallbackTier === 'free') {
+      return 'free';
+    }
+
+    const fallbackHasAccess = hasPaidAccess({
+      status: subscription.status,
+      cancel_at_period_end: subscription.cancel_at_period_end,
+      current_period_end: subscription.current_period_end,
+    });
+
+    return fallbackHasAccess ? fallbackTier : 'free';
+
     return 'free';
   } catch (error) {
     console.error('Error getting user plan:', error);
@@ -234,7 +296,7 @@ export async function getUserPlanTier(
 
 export async function checkIsPremiumUser(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
 ): Promise<boolean> {
   const tier = await getUserPlanTier(supabase, userId);
   return tier !== 'free';
@@ -242,7 +304,7 @@ export async function checkIsPremiumUser(
 
 export async function canUseAIFeatures(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
 ): Promise<boolean> {
   const tier = await getUserPlanTier(supabase, userId);
   return tier === 'pro' || tier === 'enterprise';
@@ -253,7 +315,7 @@ export async function canUseAIFeatures(
  */
 export async function getProjectMemberCount(
   supabase: SupabaseClient,
-  projectId: string
+  projectId: string,
 ): Promise<number> {
   try {
     const { count, error } = await supabase
@@ -279,8 +341,14 @@ export async function getProjectMemberCount(
 export async function canAddMemberToProject(
   supabase: SupabaseClient,
   projectId: string,
-  ownerId: string
-): Promise<{ canAdd: boolean; reason?: string; currentCount?: number; limit?: number | null; plan?: PlanTier }> {
+  ownerId: string,
+): Promise<{
+  canAdd: boolean;
+  reason?: string;
+  currentCount?: number;
+  limit?: number | null;
+  plan?: PlanTier;
+}> {
   try {
     // Try to use the database function first (more efficient)
     try {
@@ -336,8 +404,14 @@ export async function canAddMemberToProject(
 export async function checkStorageLimit(
   supabase: SupabaseClient,
   projectId: string,
-  newBytes: number
-): Promise<{ canAdd: boolean; reason?: string; currentUsed?: number; limit?: number | null; plan?: PlanTier }> {
+  newBytes: number,
+): Promise<{
+  canAdd: boolean;
+  reason?: string;
+  currentUsed?: number;
+  limit?: number | null;
+  plan?: PlanTier;
+}> {
   try {
     // Obtener proyecto para ver si es premium y uso actual
     const { data: project, error } = await supabase
@@ -369,7 +443,10 @@ export async function checkStorageLimit(
     return { canAdd: true, currentUsed, limit, plan: tier };
   } catch (error) {
     console.error('Error checking storage limit:', error);
-    return { canAdd: false, reason: 'Error interno al verificar almacenamiento' };
+    return {
+      canAdd: false,
+      reason: 'Error interno al verificar almacenamiento',
+    };
   }
 }
 
@@ -378,7 +455,7 @@ export async function checkStorageLimit(
  */
 export async function getUserSubscriptionLimits(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
 ) {
   const tier = await getUserPlanTier(supabase, userId);
   const limits = getPlanLimits(tier);

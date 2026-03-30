@@ -1,14 +1,15 @@
 'use client';
 import { useQuery } from '@tanstack/react-query';
-import React from 'react';
-import { Check, Star, Zap } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Check, CheckCircle2, Loader2, Star, Zap } from 'lucide-react';
 import { Button } from './Button';
-import { useRouter } from 'next/navigation';
 import { resolveEffectivePlanTier } from '@/lib/subscriptionUtils';
+import MercadoPagoCardBrick from './MercadoPagoCardBrick';
+import { Modal } from './Modal';
+import { toast } from 'react-toastify';
 
 type PlanResponse = {
   reason?: string;
-  init_point?: string;
   auto_recurring?: {
     transaction_amount?: number;
     frequency_type?: string;
@@ -19,8 +20,29 @@ type PlanResponse = {
   };
 };
 
-export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference }: { planId: string; isCurrent: boolean; isCanceled: boolean; plan_reference: string; }) {
-  const router = useRouter();
+export default function PlanCard({
+  planId,
+  isCurrent,
+  isCanceled,
+  plan_reference,
+  payerEmail,
+  onSubscriptionCreated,
+  onSubscriptionReactivated,
+}: {
+  planId: string;
+  isCurrent: boolean;
+  isCanceled: boolean;
+  plan_reference: string;
+  payerEmail?: string;
+  onSubscriptionCreated?: (subscriptionId: string) => Promise<void> | void;
+  onSubscriptionReactivated?: () => Promise<void> | void;
+}) {
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isReactivating, setIsReactivating] = useState(false);
+  const [checkoutState, setCheckoutState] = useState<
+    'form' | 'processing' | 'success'
+  >('form');
+
   const { data: plan, isLoading, error } = useQuery<PlanResponse>({
     queryKey: ['plan', planId],
     queryFn: async () => {
@@ -127,11 +149,47 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
   const description = planFeatures[type]?.description || '';
 
   const isFree = type === 'free';
-  const handleSubscribe = async (init_point: string) => {
-    router.push(init_point);
-  };
+  const amount = Number(plan?.auto_recurring?.transaction_amount ?? 0);
 
   const isPro = type === 'pro';
+
+  const isCheckoutProcessing = checkoutState === 'processing';
+
+  useEffect(() => {
+    if (!isCheckoutOpen || checkoutState !== 'success') return;
+    const timer = window.setTimeout(() => {
+      setIsCheckoutOpen(false);
+      setCheckoutState('form');
+    }, 1800);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [checkoutState, isCheckoutOpen]);
+
+  const handleReactivate = async () => {
+    if (isReactivating) return;
+    setIsReactivating(true);
+    try {
+      const response = await fetch('/api/mercadopago/reactivate-subscription', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo reactivar la suscripción');
+      }
+
+      await onSubscriptionReactivated?.();
+      toast.success('Suscripción reactivada correctamente');
+    } catch {
+      setCheckoutState('form');
+      setIsCheckoutOpen(true);
+      toast.info('No se pudo reactivar. Completa el checkout para suscribirte nuevamente.');
+    } finally {
+      setIsReactivating(false);
+    }
+  };
 
   return (
     <div className='relative min-w-96 max-w-96 h-full'>
@@ -239,21 +297,97 @@ export default function PlanCard({ planId, isCurrent, isCanceled, plan_reference
             <Button
               className='w-full mt-auto'
               variant={isCurrent && !isCanceled ? 'primary' : 'secondary'}
-              disabled={(isCurrent && !isCanceled) || isLoadingState || isFree}
+              disabled={(isCurrent && !isCanceled) || isLoadingState || isFree || isReactivating}
               onClick={() => {
-                if (!isFree && plan.init_point) {
-                  handleSubscribe(plan.init_point);
+                if (!isFree && isCurrent && isCanceled) {
+                  void handleReactivate();
+                  return;
+                }
+                if (!isFree && !isCurrent) {
+                  setCheckoutState('form');
+                  setIsCheckoutOpen(true);
                 }
               }}
             >
               {isFree
                 ? 'Ya estás aquí'
                 : isLoadingState && isCurrent
-                  ? 'Redirigiendo...'
+                  ? 'Procesando...'
                   : isCurrent
-                    ? (isCanceled ? 'Reactivar suscripción' : 'Plan actual')
+                    ? (isCanceled ? (isReactivating ? 'Reactivando...' : 'Reactivar suscripción') : 'Plan actual')
                     : 'Actualizar plan'}
             </Button>
+
+            {!isFree && amount > 0 && isCheckoutOpen && (
+              <Modal
+                isOpen={isCheckoutOpen}
+                onClose={() => {
+                  if (isCheckoutProcessing) return;
+                  setIsCheckoutOpen(false);
+                  setCheckoutState('form');
+                }}
+                title={`Checkout ${planReason || 'Plan'}`}
+                size='lg'
+              >
+                <div className='space-y-3'>
+                  <p className='text-sm text-[var(--text-secondary)]'>
+                    Completa los datos de tu tarjeta para activar tu suscripción.
+                  </p>
+                  <p className='text-sm font-semibold text-[var(--text-primary)]'>
+                    Total: ${amount.toLocaleString()} /{' '}
+                    {plan.auto_recurring?.frequency_type === 'months' && plan.auto_recurring?.frequency === 12 ? 'año' : 'mes'}
+                  </p>
+                </div>
+
+                {checkoutState === 'success' ? (
+                  <div className='mt-6 rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-6 text-center'>
+                    <CheckCircle2 className='mx-auto mb-3 h-12 w-12 text-emerald-500' />
+                    <h4 className='text-xl font-bold text-[var(--text-primary)]'>
+                      Pago confirmado
+                    </h4>
+                    <p className='mt-2 text-sm text-[var(--text-secondary)]'>
+                      Tu suscripción quedó activa. Estamos actualizando tu panel.
+                    </p>
+                  </div>
+                ) : (
+                  <div className='mt-4 relative'>
+                    <MercadoPagoCardBrick
+                      planId={planId}
+                      planName={planReason || 'Plan'}
+                      amount={amount}
+                      payerEmail={payerEmail}
+                      disabled={isCheckoutProcessing}
+                      onProcessingChange={(processing) => {
+                        setCheckoutState((previous) => {
+                          if (previous === 'success') return previous;
+                          return processing ? 'processing' : 'form';
+                        });
+                      }}
+                      onCheckoutSuccess={() => {
+                        setCheckoutState('success');
+                      }}
+                      onSubscriptionCreated={async (subscriptionId) => {
+                        await onSubscriptionCreated?.(subscriptionId);
+                      }}
+                    />
+
+                    {isCheckoutProcessing && (
+                      <div className='absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-[var(--bg-primary)]/85 backdrop-blur-[2px]'>
+                        <div className='text-center'>
+                          <Loader2 className='mx-auto h-8 w-8 animate-spin text-[var(--accent-primary)]' />
+                          <p className='mt-3 text-sm font-semibold text-[var(--text-primary)]'>
+                            Confirmando pago...
+                          </p>
+                          <p className='mt-1 text-xs text-[var(--text-secondary)]'>
+                            Esto puede tardar unos segundos.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Modal>
+            )}
           </div>
         )
       )}

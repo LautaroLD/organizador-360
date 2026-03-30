@@ -4,6 +4,7 @@ import { Header } from '@/components/ui/Header';
 import { ProjectsView } from '@/components/dashboard/ProjectsView';
 import { InvitationsWidget } from '@/components/dashboard/InvitationsWidget';
 import SubscriptionSync from '@/components/dashboard/SubscriptionSync';
+import SubscriptionRealtimeRefresh from '@/components/dashboard/SubscriptionRealtimeRefresh';
 // import { supabaseAdmin } from '@/lib/supabase/admin';
 
 // type SearchParams = { [key: string]: string | string[] | undefined; };
@@ -61,8 +62,9 @@ export default async function DashboardPage() {
             </div>
           </div>
         )} */}
-        {/* Sincroniza la suscripción al volver de Stripe con session_id */}
+        {/* Sincroniza la suscripción al volver de Mercado Pago */}
         <SubscriptionSync />
+        <SubscriptionRealtimeRefresh />
         <InvitationsWidget />
         <ProjectsView />
       </main>

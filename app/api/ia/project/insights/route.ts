@@ -7,11 +7,16 @@ export async function POST(req: NextRequest) {
     const { projectId, phaseSummary } = await req.json();
 
     if (!projectId) {
-      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Project ID is required' },
+        { status: 400 },
+      );
     }
 
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
@@ -25,11 +30,17 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (memberError || !member) {
-      return NextResponse.json({ error: 'No tienes acceso a este proyecto' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'No tienes acceso a este proyecto' },
+        { status: 403 },
+      );
     }
 
     if (member.role !== 'Owner' && member.role !== 'Admin') {
-      return NextResponse.json({ error: 'Solo Owner o Admin pueden acceder' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Solo Owner o Admin pueden acceder' },
+        { status: 403 },
+      );
     }
 
     const { data: project, error: projectError } = await supabase
@@ -39,35 +50,54 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (projectError || !project) {
-      return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Proyecto no encontrado' },
+        { status: 404 },
+      );
     }
 
-    const { data: analyticsEnabledByDb, error: analyticsEnabledError } = await supabase.rpc('can_use_project_analytics', {
-      p_project_id: projectId,
-    });
+    const { data: analyticsEnabledByDb, error: analyticsEnabledError } =
+      await supabase.rpc('can_use_project_analytics', {
+        p_project_id: projectId,
+      });
 
     if (analyticsEnabledError) {
-      console.error('Error checking analytics access with RPC:', analyticsEnabledError);
+      console.error(
+        'Error checking analytics access with RPC:',
+        analyticsEnabledError,
+      );
     }
 
-    const projectTier = typeof project.plan_tier === 'string' ? project.plan_tier.toLowerCase() : 'free';
-    const analyticsEnabledByPlan = projectTier === 'pro' || projectTier === 'enterprise';
-    const canUseAnalytics = typeof analyticsEnabledByDb === 'boolean'
-      ? analyticsEnabledByDb
-      : analyticsEnabledByPlan;
+    const projectTier =
+      typeof project.plan_tier === 'string'
+        ? project.plan_tier.toLowerCase()
+        : 'free';
+    const analyticsEnabledByPlan =
+      projectTier === 'pro' || projectTier === 'enterprise';
+    const canUseAnalytics =
+      typeof analyticsEnabledByDb === 'boolean'
+        ? analyticsEnabledByDb
+        : analyticsEnabledByPlan;
 
     if (!canUseAnalytics) {
-      return NextResponse.json({ error: 'Disponible solo para Pro' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Disponible solo para Pro' },
+        { status: 403 },
+      );
     }
 
     const [tasksRes, membersRes] = await Promise.all([
       supabase
         .from('tasks')
-        .select('id,title,status,created_at,updated_at,done_at,done_estimated_at,priority')
+        .select(
+          'id,title,status,created_at,updated_at,done_at,done_estimated_at,priority',
+        )
         .eq('project_id', projectId),
       supabase
         .from('project_members')
-        .select('id,user_id, role, user:users(name,email), tags:member_tags(tag:project_tags(label,color))')
+        .select(
+          'id,user_id, role, user:users(name,email), tags:member_tags(tag:project_tags(label,color))',
+        )
         .eq('project_id', projectId),
     ]);
 
@@ -76,17 +106,28 @@ export async function POST(req: NextRequest) {
       id: string;
       user_id: string;
       role: string;
-      user: { name: string | null; email: string | null } | { name: string | null; email: string | null }[] | null;
-      tags: { tag: { label: string | null; color: string | null } | { label: string | null; color: string | null }[] | null }[] | null;
+      user:
+        | { name: string | null; email: string | null }
+        | { name: string | null; email: string | null }[]
+        | null;
+      tags:
+        | {
+            tag:
+              | { label: string | null; color: string | null }
+              | { label: string | null; color: string | null }[]
+              | null;
+          }[]
+        | null;
     }>;
     const taskIds = tasks.map((t) => t.id);
 
-    const { data: assignments } = taskIds.length > 0
-      ? await supabase
-        .from('task_assignments')
-        .select('task_id,user_id,user:users(name,email)')
-        .in('task_id', taskIds)
-      : { data: [] };
+    const { data: assignments } =
+      taskIds.length > 0
+        ? await supabase
+            .from('task_assignments')
+            .select('task_id,user_id,user:users(name,email)')
+            .in('task_id', taskIds)
+        : { data: [] };
 
     const total = tasks.length;
     const done = tasks.filter((t) => t.status === 'done').length;
@@ -116,7 +157,8 @@ export async function POST(req: NextRequest) {
     };
 
     const avgDurationMs = completedDurations.length
-      ? completedDurations.reduce((a, b) => a + b, 0) / completedDurations.length
+      ? completedDurations.reduce((a, b) => a + b, 0) /
+        completedDurations.length
       : 0;
 
     const medianDurationMs = getMedian(completedDurations);
@@ -146,16 +188,23 @@ export async function POST(req: NextRequest) {
       .filter((v): v is number => v !== null);
 
     const avgEstimateDeltaMs = estimatedDoneDeltas.length
-      ? Math.round(estimatedDoneDeltas.reduce((a, b) => a + b, 0) / estimatedDoneDeltas.length)
+      ? Math.round(
+          estimatedDoneDeltas.reduce((a, b) => a + b, 0) /
+            estimatedDoneDeltas.length,
+        )
       : 0;
     const onTimeCount = estimatedDoneDeltas.filter((v) => v <= 0).length;
     const lateCount = estimatedDoneDeltas.filter((v) => v > 0).length;
 
-    const phaseSummaryText = Array.isArray(phaseSummary) && phaseSummary.length > 0
-      ? `\nEstado por fases:\n${phaseSummary.map((phase) => (
-        `- ${phase.name}: ${phase.progress}% (${phase.done}/${phase.total}) | En progreso ${phase.inProgress} | Pendientes ${phase.todo}`
-      )).join('\n')}`
-      : '';
+    const phaseSummaryText =
+      Array.isArray(phaseSummary) && phaseSummary.length > 0
+        ? `\nEstado por fases:\n${phaseSummary
+            .map(
+              (phase) =>
+                `- ${phase.name}: ${phase.progress}% (${phase.done}/${phase.total}) | En progreso ${phase.inProgress} | Pendientes ${phase.todo}`,
+            )
+            .join('\n')}`
+        : '';
 
     const summaryText = `
 Proyecto: ${project.name}
@@ -176,43 +225,55 @@ Métricas:
 ${phaseSummaryText}
 
 Tareas por miembro:
-${members.map((m) => {
-  const rawUser = Array.isArray(m.user) ? m.user[0] : m.user;
-  const name = rawUser?.name || rawUser?.email || 'Sin nombre';
-  const count = tasksByMember[m.user_id] || 0;
-  const taskDetails = (tasksByMemberDetails[m.user_id] || [])
-    .map((task) => {
-      const status = task.status;
-      const estimatedAt = task.done_estimated_at ? new Date(task.done_estimated_at).toISOString().split('T')[0] : 'Sin fecha';
-      const doneAt = task.done_at ? new Date(task.done_at).toISOString().split('T')[0] : 'Sin fecha';
-      const closeText = status === 'done' ? `Cerrado: ${doneAt}` : `Cierre estimado: ${estimatedAt}`;
-      return `  - ${task.title} [${status}] | ${closeText}`;
-    })
-    .join('\n');
-  const tags = (m.tags || [])
-    .map((t) => {
-      const rawTag = Array.isArray(t.tag) ? t.tag[0] : t.tag;
-      return rawTag?.label;
-    })
-    .filter(Boolean)
-    .join(', ');
-  const tagsText = tags ? ` | tags: ${tags}` : '';
-  const tasksText = taskDetails ? `\n${taskDetails}` : '';
-  return `- ${name} (${m.role}): ${count}${tagsText}${tasksText}`;
-}).join('\n')}
+${members
+  .map((m) => {
+    const rawUser = Array.isArray(m.user) ? m.user[0] : m.user;
+    const name = rawUser?.name || rawUser?.email || 'Sin nombre';
+    const count = tasksByMember[m.user_id] || 0;
+    const taskDetails = (tasksByMemberDetails[m.user_id] || [])
+      .map((task) => {
+        const status = task.status;
+        const estimatedAt = task.done_estimated_at
+          ? new Date(task.done_estimated_at).toISOString().split('T')[0]
+          : 'Sin fecha';
+        const doneAt = task.done_at
+          ? new Date(task.done_at).toISOString().split('T')[0]
+          : 'Sin fecha';
+        const closeText =
+          status === 'done'
+            ? `Cerrado: ${doneAt}`
+            : `Cierre estimado: ${estimatedAt}`;
+        return `  - ${task.title} [${status}] | ${closeText}`;
+      })
+      .join('\n');
+    const tags = (m.tags || [])
+      .map((t) => {
+        const rawTag = Array.isArray(t.tag) ? t.tag[0] : t.tag;
+        return rawTag?.label;
+      })
+      .filter(Boolean)
+      .join(', ');
+    const tagsText = tags ? ` | tags: ${tags}` : '';
+    const tasksText = taskDetails ? `\n${taskDetails}` : '';
+    return `- ${name} (${m.role}): ${count}${tagsText}${tasksText}`;
+  })
+  .join('\n')}
 
 Comparacion cierre estimado vs real (tareas completadas):
 ${tasks
   .filter((t) => t.done_estimated_at && t.done_at)
   .map((t) => {
-    const estimatedAt = new Date(t.done_estimated_at as string).toISOString().split('T')[0];
+    const estimatedAt = new Date(t.done_estimated_at as string)
+      .toISOString()
+      .split('T')[0];
     const doneAt = new Date(t.done_at as string).toISOString().split('T')[0];
-    const deltaMs = new Date(t.done_at as string).getTime() - new Date(t.done_estimated_at as string).getTime();
+    const deltaMs =
+      new Date(t.done_at as string).getTime() -
+      new Date(t.done_estimated_at as string).getTime();
     return `- ${t.title}: Estimado ${estimatedAt} | Real ${doneAt} | Delta(ms) ${deltaMs}`;
   })
   .join('\n')}
 `;
-console.log(summaryText);
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -224,12 +285,15 @@ Responde en español con:
 2) Riesgos/alertas
 3) Recomendaciones (bullets)
 `,
-      }
+      },
     });
 
     return NextResponse.json({ summary: response.text });
   } catch (error) {
     console.error('Error generating analytics insights:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 },
+    );
   }
 }

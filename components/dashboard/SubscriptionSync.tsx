@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function SubscriptionSync() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const syncedRef = useRef(false);
 
   useEffect(() => {
@@ -24,8 +25,11 @@ export default function SubscriptionSync() {
           if (data.success) {
             syncedRef.current = true;
             sessionStorage.setItem(syncKey, '1');
-            // Recargar la página completamente sin los parámetros para mostrar el nuevo estado
-            window.location.href = window.location.pathname;
+            const cleanUrl = new URL(window.location.href);
+            cleanUrl.searchParams.delete('preapproval_id');
+            cleanUrl.searchParams.delete('redirect');
+            window.history.replaceState({}, '', cleanUrl.toString());
+            router.refresh();
             return;
           } else {
             console.error('[SYNC] Error en la respuesta:', data.error);
@@ -44,7 +48,7 @@ export default function SubscriptionSync() {
               if (syncData.success) {
                 syncedRef.current = true;
                 sessionStorage.setItem(syncKey, '1');
-                window.location.reload();
+                router.refresh();
                 return;
               }
             }
@@ -59,7 +63,6 @@ export default function SubscriptionSync() {
         }
         // Limpia los query params sin recargar (fallback si no se recargó antes)
         const url = new URL(window.location.href);
-        url.searchParams.delete('session_id');
         url.searchParams.delete('preapproval_id');
         url.searchParams.delete('redirect');
         window.history.replaceState({}, '', url.toString());
@@ -67,7 +70,7 @@ export default function SubscriptionSync() {
     }
 
     sync();
-  }, [searchParams]);
+  }, [router, searchParams]);
 
   return null;
 }

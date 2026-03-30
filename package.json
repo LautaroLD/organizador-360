@@ -23,6 +23,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@google/genai": "^1.35.0",
+    "@mercadopago/sdk-react": "^1.0.7",
     "@react-oauth/google": "^0.12.2",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.39.0",
