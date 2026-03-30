@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ invitation: data }, { status: 200 });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Error al resolver invitación' }, { status: 500 });
   }
 }

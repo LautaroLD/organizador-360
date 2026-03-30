@@ -3,6 +3,46 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 
+type AgentHistoryMessage = {
+  role: 'assistant' | 'user';
+  content: string;
+};
+
+type MemberTag = {
+  tag?: {
+    label?: string | null;
+  } | null;
+};
+
+type ProjectMember = {
+  role?: string | null;
+  users?: {
+    email?: string | null;
+  } | null;
+  tags?: MemberTag[] | null;
+};
+
+type ResourceItem = {
+  type?: string | null;
+  title?: string | null;
+  created_at?: string | null;
+};
+
+type EventItem = {
+  start_date?: string | null;
+  end_date?: string | null;
+  title?: string | null;
+  description?: string | null;
+};
+
+type ChatMessage = {
+  created_at?: string | null;
+  content?: string | null;
+  users?: {
+    email?: string | null;
+  } | null;
+};
+
 export async function POST(req: NextRequest) {
   try {
     const { message, history, projectId } = await req.json();
@@ -129,13 +169,12 @@ export async function POST(req: NextRequest) {
 
     MIEMBROS DEL EQUIPO:
     ${
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       members
         .map(
-          (m: any) =>
+          (m: ProjectMember) =>
             `- ${m.users?.email} (rol: ${m.role}) - (tags: ${m.tags
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              .map((tag: any) => tag.tag.label)
+              ?.map((tag: MemberTag) => tag.tag?.label)
+              .filter(Boolean)
               .join(', ')})`,
         )
         .join('\n')
@@ -143,22 +182,20 @@ export async function POST(req: NextRequest) {
 
     ARCHIVOS Y RECURSOS DISPONIBLES (Últimos 30):
     ${
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       resources
         .map(
-          (r: any) =>
-            `- [${r.type}] ${r.title} (${new Date(r.created_at).toLocaleDateString()})`,
+          (r: ResourceItem) =>
+            `- [${r.type}] ${r.title} (${r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Sin fecha'})`,
         )
         .join('\n')
     }
 
     PRÓXIMOS EVENTOS (Calendario):
     ${
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       events
         .map(
-          (e: any) =>
-            `- [${new Date(e.start_date).toLocaleString()} - ${new Date(e.end_date).toLocaleTimeString()}] ${e.title}: ${e.description || 'Sin descripción'}`,
+          (e: EventItem) =>
+            `- [${e.start_date ? new Date(e.start_date).toLocaleString() : 'Sin fecha'} - ${e.end_date ? new Date(e.end_date).toLocaleTimeString() : 'Sin hora'}] ${e.title}: ${e.description || 'Sin descripción'}`,
         )
         .join('\n')
     }
@@ -168,11 +205,10 @@ export async function POST(req: NextRequest) {
 
     ÚLTIMOS MENSAJES DE CHAT (Contexto de conversación):
     ${
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chatMessages
         .reverse()
         .map(
-          (m: any) =>
+          (m: ChatMessage) =>
             `[${m.created_at}] ${m.users?.email || 'Usuario'}: ${m.content}`,
         )
         .join('\n')
@@ -181,9 +217,8 @@ export async function POST(req: NextRequest) {
 
     // 5. Llamada a Gemini
     // Construimos el historial de conversación para Gemini
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const conversationHistory =
-      history?.map((msg: any) => ({
+      history?.map((msg: AgentHistoryMessage) => ({
         role: msg.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: msg.content }],
       })) || [];
