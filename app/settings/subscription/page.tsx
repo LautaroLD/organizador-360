@@ -9,6 +9,6 @@ export default function SubscriptionPage() {
       title="Suscripción"
       subtitle="Administra tu plan y funciones premium"
     />
-    <SubscriptionView />;
+    <SubscriptionView />
   </>;
 }
