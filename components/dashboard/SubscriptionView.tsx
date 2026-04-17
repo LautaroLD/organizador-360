@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
@@ -27,7 +27,6 @@ import {
   resolveEffectivePlanTier,
 } from '@/lib/subscriptionUtils';
 import PlanCard from '../ui/PlanCard';
-import clsx from 'clsx';
 
 
 interface MercadoPagoDetails {
@@ -64,9 +63,7 @@ export const SubscriptionView: React.FC = () => {
   const supabase = createClient();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
-  const [tabPro, setTabPro] = useState<'mensual' | 'anual'>('anual');
-  const [tabStarter, setTabStarter] = useState<'mensual' | 'anual'>('anual');
-  const tabEnterprise: 'mensual' | 'anual' = 'anual';
+
   // Fetch subscription data from local DB
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({
     queryKey: ['subscription', user?.id],
@@ -255,10 +252,8 @@ export const SubscriptionView: React.FC = () => {
     );
   }
   const pro_mensual_id = process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '';
-  const pro_anual_id = process.env.NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID ?? '';
   const starter_mensual_id = process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '';
-  const starter_anual_id = process.env.NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID ?? '';
-  const enterprise_anual_id = process.env.NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID ?? '';
+  const enterprise_mensual_id = process.env.NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID ?? '';
   return (
     <div className='p-6  mx-auto'>
       {/* Encabezado */}
@@ -386,8 +381,8 @@ export const SubscriptionView: React.FC = () => {
 
       {/* Grid de planes */}
       <div className='-mx-6 bg-[var(--bg-secondary)] px-6 py-10 mb-8'>
-        <div className='flex gap-6 overflow-x-auto px-4  pb-2 pt-14'>
-          <div className='min-w-100 max-w-100 relative'>
+        <div className='flex flex-col md:flex-row  gap-6 md:overflow-x-auto px-4 pb-2 pt-4 md:pt-14'>
+          <div className='w-full md:w-96 md:shrink-0 min-h-max relative'>
             <div className={`relative rounded-xl border p-6 flex flex-col h-full transition-all ${isFreeCurrent
               ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/5 shadow-lg'
               : 'border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]'
@@ -418,39 +413,17 @@ export const SubscriptionView: React.FC = () => {
               )}
             </div>
           </div>
-          { /* Starter Plan Cards */}
-          <div className='space-y-2 relative'>
-            <div className='bg-[var(--bg-primary)] rounded-full flex items-center absolute -top-14 z-10 w-full'>
-              <span onClick={() => setTabStarter('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabStarter === 'mensual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>MENSUAL</span>
-              <span onClick={() => setTabStarter('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabStarter === 'anual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>ANUAL</span>
-            </div>
-            {
-              tabStarter === 'mensual' &&
-              <PlanCard planId={starter_mensual_id} isCurrent={currentPlanTier === 'starter'} isCanceled={isCanceled} plan_reference="STARTER_MENSUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
-            }
-            {tabStarter === 'anual' &&
-              <PlanCard planId={starter_anual_id} isCurrent={currentPlanTier === 'starter'} isCanceled={isCanceled} plan_reference="STARTER_ANUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
-            }
+          { /* Starter Plan Card */}
+          <div className='w-full md:w-96 md:shrink-0 min-h-max relative'>
+            <PlanCard planId={starter_mensual_id} isCurrent={currentPlanTier === 'starter'} isCanceled={isCanceled} plan_reference="STARTER_MENSUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
           </div>
-          { /* Pro Plan Cards */}
-          <div className='space-y-2 relative'>
-            <div className='bg-[var(--bg-primary)] rounded-full flex items-center absolute -top-14 z-10 w-full'>
-              <span onClick={() => setTabPro('mensual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabPro === 'mensual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>MENSUAL</span>
-              <span onClick={() => setTabPro('anual')} className={clsx('w-full rounded-full text-center cursor-pointer p-2 font-bold ', tabPro === 'anual' ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]' : '')}>ANUAL</span>
-            </div>
-            {
-              tabPro === 'mensual' &&
-              <PlanCard planId={pro_mensual_id} isCurrent={currentPlanTier === 'pro'} isCanceled={isCanceled} plan_reference="PRO_MENSUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
-            }
-            {tabPro === 'anual' &&
-              <PlanCard planId={pro_anual_id} isCurrent={currentPlanTier === 'pro'} isCanceled={isCanceled} plan_reference="PRO_ANUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
-            }
+          { /* Pro Plan Card */}
+          <div className='w-full md:w-96 md:shrink-0 min-h-max relative'>
+            <PlanCard planId={pro_mensual_id} isCurrent={currentPlanTier === 'pro'} isCanceled={isCanceled} plan_reference="PRO_MENSUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
           </div>
-          { /* Enterprise Plan Cards */}
-          <div className='space-y-2 relative'>
-            {tabEnterprise === 'anual' &&
-              <PlanCard planId={enterprise_anual_id} isCurrent={currentPlanTier === 'enterprise'} isCanceled={isCanceled} plan_reference="ENTERPRISE_ANUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
-            }
+          { /* Enterprise Plan Card */}
+          <div className='w-full md:w-96 md:shrink-0 min-h-max relative'>
+            <PlanCard planId={enterprise_mensual_id} isCurrent={currentPlanTier === 'enterprise'} isCanceled={isCanceled} plan_reference="ENTERPRISE_MENSUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
           </div>
         </div>
       </div>
