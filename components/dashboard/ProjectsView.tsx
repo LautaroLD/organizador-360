@@ -51,8 +51,7 @@ export const ProjectsView: React.FC = () => {
     control,
   } = useForm<ProjectFormData>();
 
-  const [useRichTextDescription, setUseRichTextDescription] = useState(false);
-  const [showDescriptionPreview, setShowDescriptionPreview] = useState(false);
+  const [descriptionTab, setDescriptionTab] = useState<'richtext' | 'preview'>('richtext');
   const descriptionValue = useWatch({ control, name: 'description' }) || '';
 
   // Fetch projects
@@ -442,27 +441,22 @@ export const ProjectsView: React.FC = () => {
                 Sugerimos una descripción detallada y clara, esta información será utilizada por los modelos de IA para entender mejor el contexto de tu proyecto.
               </p>
             </label>
-            <div className='flex flex-col gap-2 text-xs text-[var(--text-secondary)] mb-2'>
-              <label className='flex items-center gap-2'>
-                <input
-                  type='checkbox'
-                  checked={useRichTextDescription}
-                  onChange={(event) => setUseRichTextDescription(event.target.checked)}
-                />
-                Usar rich text
-              </label>
-              {useRichTextDescription && (
-                <label className='flex items-center gap-2'>
-                  <input
-                    type='checkbox'
-                    checked={showDescriptionPreview}
-                    onChange={(event) => setShowDescriptionPreview(event.target.checked)}
-                  />
-                  Ver preview
-                </label>
-              )}
+            <div className='flex gap-1 p-1 bg-[var(--bg-primary)] border border-[var(--text-secondary)]/20 rounded-lg mb-3 text-xs'>
+              {(['richtext', 'preview'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type='button'
+                  onClick={() => setDescriptionTab(tab)}
+                  className={`flex-1 py-1.5 px-2 rounded-md font-medium transition-colors ${descriptionTab === tab
+                    ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    }`}
+                >
+                  {tab === 'richtext' ? 'Editar' : 'Vista previa'}
+                </button>
+              ))}
             </div>
-            {useRichTextDescription ? (
+            {descriptionTab === 'richtext' ? (
               <RichTextEditor
                 rows={15}
                 value={descriptionValue}
@@ -470,17 +464,10 @@ export const ProjectsView: React.FC = () => {
                 placeholder='Describe tu proyecto...'
               />
             ) : (
-              <textarea
-                {...register('description')}
-                className='flex w-full rounded-lg border border-[var(--text-secondary)]/30 bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] resize-none'
-                rows={10}
-                placeholder='Describe tu proyecto...'
-              />
-            )}
-            {useRichTextDescription && showDescriptionPreview && descriptionValue.trim().length > 0 && (
-              <div className='mt-3 rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-3'>
-                <p className='text-xs text-[var(--text-secondary)] mb-2'>Preview</p>
-                <MessageContent content={descriptionValue} />
+              <div className='rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-3 min-h-[10rem]'>
+                {descriptionValue.trim().length > 0
+                  ? <MessageContent content={descriptionValue} />
+                  : <span className='text-[var(--text-secondary)] italic text-sm'>Sin contenido</span>}
               </div>
             )}
           </div>

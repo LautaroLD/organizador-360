@@ -16,8 +16,7 @@ export function ProjectSettings() {
   const [projectDescription, setProjectDescription] = useState(
     currentProject?.description || ''
   );
-  const [useRichTextDescription, setUseRichTextDescription] = useState(false);
-  const [showDescriptionPreview, setShowDescriptionPreview] = useState(false);
+  const [descriptionTab, setDescriptionTab] = useState<'richtext' | 'preview'>('richtext');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const handleSave = useMutation({
     mutationFn: async () => {
@@ -96,27 +95,22 @@ export function ProjectSettings() {
               >
                 Descripción
               </label>
-              <div className="flex flex-col gap-2 text-xs text-[var(--text-secondary)] mb-2">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={useRichTextDescription}
-                    onChange={(event) => setUseRichTextDescription(event.target.checked)}
-                  />
-                  Usar rich text
-                </label>
-                {useRichTextDescription && (
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={showDescriptionPreview}
-                      onChange={(event) => setShowDescriptionPreview(event.target.checked)}
-                    />
-                    Ver preview
-                  </label>
-                )}
+              <div className="flex gap-1 p-1 bg-[var(--bg-primary)] border border-[var(--text-secondary)]/20 rounded-lg mb-3 text-xs">
+                {(['richtext', 'preview'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setDescriptionTab(tab)}
+                    className={`flex-1 py-1.5 px-2 rounded-md font-medium transition-colors ${descriptionTab === tab
+                      ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                      }`}
+                  >
+                    {tab === 'richtext' ? 'Editar' : 'Vista previa'}
+                  </button>
+                ))}
               </div>
-              {useRichTextDescription ? (
+              {descriptionTab === 'richtext' ? (
                 <RichTextEditor
                   rows={20}
                   value={projectDescription}
@@ -124,19 +118,10 @@ export function ProjectSettings() {
                   placeholder="Describe brevemente tu proyecto..."
                 />
               ) : (
-                <textarea
-                  id="project-description"
-                  value={projectDescription}
-                  onChange={(e) => setProjectDescription(e.target.value)}
-                  rows={15}
-                  className="w-full px-3 py-2 bg-[var(--bg-primary)] border border-[var(--text-secondary)]/20 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] focus:border-transparent resize-none text-[var(--text-primary)]"
-                  placeholder="Describe brevemente tu proyecto..."
-                />
-              )}
-              {useRichTextDescription && showDescriptionPreview && projectDescription.trim().length > 0 && (
-                <div className="mt-3 rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-3">
-                  <p className="text-xs text-[var(--text-secondary)] mb-2">Preview</p>
-                  <MessageContent content={projectDescription} />
+                <div className="rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-3 min-h-[10rem]">
+                  {projectDescription.trim().length > 0
+                    ? <MessageContent content={projectDescription} />
+                    : <span className="text-[var(--text-secondary)] italic text-sm">Sin contenido</span>}
                 </div>
               )}
             </div>
