@@ -2,8 +2,8 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Términos de Servicio',
-  description: 'Términos de servicio de nuestra aplicación organizadora',
+  title: 'Términos de Servicio | Veenzo',
+  description: 'Términos de servicio de Veenzo, plataforma de gestión de proyectos y tareas.',
 };
 
 export default function TermsOfServicePage() {
@@ -14,10 +14,10 @@ export default function TermsOfServicePage() {
       <div className="space-y-6 text-gray-700 dark:text-gray-300">
         <section>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Última actualización: 7 de enero de 2026
+            Última actualización: 17 de abril de 2026
           </p>
           <p>
-            Bienvenido a nuestra aplicación organizadora de proyectos y tareas. Al acceder o utilizar
+            Bienvenido a <strong>Veenzo</strong>, plataforma de gestión de proyectos y colaboración en equipo. Al acceder o utilizar
             nuestro servicio, usted acepta estar sujeto a estos Términos de Servicio.
           </p>
         </section>
@@ -41,6 +41,7 @@ export default function TermsOfServicePage() {
             <li>Sincronizar con Google Calendar</li>
             <li>Gestionar recursos y etiquetas</li>
             <li>Recibir notificaciones sobre actividades</li>
+            <li>Asistencia mediante inteligencia artificial (IA) a través de la API de Google Gemini</li>
           </ul>
         </section>
 
@@ -85,15 +86,33 @@ export default function TermsOfServicePage() {
         </section>
 
         <section>
+          <h2 className="text-2xl font-semibold mb-4">5.5 Inteligencia Artificial (Gemini)</h2>
+          <p className="mb-4">
+            Veenzo ofrece funciones de asistencia con IA en planes pagos (Pro y superiores) mediante la API de Google Gemini:
+          </p>
+          <ul className="list-disc pl-6 space-y-2 mb-4">
+            <li>Para generar sugerencias, resumir conversaciones o crear tareas, se envían fragmentos del contenido de sus proyectos a la API de Gemini</li>
+            <li>Dicho contenido puede incluir nombres de tareas, descripciones, mensajes de chat y estado del proyecto</li>
+            <li>No se envían datos de pago, contraseñas ni información sensible de terceros</li>
+            <li>Google puede procesar estos datos conforme a sus propias políticas de uso de la API</li>
+            <li>Puede desactivar las funciones de IA desde la configuración del proyecto</li>
+          </ul>
+          <p>
+            Al utilizar funciones de IA, usted acepta que fragmentos de su contenido sean procesados por Google Gemini para generar las respuestas correspondientes.
+          </p>
+        </section>
+
+        <section>
           <h2 className="text-2xl font-semibold mb-4">6. Suscripciones y Pagos</h2>
           <p className="mb-4">
             Ofrecemos planes de suscripción con diferentes características:
           </p>
           <ul className="list-disc pl-6 space-y-2 mb-4">
             <li>Los pagos se procesan de forma segura a través de Mercado Pago</li>
-            <li>Las suscripciones se renuevan automáticamente</li>
-            <li>Puede cancelar su suscripción en cualquier momento</li>
-            <li>No se emiten reembolsos por periodos no utilizados, salvo que la ley lo requiera</li>
+            <li>Las suscripciones son de facturación mensual y se renuevan automáticamente</li>
+            <li>Puede cancelar su suscripción en cualquier momento; el acceso continúa hasta el fin del período pagado</li>
+            <li>No se emiten reembolsos por períodos no utilizados, salvo que la ley lo requiera</li>
+            <li>Al suscribirse, sus datos de pago son procesados directamente por Mercado Pago conforme a sus propios términos</li>
           </ul>
         </section>
 
@@ -167,8 +186,9 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-2xl font-semibold mb-4">12. Ley Aplicable</h2>
           <p>
-            Estos términos se regirán e interpretarán de acuerdo con las leyes aplicables, sin
-            considerar sus disposiciones sobre conflictos de leyes.
+            Estos términos se regirán e interpretarán de acuerdo con las leyes de la República Argentina,
+            en particular la Ley 24.240 de Defensa del Consumidor y la Ley 25.326 de Protección de Datos Personales.
+            Cualquier disputa será sometida a la jurisdicción de los tribunales ordinarios de la Ciudad Autónoma de Buenos Aires.
           </p>
         </section>
 

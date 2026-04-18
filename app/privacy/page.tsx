@@ -2,8 +2,8 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Política de Privacidad',
-  description: 'Política de privacidad de nuestra aplicación organizadora',
+  title: 'Política de Privacidad | Veenzo',
+  description: 'Política de privacidad de Veenzo, plataforma de gestión de proyectos y tareas.',
 };
 
 export default function PrivacyPolicyPage() {
@@ -14,11 +14,11 @@ export default function PrivacyPolicyPage() {
       <div className="space-y-6 text-gray-700 dark:text-gray-300">
         <section>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Última actualización: 7 de enero de 2026
+            Última actualización: 17 de abril de 2026
           </p>
           <p>
-            Esta Política de Privacidad describe cómo recopilamos, usamos y protegemos su información
-            personal cuando utiliza nuestra aplicación organizadora de proyectos y tareas.
+            Esta Política de Privacidad describe cómo <strong>Veenzo</strong> recopila, usa y protege su información
+            personal cuando utiliza nuestra plataforma de gestión de proyectos y colaboración en equipo.
           </p>
         </section>
 
@@ -66,6 +66,8 @@ export default function PrivacyPolicyPage() {
             <li>Facilitar la colaboración en proyectos</li>
             <li>Enviar notificaciones sobre actualizaciones y actividades</li>
             <li>Mantener la seguridad de su cuenta</li>
+            <li>Procesar pagos a través de Mercado Pago</li>
+            <li>Generar sugerencias y asistencia mediante IA (Google Gemini) en planes habilitados</li>
             <li>Cumplir con obligaciones legales</li>
             <li>Analizar y mejorar el rendimiento de la aplicación</li>
           </ul>
@@ -110,7 +112,9 @@ export default function PrivacyPolicyPage() {
           </p>
           <ul className="list-disc pl-6 space-y-2">
             <li>Con miembros de proyectos cuando colabora en equipo</li>
-            <li>Con proveedores de servicios que nos ayudan a operar la aplicación (por ejemplo, hosting)</li>
+            <li><strong>Mercado Pago:</strong> al suscribirse, su email y datos de pago son procesados por Mercado Pago conforme a su propia política de privacidad</li>
+            <li><strong>Google Gemini:</strong> en planes con IA habilitada, fragmentos del contenido de sus proyectos (tareas, mensajes, descripciones) se envían a la API de Gemini para generar respuestas. No se envían datos de pago ni contraseñas</li>
+            <li>Con proveedores de servicios de infraestructura que nos ayudan a operar la aplicación (ej. Supabase para base de datos y almacenamiento)</li>
             <li>Cuando sea requerido por ley o para proteger nuestros derechos legales</li>
             <li>Con su consentimiento explícito</li>
           </ul>
@@ -151,6 +155,23 @@ export default function PrivacyPolicyPage() {
             <li>Desactivar notificaciones</li>
             <li>Eliminar su cuenta</li>
           </ul>
+        </section>
+
+        <section>
+          <h2 className="text-2xl font-semibold mb-4">4.1 Inteligencia Artificial (Google Gemini)</h2>
+          <p className="mb-4">
+            Las funciones de IA disponibles en planes Pro y superiores utilizan la API de Google Gemini:
+          </p>
+          <ul className="list-disc pl-6 space-y-2 mb-4">
+            <li>Para generar sugerencias de tareas, resúmenes de chat o asistencia contextual, se envían fragmentos del contenido de sus proyectos a la API de Gemini</li>
+            <li>El contenido puede incluir nombres de tareas, descripciones, mensajes de chat y estado del proyecto</li>
+            <li>Nunca se envían datos de pago, contraseñas ni información de identificación sensible</li>
+            <li>Google puede procesar dicho contenido conforme a la política de uso de la API de Google Gemini</li>
+            <li>Puede no utilizar estas funciones simplemente evitando interactuar con el asistente IA</li>
+          </ul>
+          <p>
+            Al usar funciones de IA en Veenzo, usted acepta que fragmentos de su contenido sean procesados por Google Gemini para generar las respuestas solicitadas.
+          </p>
         </section>
 
         <section>

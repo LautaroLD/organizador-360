@@ -48,20 +48,14 @@ function buildPlanIdMap(
         'MP_STARTER_MENSUAL_PLAN_ID',
         'NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID',
       ),
-      pick('MP_STARTER_ANUAL_PLAN_ID', 'NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID'),
     ].filter(Boolean),
     pro: [
       pick('MP_PRO_MENSUAL_PLAN_ID', 'NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID'),
-      pick('MP_PRO_ANUAL_PLAN_ID', 'NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID'),
     ].filter(Boolean),
     enterprise: [
       pick(
         'MP_ENTERPRISE_MENSUAL_PLAN_ID',
         'NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID',
-      ),
-      pick(
-        'MP_ENTERPRISE_ANUAL_PLAN_ID',
-        'NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID',
       ),
     ].filter(Boolean),
   };

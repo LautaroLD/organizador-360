@@ -192,7 +192,7 @@ export default function PlanCard({
   };
 
   return (
-    <div className='relative min-w-96 max-w-96 h-full'>
+    <div className='relative w-full h-full'>
 
       {/* Loading */}
       {isLoadingState && (
