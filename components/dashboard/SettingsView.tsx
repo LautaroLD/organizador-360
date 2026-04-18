@@ -632,8 +632,8 @@ export const SettingsView: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-2 text-sm text-[var(--text-secondary)]">
-              <p><strong>Versión:</strong> 1.0.0</p>
-              <p><strong>Última actualización:</strong> Marzo 2026</p>
+              <p><strong>Versión:</strong> {process.env.NEXT_PUBLIC_APP_VERSION ?? '1.0.0'}</p>
+              <p><strong>Última actualización:</strong> {process.env.NEXT_PUBLIC_BUILD_DATE ?? 'Abril 2026'}</p>
               <p className="pt-2 border-t border-[var(--text-secondary)]">
                 Veenzo es una plataforma de colaboración todo-en-uno diseñada específicamente
                 para equipos de desarrollo.
