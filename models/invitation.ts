@@ -20,6 +20,6 @@ export interface InviteMemberModalProps {
   currentMemberCount?: number;
   memberLimit?: number;
   isPremium?: boolean;
-  planTier?: 'free' | 'starter' | 'pro' | 'enterprise';
+  planTier?: 'free' | 'starter' | 'pro';
   onSuccess?: () => void;
 }

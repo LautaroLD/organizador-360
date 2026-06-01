@@ -143,47 +143,44 @@ export default function MercadoPagoCardBrick({
     );
   }
   return (
-    <div className='rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3'>
-      <p className='text-sm font-medium text-[var(--text-primary)] mb-2'>
-        Completa tu pago con Card Payment Brick
-      </p>
+    <div>
       <CardPayment
-        initialization={initialization}
-        onSubmit={handleSubmit}
-        customization={{
+        initialization={ initialization }
+        onSubmit={ handleSubmit }
+        customization={ {
           visual: {
             style: {
               theme: theme === 'dark' ? 'dark' : 'light',
             }
           }
-        }}
-        onError={(error) => {
+        } }
+        onError={ (error) => {
           console.error('Error en Card Payment Brick:', error);
           toast.error('Hubo un problema en el formulario de pago');
-        }}
-        onReady={() => {
+        } }
+        onReady={ () => {
           // Callback requerido por el Brick para notificar render completo.
-        }}
+        } }
       />
-      {isSubmitting && (
+      { isSubmitting && (
         <p className='text-xs text-[var(--text-secondary)] mt-2'>
           Procesando pago y confirmando suscripción...
         </p>
-      )}
+      ) }
 
-      {isAutomation && (
+      { isAutomation && (
         <button
           type='button'
           data-testid='mp-mock-submit'
           className='mt-3 w-full rounded-md border border-dashed border-[var(--accent-primary)]/40 px-3 py-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]'
-          onClick={() => {
+          onClick={ () => {
             void handleSubmit({ token: 'tok_e2e_mock', payer: { email: payerEmail } });
-          }}
-          disabled={isSubmitting || disabled}
+          } }
+          disabled={ isSubmitting || disabled }
         >
           Simular pago (solo pruebas E2E)
         </button>
-      )}
+      ) }
     </div>
   );
 }

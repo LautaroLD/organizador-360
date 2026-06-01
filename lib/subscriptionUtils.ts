@@ -5,7 +5,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 
-export type PlanTier = 'free' | 'starter' | 'pro' | 'enterprise';
+export type PlanTier = 'free' | 'starter' | 'pro';
 
 type MercadoPagoStatus = 'authorized' | 'pending' | 'paused' | 'cancelled';
 
@@ -15,19 +15,11 @@ type SubscriptionAccessSnapshot = {
   current_period_end?: string | null;
 };
 
-const KNOWN_PAID_TIERS: ReadonlyArray<PlanTier> = [
-  'starter',
-  'pro',
-  'enterprise',
-];
+const KNOWN_PAID_TIERS: ReadonlyArray<PlanTier> = ['starter', 'pro'];
 
 function normalizeTier(value?: string | null): PlanTier {
   const normalized = value?.toLowerCase();
-  if (
-    normalized === 'starter' ||
-    normalized === 'pro' ||
-    normalized === 'enterprise'
-  ) {
+  if (normalized === 'starter' || normalized === 'pro') {
     return normalized;
   }
   return 'free';
@@ -35,7 +27,7 @@ function normalizeTier(value?: string | null): PlanTier {
 
 function buildPlanIdMap(
   useServerEnv: boolean,
-): Record<'starter' | 'pro' | 'enterprise', string[]> {
+): Record<'starter' | 'pro', string[]> {
   const env = process.env;
   const pick = (serverName: string, publicName: string) => {
     const serverValue = useServerEnv ? env[serverName] : undefined;
@@ -51,12 +43,6 @@ function buildPlanIdMap(
     ].filter(Boolean),
     pro: [
       pick('MP_PRO_MENSUAL_PLAN_ID', 'NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID'),
-    ].filter(Boolean),
-    enterprise: [
-      pick(
-        'MP_ENTERPRISE_MENSUAL_PLAN_ID',
-        'NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID',
-      ),
     ].filter(Boolean),
   };
 }
@@ -77,7 +63,6 @@ export function mapMercadoPagoPlanIdToTier(
   const map = buildPlanIdMap(useServerEnv);
   if (map.starter.includes(planId)) return 'starter';
   if (map.pro.includes(planId)) return 'pro';
-  if (map.enterprise.includes(planId)) return 'enterprise';
   return 'free';
 }
 
@@ -190,12 +175,6 @@ export const SUBSCRIPTION_LIMITS = {
     MAX_STORAGE_BYTES: 5 * 1024 * 1024 * 1024, // 5 GB
     AI_FEATURES_ENABLED: true,
   },
-  ENTERPRISE: {
-    MAX_PROJECTS: null as number | null,
-    MAX_MEMBERS_PER_PROJECT: null as number | null,
-    MAX_STORAGE_BYTES: null as number | null,
-    AI_FEATURES_ENABLED: true,
-  },
 } as const;
 
 export function getPlanLimits(tier: PlanTier) {
@@ -204,8 +183,6 @@ export function getPlanLimits(tier: PlanTier) {
       return SUBSCRIPTION_LIMITS.STARTER;
     case 'pro':
       return SUBSCRIPTION_LIMITS.PRO;
-    case 'enterprise':
-      return SUBSCRIPTION_LIMITS.ENTERPRISE;
     case 'free':
     default:
       return SUBSCRIPTION_LIMITS.FREE;
@@ -244,7 +221,7 @@ export async function getUserPlanTier(
 
     const tier = (data as string | null)?.toLowerCase();
 
-    if (tier === 'starter' || tier === 'pro' || tier === 'enterprise') {
+    if (tier === 'starter' || tier === 'pro') {
       return tier;
     }
 
@@ -280,8 +257,6 @@ export async function getUserPlanTier(
     });
 
     return fallbackHasAccess ? fallbackTier : 'free';
-
-    return 'free';
   } catch (error) {
     console.error('Error getting user plan:', error);
     return 'free';
@@ -301,7 +276,7 @@ export async function canUseAIFeatures(
   userId: string,
 ): Promise<boolean> {
   const tier = await getUserPlanTier(supabase, userId);
-  return tier === 'pro' || tier === 'enterprise';
+  return tier === 'pro';
 }
 
 /**

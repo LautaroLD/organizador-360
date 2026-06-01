@@ -11,7 +11,7 @@ export interface Project {
   created_at: string;
   updated_at: string;
   is_premium?: boolean;
-  plan_tier?: 'free' | 'starter' | 'pro' | 'enterprise';
+  plan_tier?: 'free' | 'starter' | 'pro';
   userRole?: string;
   storage_used?: number;
   enabled: boolean;
@@ -27,35 +27,35 @@ export interface ProjectStore {
   setCurrentProject: (project: Project | null) => void;
 }
 export interface Channel {
-  id: string
-  project_id: string
-  name: string
-  description: string
-  created_by: string
-  created_at: string
-  updated_at: string
+  id: string;
+  project_id: string;
+  name: string;
+  description: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }
 export interface Message {
-  id: string
-  channel_id: string
-  user_id: string
-  content: string
-  created_at: string
-  updated_at?: string
-  is_pinned?: boolean
-  is_deleted?: boolean
-  reply_to?: string | null
+  id: string;
+  channel_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  updated_at?: string;
+  is_pinned?: boolean;
+  is_deleted?: boolean;
+  reply_to?: string | null;
   user?: {
-    name: string
-    email: string
-    id: string
-  }
+    name: string;
+    email: string;
+    id: string;
+  };
   replied_message?: {
-    id: string
-    content: string
-    channel_id: string
+    id: string;
+    content: string;
+    channel_id: string;
     user?: {
-      name: string
-    }
-  } | null
+      name: string;
+    };
+  } | null;
 }
