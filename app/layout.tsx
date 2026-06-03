@@ -4,6 +4,7 @@ import './globals.css';
 import { ReactQueryProvider } from '@/providers/ReactQueryProvider';
 import { ThemeProvider } from '@/providers/ThemeProvider';
 import { AuthProvider } from '@/providers/AuthProvider';
+import { PwaInstallPrompt } from '@/components/PwaInstallPrompt';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -155,6 +156,7 @@ export default function RootLayout({
           <ThemeProvider>
             <AuthProvider>
               { children }
+              <PwaInstallPrompt />
               <ToastContainer
                 position="bottom-right"
                 autoClose={ 2000 }
