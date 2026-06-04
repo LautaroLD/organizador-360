@@ -53,8 +53,8 @@ describe('SubscriptionView', () => {
       NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID: 'starter-year',
       NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID: 'pro-month',
       NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID: 'pro-year',
-      NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID: 'enterprise-month',
-      NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID: 'enterprise-year',
+      // NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID: 'enterprise-month',
+      // NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID: 'enterprise-year',
     };
   });
 
@@ -69,7 +69,7 @@ describe('SubscriptionView', () => {
 
   const renderComponent = () =>
     render(
-      <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={ queryClient }>
         <SubscriptionView />
       </QueryClientProvider>
     );

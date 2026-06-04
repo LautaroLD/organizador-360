@@ -4,6 +4,7 @@ import './globals.css';
 import { ReactQueryProvider } from '@/providers/ReactQueryProvider';
 import { ThemeProvider } from '@/providers/ThemeProvider';
 import { AuthProvider } from '@/providers/AuthProvider';
+import { PwaInstallPrompt } from '@/components/PwaInstallPrompt';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -136,31 +137,33 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <link rel="canonical" href="https://veenzo.app/" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Veenzo" />
         <meta name="theme-color" content="#6366f1" />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{
+          dangerouslySetInnerHTML={ {
             __html: JSON.stringify(structuredData),
-          }}
+          } }
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={ `${geistSans.variable} ${geistMono.variable} antialiased` }
       >
         <ReactQueryProvider>
           <ThemeProvider>
             <AuthProvider>
-              {children}
+              { children }
+              <PwaInstallPrompt />
               <ToastContainer
                 position="bottom-right"
-                autoClose={2000}
-                hideProgressBar={false}
-                newestOnTop={false}
+                autoClose={ 2000 }
+                hideProgressBar={ false }
+                newestOnTop={ false }
                 closeOnClick
-                rtl={false}
+                rtl={ false }
                 pauseOnFocusLoss
                 draggable
                 pauseOnHover

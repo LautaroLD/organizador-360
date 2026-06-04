@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleCalendarService } from '@/lib/googleCalendar';
 import { formatEventForGoogle } from '@/lib/googleCalendarUtils';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 
 import { calendar_v3 } from 'googleapis';
 
@@ -52,6 +53,64 @@ const toGoogleTokens = (row: GoogleTokenRow): GoogleTokens => ({
   expiry_date: row.expires_at ? new Date(row.expires_at).getTime() : undefined,
 });
 
+const getAuthenticatedUser = async () => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    return { supabase, user: null as null };
+  }
+
+  return { supabase, user };
+};
+
+const getUserGoogleTokens = async (userId: string) => {
+  const { data, error } = await supabaseAdmin
+    .from('google_calendar_tokens')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return toGoogleTokens(data);
+};
+
+const userHasProjectAccess = async (projectId: string, userId: string) => {
+  const [
+    { data: project, error: projectError },
+    { data: membership, error: memberError },
+  ] = await Promise.all([
+    supabaseAdmin
+      .from('projects')
+      .select('owner_id')
+      .eq('id', projectId)
+      .maybeSingle(),
+    supabaseAdmin
+      .from('project_members')
+      .select('id')
+      .eq('project_id', projectId)
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (projectError) throw projectError;
+  if (memberError && memberError.code !== 'PGRST116') throw memberError;
+
+  if (!project) return false;
+  return project.owner_id === userId || Boolean(membership);
+};
+
 const deleteMatchingEvents = async (
   tokens: GoogleTokens,
   eventTitle: string,
@@ -59,9 +118,10 @@ const deleteMatchingEvents = async (
 ) => {
   const calendarService = new GoogleCalendarService(tokens);
   const events = await calendarService.getEvents();
-  const matchingEvents = events.filter((event: calendar_v3.Schema$Event) =>
-    normalizeTitle(event.summary || '') === normalizeTitle(eventTitle) &&
-    getEventStartDate(event) === startDate
+  const matchingEvents = events.filter(
+    (event: calendar_v3.Schema$Event) =>
+      normalizeTitle(event.summary || '') === normalizeTitle(eventTitle) &&
+      getEventStartDate(event) === startDate,
   );
 
   let deleted = 0;
@@ -111,18 +171,29 @@ const getProjectGoogleTokens = async (projectId: string) => {
 
 export async function POST(request: NextRequest) {
   try {
+    const { user } = await getAuthenticatedUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
-    const { tokens, event, events, checkDuplicate = false } = body as {
-      tokens?: GoogleTokens;
+    const {
+      event,
+      events,
+      checkDuplicate = false,
+    } = body as {
       event?: SyncEventPayload;
       events?: SyncEventPayload[];
       checkDuplicate?: boolean;
     };
 
+    const tokens = await getUserGoogleTokens(user.id);
+
     if (!tokens) {
       return NextResponse.json(
-        { error: 'No tokens provided' },
-        { status: 401 }
+        { error: 'Google Calendar no conectado' },
+        { status: 401 },
       );
     }
 
@@ -156,7 +227,10 @@ export async function POST(request: NextRequest) {
 
       for (const currentEvent of events) {
         try {
-          const signature = buildEventSignature(currentEvent.title, currentEvent.start_date);
+          const signature = buildEventSignature(
+            currentEvent.title,
+            currentEvent.start_date,
+          );
 
           if (checkDuplicate && existingSignatures.has(signature)) {
             skipped += 1;
@@ -188,7 +262,7 @@ export async function POST(request: NextRequest) {
     if (!event) {
       return NextResponse.json(
         { error: 'No event payload provided' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -197,18 +271,20 @@ export async function POST(request: NextRequest) {
       const existingEvents = await calendarService.getEvents();
       const eventSignature = buildEventSignature(event.title, event.start_date);
 
-      const isDuplicate = existingEvents.some((googleEvent: calendar_v3.Schema$Event) => {
-        const title = googleEvent.summary;
-        const startDate = getEventStartDate(googleEvent);
-        if (!title || !startDate) return false;
-        return buildEventSignature(title, startDate) === eventSignature;
-      });
+      const isDuplicate = existingEvents.some(
+        (googleEvent: calendar_v3.Schema$Event) => {
+          const title = googleEvent.summary;
+          const startDate = getEventStartDate(googleEvent);
+          if (!title || !startDate) return false;
+          return buildEventSignature(title, startDate) === eventSignature;
+        },
+      );
 
       if (isDuplicate) {
         return NextResponse.json({
           success: true,
           skipped: true,
-          message: 'Event already exists'
+          message: 'Event already exists',
         });
       }
     }
@@ -219,52 +295,62 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data: result });
   } catch (error: unknown) {
     console.error('Error al sincronizar evento:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Error al sincronizar evento';
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    const errorMessage =
+      error instanceof Error ? error.message : 'Error al sincronizar evento';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
 // Obtener eventos de Google Calendar
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const tokensParam = searchParams.get('tokens');
+    const { user } = await getAuthenticatedUser();
 
-    if (!tokensParam) {
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const tokens = await getUserGoogleTokens(user.id);
+
+    if (!tokens) {
       return NextResponse.json(
-        { error: 'No tokens provided' },
-        { status: 401 }
+        { error: 'Google Calendar no conectado' },
+        { status: 401 },
       );
     }
 
-    const tokens = JSON.parse(decodeURIComponent(tokensParam));
     const calendarService = new GoogleCalendarService(tokens);
     const events = await calendarService.getEvents();
 
     return NextResponse.json({ success: true, data: events });
   } catch (error: unknown) {
     console.error('Error al obtener eventos:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Error al obtener eventos';
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    const errorMessage =
+      error instanceof Error ? error.message : 'Error al obtener eventos';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
 // Eliminar evento de Google Calendar
 export async function DELETE(request: NextRequest) {
   try {
+    const { user } = await getAuthenticatedUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
-    const { tokens, eventTitle, startDate, projectId } = body;
+    const { eventTitle, startDate, projectId } = body as {
+      eventTitle?: string;
+      startDate?: string;
+      projectId?: string;
+    };
 
     if (!eventTitle || !startDate) {
       return NextResponse.json(
         { error: 'Missing eventTitle or startDate' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -272,7 +358,21 @@ export async function DELETE(request: NextRequest) {
     const tokenSources: GoogleTokens[] = [];
     const dedup = new Set<string>();
 
+    const userTokens = await getUserGoogleTokens(user.id);
+    if (userTokens) {
+      const ownKey = userTokens.refresh_token || userTokens.access_token;
+      if (ownKey) {
+        dedup.add(ownKey);
+        tokenSources.push(userTokens);
+      }
+    }
+
     if (projectId) {
+      const hasAccess = await userHasProjectAccess(projectId, user.id);
+      if (!hasAccess) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+
       const projectTokens = await getProjectGoogleTokens(projectId);
       projectTokens.forEach((row) => {
         const key = row.refresh_token || row.access_token;
@@ -280,14 +380,6 @@ export async function DELETE(request: NextRequest) {
         dedup.add(key);
         tokenSources.push(toGoogleTokens(row));
       });
-    }
-
-    if (tokens) {
-      const key = tokens.refresh_token || tokens.access_token;
-      if (key && !dedup.has(key)) {
-        dedup.add(key);
-        tokenSources.push(tokens);
-      }
     }
 
     if (tokenSources.length === 0) {
@@ -301,23 +393,25 @@ export async function DELETE(request: NextRequest) {
     let totalDeleted = 0;
     for (const sourceTokens of tokenSources) {
       try {
-        totalDeleted += await deleteMatchingEvents(sourceTokens, eventTitle, startDate);
+        totalDeleted += await deleteMatchingEvents(
+          sourceTokens,
+          eventTitle,
+          startDate,
+        );
       } catch (err) {
         // Continuar con los siguientes tokens aunque uno falle
         console.error('Error eliminando en una cuenta de Google:', err);
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       deleted: totalDeleted,
     });
   } catch (error: unknown) {
     console.error('Error al eliminar evento:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Error al eliminar evento';
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    const errorMessage =
+      error instanceof Error ? error.message : 'Error al eliminar evento';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

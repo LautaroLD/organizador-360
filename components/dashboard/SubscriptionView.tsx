@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
@@ -27,6 +27,7 @@ import {
   resolveEffectivePlanTier,
 } from '@/lib/subscriptionUtils';
 import PlanCard from '../ui/PlanCard';
+import clsx from 'clsx';
 
 
 interface MercadoPagoDetails {
@@ -63,7 +64,7 @@ export const SubscriptionView: React.FC = () => {
   const supabase = createClient();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
-
+  // Solo mensual
   // Fetch subscription data from local DB
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({
     queryKey: ['subscription', user?.id],
@@ -169,29 +170,6 @@ export const SubscriptionView: React.FC = () => {
         'Analítica avanzada de proyectos con IA',
       ]
     },
-    enterprise: {
-      icon: <>
-        <Star className='h-8 w-8' />
-        <Star className='h-8 w-8' />
-        <Star className='h-8 w-8' />
-      </>,
-      description: 'Para grandes equipos y empresas',
-      features: [
-        'Proyectos ilimitados',
-        'Canales y chat ilimitados',
-        'Recursos ilimitados',
-        'Miembros ilimitados por proyecto',
-        'Asistente IA con Gemini',
-        'Generar tareas con IA',
-        'Resúmenes de chat con IA',
-        'Analítica avanzada de proyectos con IA',
-        'Almacenamiento prioritario',
-        'Soporte 24/7',
-        'Integraciones avanzadas',
-        'Exportar datos',
-        'Gestión de cuentas dedicada',
-      ]
-    },
   };
 
   // Determinar si es Pro: Status activo O (status cancelado Y fecha fin futura)
@@ -253,10 +231,9 @@ export const SubscriptionView: React.FC = () => {
   }
   const pro_mensual_id = process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '';
   const starter_mensual_id = process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '';
-  const enterprise_mensual_id = process.env.NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID ?? '';
   return (
     <div className='p-6  mx-auto'>
-      {/* Encabezado */}
+      {/* Encabezado */ }
       <div className='mb-8'>
         <h1 className='text-3xl font-bold text-[var(--text-primary)] mb-2'>
           Planes y Suscripción
@@ -266,169 +243,165 @@ export const SubscriptionView: React.FC = () => {
         </p>
       </div>
 
-      {/* Estado actual de suscripción */}
-      {isPaid && subscription && (
+      {/* Estado actual de suscripción */ }
+      { isPaid && subscription && (
         <Card className='mb-8 border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/5'>
           <CardHeader>
             <div className='flex items-center justify-between'>
               <div className=' space-y-2'>
                 <CardTitle className='flex items-center gap-2'>
                   <Star className='h-5 w-5 text-[var(--accent-primary)]' />
-                  {mpDetails?.reason}
+                  { mpDetails?.reason }
                 </CardTitle>
                 <CardDescription>
-                  {mpDetails ? (
-                    <span className={`inline-flex items-center gap-2 ${mpDetails.status === 'authorized' ? 'text-green-600' :
+                  { mpDetails ? (
+                    <span className={ `inline-flex items-center gap-2 ${mpDetails.status === 'authorized' ? 'text-green-600' :
                       mpDetails.status === 'paused' ? 'text-[var(--text-warning)]' :
                         mpDetails.status === 'cancelled' ? 'text-[var(--accent-danger)]' :
                           'text-[var(--text-secondary)]'
-                      }`}>
-                      {mpDetails.statusLabel}
-                      {mpDetails.status !== 'cancelled' && mpDetails.daysUntilNextPayment !== null && mpDetails.daysUntilNextPayment <= 7 && (
+                      }` }>
+                      { mpDetails.statusLabel }
+                      { mpDetails.status !== 'cancelled' && mpDetails.daysUntilNextPayment !== null && mpDetails.daysUntilNextPayment <= 7 && (
                         <span className='text-xs bg-[var(--accent-danger)]/10 text-[var(--accent-danger)] px-2 py-0.5 rounded'>
-                          {mpDetails.daysUntilNextPayment === 0 ? 'Cobra hoy' :
+                          { mpDetails.daysUntilNextPayment === 0 ? 'Cobra hoy' :
                             mpDetails.daysUntilNextPayment === 1 ? 'Cobra mañana' :
-                              `Próximo cobro en ${mpDetails.daysUntilNextPayment} días`}
+                              `Próximo cobro en ${mpDetails.daysUntilNextPayment} días` }
                         </span>
-                      )}
+                      ) }
                     </span>
                   ) : (
                     'Tu suscripción está activa y renovable'
-                  )}
+                  ) }
                 </CardDescription>
               </div>
               <div className='text-right'>
                 <div className='text-sm text-[var(--text-secondary)]'>
-                  {mpDetails?.nextPaymentDate ? 'Próximo pago:' : 'Próxima renovación:'}
+                  { mpDetails?.nextPaymentDate ? 'Próximo pago:' : 'Próxima renovación:' }
                 </div>
                 <div className='text-lg font-semibold text-[var(--text-primary)]'>
-                  {mpDetails?.nextPaymentDate
+                  { mpDetails?.nextPaymentDate
                     ? formatDate(mpDetails.nextPaymentDate)
-                    : formatDate(subscription.current_period_end)}
+                    : formatDate(subscription.current_period_end) }
                 </div>
-                {mpDetails?.amount && (
+                { mpDetails?.amount && (
                   <div className='text-sm text-[var(--text-secondary)]'>
-                    ${mpDetails.amount.toLocaleString()} {mpDetails.currency}
+                    ${ mpDetails.amount.toLocaleString() } { mpDetails.currency }
                   </div>
-                )}
+                ) }
               </div>
             </div>
           </CardHeader>
           <CardContent>
             <div className='flex flex-col gap-4'>
-              {/* Información detallada de MP */}
-              {mpDetails && (
+              {/* Información detallada de MP */ }
+              { mpDetails && (
                 <div className='grid grid-cols-2 md:grid-cols-4 gap-4 text-sm'>
                   <div>
                     <span className='text-[var(--text-secondary)] block'>Pagos realizados</span>
                     <span className='font-medium text-[var(--text-primary)]'>
-                      {mpDetails.chargedQuantity} {mpDetails.pendingChargeQuantity > 0 && `(${mpDetails.pendingChargeQuantity} pendiente${mpDetails.pendingChargeQuantity > 1 ? 's' : ''})`}
+                      { mpDetails.chargedQuantity } { mpDetails.pendingChargeQuantity > 0 && `(${mpDetails.pendingChargeQuantity} pendiente${mpDetails.pendingChargeQuantity > 1 ? 's' : ''})` }
                     </span>
                   </div>
                   <div>
                     <span className='text-[var(--text-secondary)] block'>Total cobrado</span>
                     <span className='font-medium text-[var(--text-primary)]'>
-                      ${mpDetails.totalChargedAmount.toLocaleString()} {mpDetails.currency}
+                      ${ mpDetails.totalChargedAmount.toLocaleString() } { mpDetails.currency }
                     </span>
                   </div>
-                  {mpDetails.endDate && (
+                  { mpDetails.endDate && (
                     <div>
                       <span className='text-[var(--text-secondary)] block'>Fecha de fin</span>
                       <span className='font-medium text-[var(--text-primary)]'>
-                        {formatDate(mpDetails.endDate)}
+                        { formatDate(mpDetails.endDate) }
                       </span>
                     </div>
-                  )}
-                  {mpDetails.paymentMethodId && (
+                  ) }
+                  { mpDetails.paymentMethodId && (
                     <div>
                       <span className='text-[var(--text-secondary)] block'>Método de pago</span>
                       <span className='font-medium text-[var(--text-primary)] capitalize'>
-                        {mpDetails.paymentMethodId.replace(/_/g, ' ')}
+                        { mpDetails.paymentMethodId.replace(/_/g, ' ') }
                       </span>
                     </div>
-                  )}
+                  ) }
                 </div>
-              )}
+              ) }
 
-              {/* Período y botón cancelar */}
+              {/* Período y botón cancelar */ }
               <div className='flex items-center gap-4 text-sm border-t border-[var(--border-primary)] pt-4'>
                 <div>
                   <span className='text-[var(--text-secondary)]'>
-                    Período actual: {formatDate(subscription.current_period_start)} a{' '}
-                    {formatDate(subscription.current_period_end)}
+                    Período actual: { formatDate(subscription.current_period_start) } a{ ' ' }
+                    { formatDate(subscription.current_period_end) }
                   </span>
                 </div>
-                {!subscription.cancel_at_period_end && (
+                { !subscription.cancel_at_period_end && (
                   <Button
                     variant='secondary'
                     size='sm'
-                    onClick={() => cancelMutation.mutate()}
-                    disabled={cancelMutation.isPending}
+                    onClick={ () => cancelMutation.mutate() }
+                    disabled={ cancelMutation.isPending }
                   >
-                    {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar suscripción'}
+                    { cancelMutation.isPending ? 'Cancelando...' : 'Cancelar suscripción' }
                   </Button>
-                )}
-                {subscription.cancel_at_period_end && (
+                ) }
+                { subscription.cancel_at_period_end && (
                   <div className='px-3 py-1 bg-[var(--accent-danger)]/10 border border-[var(--accent-danger)]/30 rounded text-[var(--accent-danger)] text-xs font-medium'>
                     Cancelada al final del período
                   </div>
-                )}
+                ) }
               </div>
             </div>
           </CardContent>
         </Card>
-      )}
+      ) }
 
-      {/* Grid de planes */}
+      {/* Grid de planes */ }
       <div className='-mx-6 bg-[var(--bg-secondary)] px-6 py-10 mb-8'>
-        <div className='flex flex-col md:flex-row  gap-6 md:overflow-x-auto px-4 pb-2 pt-4 md:pt-14'>
-          <div className='w-full md:w-96 md:shrink-0 min-h-max relative'>
-            <div className={`relative rounded-xl border p-6 flex flex-col h-full transition-all ${isFreeCurrent
+        <div className='flex gap-6 overflow-x-auto px-4  pb-2 pt-14'>
+          <div className='min-w-100 max-w-100 relative'>
+            <div className={ `relative rounded-xl border p-6 flex flex-col h-full transition-all ${isFreeCurrent
               ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/5 shadow-lg'
               : 'border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]'
-              }`}>
-              {isFreeCurrent && (
+              }` }>
+              { isFreeCurrent && (
                 <div className='absolute top-3 right-3 text-xs font-bold px-2 py-1 rounded-full bg-green-500/20 text-green-700'>
                   Plan actual
                 </div>
-              )}
+              ) }
               <div className='flex items-center gap-2 mb-3'>
-                <span className='text-[var(--accent-primary)]'>{planFeatures.free.icon}</span>
+                <span className='text-[var(--accent-primary)]'>{ planFeatures.free.icon }</span>
                 <h3 className='font-bold text-[var(--text-primary)] text-lg uppercase'>Free</h3>
               </div>
               <div className='mb-1'>
                 <span className='text-3xl font-extrabold text-[var(--text-primary)]'>$0</span>
               </div>
-              <p className='text-sm text-[var(--text-secondary)] mb-5'>{planFeatures.free.description}</p>
+              <p className='text-sm text-[var(--text-secondary)] mb-5'>{ planFeatures.free.description }</p>
               <ul className='space-y-2 mb-6 flex-1'>
-                {planFeatures.free.features.map((feature) => (
-                  <li key={feature} className='flex items-start gap-2 text-sm text-[var(--text-secondary)]'>
+                { planFeatures.free.features.map((feature) => (
+                  <li key={ feature } className='flex items-start gap-2 text-sm text-[var(--text-secondary)]'>
                     <Check className='h-4 w-4 text-[var(--accent-primary)] shrink-0 mt-0.5' />
-                    {feature}
+                    { feature }
                   </li>
-                ))}
+                )) }
               </ul>
-              {isFreeCurrent && (
+              { isFreeCurrent && (
                 <p className='text-center'>Ya estas aquí</p>
-              )}
+              ) }
             </div>
           </div>
-          { /* Starter Plan Card */}
-          <div className='w-full md:w-96 md:shrink-0 min-h-max relative'>
-            <PlanCard planId={starter_mensual_id} isCurrent={currentPlanTier === 'starter'} isCanceled={isCanceled} plan_reference="STARTER_MENSUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
+          { /* Starter Plan Cards */ }
+          <div className='space-y-2 relative'>
+            <PlanCard planId={ starter_mensual_id } isCurrent={ currentPlanTier === 'starter' } isCanceled={ isCanceled } plan_reference="STARTER_MENSUAL" payerEmail={ user?.email } onSubscriptionCreated={ handleSubscriptionCreated } onSubscriptionReactivated={ handleSubscriptionReactivated } />
           </div>
-          { /* Pro Plan Card */}
-          <div className='w-full md:w-96 md:shrink-0 min-h-max relative'>
-            <PlanCard planId={pro_mensual_id} isCurrent={currentPlanTier === 'pro'} isCanceled={isCanceled} plan_reference="PRO_MENSUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
-          </div>
-          { /* Enterprise Plan Card */}
-          <div className='w-full md:w-96 md:shrink-0 min-h-max relative'>
-            <PlanCard planId={enterprise_mensual_id} isCurrent={currentPlanTier === 'enterprise'} isCanceled={isCanceled} plan_reference="ENTERPRISE_MENSUAL" payerEmail={user?.email} onSubscriptionCreated={handleSubscriptionCreated} onSubscriptionReactivated={handleSubscriptionReactivated} />
+          { /* Pro Plan Cards */ }
+          <div className='space-y-2 relative'>
+            <PlanCard planId={ pro_mensual_id } isCurrent={ currentPlanTier === 'pro' } isCanceled={ isCanceled } plan_reference="PRO_MENSUAL" payerEmail={ user?.email } onSubscriptionCreated={ handleSubscriptionCreated } onSubscriptionReactivated={ handleSubscriptionReactivated } />
           </div>
         </div>
       </div>
 
-      {/* FAQ / Información adicional */}
+      {/* FAQ / Información adicional */ }
       <div className='grid md:grid-cols-2 gap-6 md:px-10 py-5'>
         <Card>
           <CardHeader>
