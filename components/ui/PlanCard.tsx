@@ -43,6 +43,16 @@ export default function PlanCard({
     'form' | 'processing' | 'success'
   >('form');
 
+  function inferTierFromReference(planRef: string): 'free' | 'starter' | 'pro' {
+    const ref = planRef.toLowerCase();
+    if (ref.includes('free')) return 'free';
+    if (ref.includes('starter')) return 'starter';
+    return 'pro';
+  }
+
+  const referenceTier = inferTierFromReference(plan_reference);
+  const shouldFetchPlan = Boolean(planId) && referenceTier !== 'free';
+
   const { data: plan, isLoading, error } = useQuery<PlanResponse>({
     queryKey: ['plan', planId],
     queryFn: async () => {
@@ -54,13 +64,25 @@ export default function PlanCard({
       }
       return res.json();
     },
-    enabled: !!planId,
+    enabled: shouldFetchPlan,
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     retry: 1,
   });
-  const isPlanIdMissing = !planId;
-  const isLoadingState = isLoading;
+
+  const planReason = (!isLoading && plan && typeof plan.reason === 'string') ? plan.reason : '';
+  const type = referenceTier === 'free'
+    ? 'free'
+    : resolveEffectivePlanTier({
+      planTier: referenceTier,
+      internalPlanTier: planReason,
+    });
+  const isFree = type === 'free';
+
+  const isPlanIdMissing = !planId && !isFree;
+  const isLoadingState = shouldFetchPlan && isLoading;
+  const hasPlanDataError = !isFree && !isLoadingState && (!plan || error);
+  const canRenderPlan = isFree || (!!plan && !error);
 
   const planFeatures: Record<string, { icon: React.ReactNode; description: string; features: string[]; }> = {
     free: {
@@ -109,23 +131,14 @@ export default function PlanCard({
       ]
     },
   };
-  function inferTierFromReference(planRef: string): 'free' | 'starter' | 'pro' {
-    const ref = planRef.toLowerCase();
-    if (ref.includes('free')) return 'free';
-    if (ref.includes('starter')) return 'starter';
-    return 'pro';
-  }
-  const planReason = (!isLoadingState && plan && typeof plan.reason === 'string') ? plan.reason : '';
-  const type = resolveEffectivePlanTier({
-    planTier: inferTierFromReference(plan_reference),
-    internalPlanTier: planReason,
-  });
+
   const features = planFeatures[type]?.features || [];
   const icon = planFeatures[type]?.icon || <Star className='h-8 w-8' />;
   const description = planFeatures[type]?.description || '';
 
-  const isFree = type === 'free';
+  const displayPlanName = planReason || type.toUpperCase();
   const amount = Number(plan?.auto_recurring?.transaction_amount ?? 0);
+  const displayAmount = isFree ? 0 : amount;
 
   const isPro = type === 'pro';
 
@@ -168,7 +181,7 @@ export default function PlanCard({
   };
 
   return (
-    <div className='relative min-w-lg max-w-lg h-full'>
+    <div className='relative md:min-w-md md:max-w-md h-full'>
 
       {/* Loading */ }
       { isLoadingState && (
@@ -190,7 +203,7 @@ export default function PlanCard({
       ) }
 
       {/* Error */ }
-      { !isLoadingState && !isPlanIdMissing && (!plan || error) && (
+      { !isLoadingState && !isPlanIdMissing && hasPlanDataError && (
         <div className='rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-6 flex items-center justify-center min-h-80'>
           <div className='text-center'>
             <p className='text-[var(--accent-danger)] font-bold mb-2'>No se pudo cargar el plan</p>
@@ -200,7 +213,7 @@ export default function PlanCard({
       ) }
 
       {/* Plan cargado */ }
-      { !isLoadingState && plan && !error && (
+      { !isLoadingState && canRenderPlan && (
         <div className={ `relative rounded-xl border p-6 flex flex-col transition-all h-full ${isPro
           ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/5 shadow-lg'
           : 'border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]'
@@ -225,13 +238,13 @@ export default function PlanCard({
           {/* Nombre e icono */ }
           <div className='flex flex-col items-center gap-2 mb-3'>
             <span className='text-[var(--accent-primary)] flex'>{ icon }</span>
-            <h3 className='font-bold text-[var(--text-primary)] text-lg uppercase'>{ planReason || 'Plan' }</h3>
+            <h3 className='font-bold text-[var(--text-primary)] text-lg uppercase'>{ displayPlanName }</h3>
           </div>
 
           {/* Precio */ }
           <div className='mb-1'>
             <span className='text-3xl font-extrabold text-[var(--text-primary)]'>
-              ${ plan.auto_recurring?.transaction_amount?.toLocaleString() ?? '0' }
+              ${ displayAmount.toLocaleString() }
             </span>
             <span className='text-[var(--text-secondary)] ml-1 text-sm'>
               /mes
@@ -242,14 +255,14 @@ export default function PlanCard({
           <p className='text-sm text-[var(--text-secondary)] mb-1'>{ description }</p>
 
           {/* Prueba gratuita */ }
-          { plan.auto_recurring?.free_trial && (
+          { plan?.auto_recurring?.free_trial && (
             <p className='text-xs font-medium text-[var(--accent-primary)] mb-4'>
               ✓ { plan.auto_recurring.free_trial.frequency } días de prueba gratuita
             </p>
           ) }
 
           {/* Features */ }
-          <ul className='space-y-2 mb-6 grid grid-cols-2 mt-3 '>
+          <ul className='space-y-2 mb-6 mt-3 '>
             { features.map((feature) => (
               <li key={ feature } className='flex items-start gap-2 text-sm text-[var(--text-secondary)]'>
                 <Check className='h-4 w-4 text-[var(--accent-primary)] shrink-0 mt-0.5' />
@@ -283,7 +296,7 @@ export default function PlanCard({
                   : 'Actualizar plan' }
           </Button>
 
-          { !isFree && amount > 0 && isCheckoutOpen && (
+          { !isFree && displayAmount > 0 && isCheckoutOpen && (
             <Modal
               isOpen={ isCheckoutOpen }
               onClose={ () => {
@@ -299,7 +312,7 @@ export default function PlanCard({
                   Completa los datos de tu tarjeta para activar tu suscripción.
                 </p>
                 <p className='text-sm font-semibold text-[var(--text-primary)]'>
-                  Total: ${ amount.toLocaleString() } / mes
+                  Total: ${ displayAmount.toLocaleString() } / mes
                 </p>
               </div>
 
@@ -317,8 +330,8 @@ export default function PlanCard({
                 <div className='mt-4 relative'>
                   <MercadoPagoCardBrick
                     planId={ planId }
-                    planName={ planReason || 'Plan' }
-                    amount={ amount }
+                    planName={ displayPlanName }
+                    amount={ displayAmount }
                     payerEmail={ payerEmail }
                     disabled={ isCheckoutProcessing }
                     onProcessingChange={ (processing) => {

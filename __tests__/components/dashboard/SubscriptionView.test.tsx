@@ -109,9 +109,9 @@ describe('SubscriptionView', () => {
     renderComponent();
 
     expect(screen.getByText('Planes y Suscripción')).toBeInTheDocument();
-    // Los botones de acción: PlanCards no-actuales muestran "Actualizar plan", Free muestra "Plan actual"
+    // Los planes no actuales muestran "Actualizar plan" y debe haber al menos un indicador de plan actual.
     expect(screen.getAllByText('Actualizar plan').length).toBeGreaterThan(0);
-    expect(screen.getByText('Plan actual')).toBeInTheDocument();
+    expect(screen.getAllByText('Plan actual').length).toBeGreaterThan(0);
   });
 
   // El test de redirección debe adaptarse a la nueva lógica de PlanCard, se recomienda testear en PlanCard.test.tsx

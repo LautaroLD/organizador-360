@@ -6,7 +6,10 @@ export async function POST(request: NextRequest) {
     const { token } = await request.json();
 
     if (!token) {
-      return NextResponse.json({ success: false, error: 'token es requerido' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'token es requerido' },
+        { status: 400 },
+      );
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -15,7 +18,7 @@ export async function POST(request: NextRequest) {
     if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         { success: false, error: 'Configuracion incompleta del servidor' },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -23,16 +26,30 @@ export async function POST(request: NextRequest) {
 
     const { data: invitation, error: invitationError } = await supabase
       .from('project_invitations')
-      .select('id, status, expires_at')
+      .select('id, status, expires_at, invite_type')
       .eq('token', token)
       .maybeSingle();
 
     if (invitationError || !invitation) {
-      return NextResponse.json({ success: false, error: 'Invitacion no encontrada' }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: 'Invitacion no encontrada' },
+        { status: 404 },
+      );
     }
 
     if (new Date(invitation.expires_at) < new Date()) {
-      return NextResponse.json({ success: false, error: 'Esta invitacion ha expirado' }, { status: 410 });
+      return NextResponse.json(
+        { success: false, error: 'Esta invitacion ha expirado' },
+        { status: 410 },
+      );
+    }
+
+    // Las invitaciones por link son reutilizables; rechazar no debe invalidarlas para otros usuarios.
+    if (invitation.invite_type === 'link') {
+      return NextResponse.json(
+        { success: true, status: invitation.status || 'pending' },
+        { status: 200 },
+      );
     }
 
     if (invitation.status !== 'pending') {
@@ -40,11 +57,12 @@ export async function POST(request: NextRequest) {
         {
           success: true,
           status: invitation.status,
-          message: invitation.status === 'accepted'
-            ? 'La invitacion ya fue aceptada'
-            : 'La invitacion ya fue rechazada',
+          message:
+            invitation.status === 'accepted'
+              ? 'La invitacion ya fue aceptada'
+              : 'La invitacion ya fue rechazada',
         },
-        { status: 200 }
+        { status: 200 },
       );
     }
 
@@ -58,11 +76,20 @@ export async function POST(request: NextRequest) {
       .eq('status', 'pending');
 
     if (updateError) {
-      return NextResponse.json({ success: false, error: 'No se pudo rechazar la invitacion' }, { status: 500 });
+      return NextResponse.json(
+        { success: false, error: 'No se pudo rechazar la invitacion' },
+        { status: 500 },
+      );
     }
 
-    return NextResponse.json({ success: true, status: 'rejected' }, { status: 200 });
+    return NextResponse.json(
+      { success: true, status: 'rejected' },
+      { status: 200 },
+    );
   } catch {
-    return NextResponse.json({ success: false, error: 'Error al rechazar invitacion' }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: 'Error al rechazar invitacion' },
+      { status: 500 },
+    );
   }
 }

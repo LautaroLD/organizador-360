@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
@@ -13,9 +13,7 @@ import {
 } from '@/components/ui/Card';
 import { toast } from 'react-toastify';
 import {
-  Check,
   Star,
-  Zap,
   Users,
   HardDrive,
   Calendar,
@@ -27,7 +25,6 @@ import {
   resolveEffectivePlanTier,
 } from '@/lib/subscriptionUtils';
 import PlanCard from '../ui/PlanCard';
-import clsx from 'clsx';
 
 
 interface MercadoPagoDetails {
@@ -82,7 +79,6 @@ export const SubscriptionView: React.FC = () => {
     },
     enabled: !!user?.id,
   });
-
   // Fetch detailed subscription info from MercadoPago
   const { data: mpData, isLoading: mpLoading } = useQuery({
     queryKey: ['subscription-details', user?.id],
@@ -101,7 +97,6 @@ export const SubscriptionView: React.FC = () => {
   });
 
   const mpDetails = mpData?.details;
-
   // Mutation para cancelar suscripción
   const cancelMutation = useMutation({
     mutationFn: async () => {
@@ -125,53 +120,6 @@ export const SubscriptionView: React.FC = () => {
     },
   });
 
-  // Configuración dinámica de features e íconos por tipo de plan
-  const planFeatures: Record<string, { icon: React.ReactNode; description: string; features: string[]; }> = {
-    free: {
-      icon: <Zap className='h-8 w-8' />,
-      description: 'Perfecto para comenzar',
-      features: [
-        'Hasta 3 proyectos',
-        'Canales y chat ilimitados',
-        'Hasta 100 MB de recursos',
-        'Hasta 10 miembros por proyecto',
-        'Soporte por email',
-      ]
-    },
-    starter: {
-      icon: <Star className='h-8 w-8' />,
-      description: 'Para usuarios intermedios',
-      features: [
-        'Hasta 5 proyectos',
-        'Canales y chat ilimitados',
-        'Hasta 1 GB de recursos',
-        'Hasta 15 miembros por proyecto',
-        'Soporte prioritario',
-      ]
-    },
-    pro: {
-      icon: <>
-        <Star className='h-8 w-8' />
-        <Star className='h-8 w-8' />
-      </>,
-      description: 'Para usuarios avanzados',
-      features: [
-        'Hasta 10 proyectos',
-        'Canales y chat ilimitados',
-        'Hasta 5 GB de recursos',
-        'Hasta 20 miembros por proyecto',
-        'Asistente IA con Gemini',
-        'Generar tareas con IA',
-        'Resúmenes de chat con IA',
-        'Almacenamiento prioritario',
-        'Soporte prioritario',
-        'Integraciones avanzadas',
-        'Exportar datos',
-        'Analítica avanzada de proyectos con IA',
-      ]
-    },
-  };
-
   // Determinar si es Pro: Status activo O (status cancelado Y fecha fin futura)
   const currentPlanTier = resolveEffectivePlanTier({
     planTier: subscription?.plan_tier,
@@ -194,7 +142,6 @@ export const SubscriptionView: React.FC = () => {
     subscription?.status === 'canceled' ||
     subscription?.status === 'cancelled'
   );
-  const isFreeCurrent = currentPlanTier === 'free';
 
   const handleSubscriptionCreated = async (subscriptionId: string) => {
     if (subscriptionId) {
@@ -231,6 +178,27 @@ export const SubscriptionView: React.FC = () => {
   }
   const pro_mensual_id = process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '';
   const starter_mensual_id = process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '';
+  const plans = [
+    {
+      key: 'free',
+      planId: '',
+      planReference: 'FREE',
+      isCurrent: currentPlanTier === 'free',
+    },
+    {
+      key: 'starter',
+      planId: starter_mensual_id,
+      planReference: 'STARTER_MENSUAL',
+      isCurrent: currentPlanTier === 'starter',
+    },
+    {
+      key: 'pro',
+      planId: pro_mensual_id,
+      planReference: 'PRO_MENSUAL',
+      isCurrent: currentPlanTier === 'pro',
+    },
+  ] as const;
+
   return (
     <div className='p-6  mx-auto'>
       {/* Encabezado */ }
@@ -324,6 +292,16 @@ export const SubscriptionView: React.FC = () => {
                       </span>
                     </div>
                   ) }
+                  {
+                    subscription.canceled_at && (
+                      <div>
+                        <span className='text-[var(--text-secondary)] block'>Cancelado el</span>
+                        <span className='font-medium text-[var(--text-primary)]'>
+                          { formatDate(subscription.canceled_at) }
+                        </span>
+                      </div>
+                    )
+                  }
                 </div>
               ) }
 
@@ -358,46 +336,20 @@ export const SubscriptionView: React.FC = () => {
 
       {/* Grid de planes */ }
       <div className='-mx-6 bg-[var(--bg-secondary)] px-6 py-10 mb-8'>
-        <div className='flex gap-6 overflow-x-auto px-4  pb-2 pt-14'>
-          <div className='min-w-100 max-w-100 relative'>
-            <div className={ `relative rounded-xl border p-6 flex flex-col h-full transition-all ${isFreeCurrent
-              ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/5 shadow-lg'
-              : 'border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]'
-              }` }>
-              { isFreeCurrent && (
-                <div className='absolute top-3 right-3 text-xs font-bold px-2 py-1 rounded-full bg-green-500/20 text-green-700'>
-                  Plan actual
-                </div>
-              ) }
-              <div className='flex items-center gap-2 mb-3'>
-                <span className='text-[var(--accent-primary)]'>{ planFeatures.free.icon }</span>
-                <h3 className='font-bold text-[var(--text-primary)] text-lg uppercase'>Free</h3>
-              </div>
-              <div className='mb-1'>
-                <span className='text-3xl font-extrabold text-[var(--text-primary)]'>$0</span>
-              </div>
-              <p className='text-sm text-[var(--text-secondary)] mb-5'>{ planFeatures.free.description }</p>
-              <ul className='space-y-2 mb-6 flex-1'>
-                { planFeatures.free.features.map((feature) => (
-                  <li key={ feature } className='flex items-start gap-2 text-sm text-[var(--text-secondary)]'>
-                    <Check className='h-4 w-4 text-[var(--accent-primary)] shrink-0 mt-0.5' />
-                    { feature }
-                  </li>
-                )) }
-              </ul>
-              { isFreeCurrent && (
-                <p className='text-center'>Ya estas aquí</p>
-              ) }
+        <div className='flex gap-6 overflow-x-auto px-4  pb-2 pt-14 flex-col md:flex-row'>
+          { plans.map((plan) => (
+            <div key={ plan.key } className='space-y-2 relative'>
+              <PlanCard
+                planId={ plan.planId }
+                isCurrent={ plan.isCurrent }
+                isCanceled={ isCanceled }
+                plan_reference={ plan.planReference }
+                payerEmail={ user?.email }
+                onSubscriptionCreated={ handleSubscriptionCreated }
+                onSubscriptionReactivated={ handleSubscriptionReactivated }
+              />
             </div>
-          </div>
-          { /* Starter Plan Cards */ }
-          <div className='space-y-2 relative'>
-            <PlanCard planId={ starter_mensual_id } isCurrent={ currentPlanTier === 'starter' } isCanceled={ isCanceled } plan_reference="STARTER_MENSUAL" payerEmail={ user?.email } onSubscriptionCreated={ handleSubscriptionCreated } onSubscriptionReactivated={ handleSubscriptionReactivated } />
-          </div>
-          { /* Pro Plan Cards */ }
-          <div className='space-y-2 relative'>
-            <PlanCard planId={ pro_mensual_id } isCurrent={ currentPlanTier === 'pro' } isCanceled={ isCanceled } plan_reference="PRO_MENSUAL" payerEmail={ user?.email } onSubscriptionCreated={ handleSubscriptionCreated } onSubscriptionReactivated={ handleSubscriptionReactivated } />
-          </div>
+          )) }
         </div>
       </div>
 

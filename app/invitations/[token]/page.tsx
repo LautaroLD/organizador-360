@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -10,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CheckCircle, XCircle, Clock, Mail, UserPlus, AlertCircle, LogIn, Moon, Sun } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useQueryClient } from '@tanstack/react-query';
+import MessageContent from '@/components/ui/MessageContent';
 
 interface Invitation {
   id: string;
@@ -99,8 +99,11 @@ export default function InvitationPage() {
         return;
       }
 
+      // En invitaciones por link, el estado no debe bloquear la aceptación para otros usuarios.
+      const isLinkInvitation = data.invite_type === 'link';
+
       // Check if already responded
-      if (data.status !== 'pending') {
+      if (!isLinkInvitation && data.status !== 'pending') {
         if (data.status === 'accepted') {
           setError('Ya has aceptado esta invitación');
           setTimeout(() => router.push('/dashboard'), 2000);
@@ -228,17 +231,17 @@ export default function InvitationPage() {
   if (isLoading || authLoading) {
     return (
       <div className='min-h-dvh flex items-center justify-center bg-[var(--bg-primary)]'>
-        {/* Theme Toggle - Floating */}
+        {/* Theme Toggle - Floating */ }
         <button
-          onClick={toggleTheme}
+          onClick={ toggleTheme }
           className="fixed top-6 right-6 rounded-lg p-3 bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors shadow-lg border border-[var(--text-secondary)]/20 z-50"
           aria-label="Toggle theme"
         >
-          {theme === 'light' ? (
+          { theme === 'light' ? (
             <Moon className="h-5 w-5" />
           ) : (
             <Sun className="h-5 w-5" />
-          )}
+          ) }
         </button>
 
         <div className='text-center'>
@@ -252,17 +255,17 @@ export default function InvitationPage() {
   if (error) {
     return (
       <div className='min-h-dvh flex items-center justify-center bg-[var(--bg-primary)] p-4'>
-        {/* Theme Toggle - Floating */}
+        {/* Theme Toggle - Floating */ }
         <button
-          onClick={toggleTheme}
+          onClick={ toggleTheme }
           className="fixed top-6 right-6 rounded-lg p-3 bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors shadow-lg border border-[var(--text-secondary)]/20 z-50"
           aria-label="Toggle theme"
         >
-          {theme === 'light' ? (
+          { theme === 'light' ? (
             <Moon className="h-5 w-5" />
           ) : (
             <Sun className="h-5 w-5" />
-          )}
+          ) }
         </button>
 
         <Card className='max-w-md w-full bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20'>
@@ -273,11 +276,11 @@ export default function InvitationPage() {
               </div>
             </div>
             <CardTitle className='text-center text-[var(--text-primary)]'>Error</CardTitle>
-            <CardDescription className='text-center text-[var(--text-secondary)]'>{error}</CardDescription>
+            <CardDescription className='text-center text-[var(--text-secondary)]'>{ error }</CardDescription>
           </CardHeader>
           <CardContent className='text-center'>
-            <Button onClick={() => router.push(user ? '/dashboard' : '/')}>
-              {user ? 'Ir al Dashboard' : 'Ir al Inicio'}
+            <Button onClick={ () => router.push(user ? '/dashboard' : '/') }>
+              { user ? 'Ir al Dashboard' : 'Ir al Inicio' }
             </Button>
           </CardContent>
         </Card>
@@ -308,17 +311,17 @@ export default function InvitationPage() {
   if (needsRegistration) {
     return (
       <div className='min-h-dvh flex items-center justify-center bg-[var(--bg-primary)] p-4'>
-        {/* Theme Toggle - Floating */}
+        {/* Theme Toggle - Floating */ }
         <button
-          onClick={toggleTheme}
+          onClick={ toggleTheme }
           className="fixed top-6 right-6 rounded-lg p-3 bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors shadow-lg border border-[var(--text-secondary)]/20 z-50"
           aria-label="Toggle theme"
         >
-          {theme === 'light' ? (
+          { theme === 'light' ? (
             <Moon className="h-5 w-5" />
           ) : (
             <Sun className="h-5 w-5" />
-          )}
+          ) }
         </button>
 
         <Card className='max-w-2xl w-full bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 shadow-lg'>
@@ -330,12 +333,12 @@ export default function InvitationPage() {
             </div>
             <CardTitle className='text-center text-2xl text-[var(--text-primary)]'>¡Bienvenido!</CardTitle>
             <CardDescription className='text-center text-[var(--text-secondary)]'>
-              {(invitation.inviter?.name ?? invitation.inviter?.email ?? 'Usuario desconocido')} te ha invitado a colaborar
+              { (invitation.inviter?.name ?? invitation.inviter?.email ?? 'Usuario desconocido') } te ha invitado a colaborar
             </CardDescription>
           </CardHeader>
 
           <CardContent className='space-y-6'>
-            {/* Project Info */}
+            {/* Project Info */ }
             <div className='bg-[var(--bg-primary)] p-5 rounded-lg border-2 border-[var(--accent-primary)]/20'>
               <div className='flex items-start'>
                 <div className='bg-[var(--accent-primary)]/10 p-2 rounded-lg'>
@@ -343,20 +346,18 @@ export default function InvitationPage() {
                 </div>
                 <div className='flex-1 ml-4'>
                   <h3 className='font-semibold text-[var(--text-primary)] text-lg mb-2'>
-                    {invitation.project?.name ?? 'Proyecto sin nombre'}
+                    { invitation.project?.name ?? 'Proyecto sin nombre' }
                   </h3>
-                  <p className='text-sm text-[var(--text-secondary)] mb-3'>
-                    {invitation.project?.description || 'Sin descripción'}
-                  </p>
+                  <MessageContent content={ invitation.project?.description || 'Sin descripción' } />
                   <div className='inline-flex items-center gap-2 bg-[var(--accent-primary)]/10 px-3 py-1.5 rounded-full'>
                     <span className='text-sm font-medium text-[var(--text-primary)]'>Rol:</span>
-                    <span className='text-sm font-bold text-[var(--accent-primary)]'>{invitation.role}</span>
+                    <span className='text-sm font-bold text-[var(--accent-primary)]'>{ invitation.role }</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Registration required notice */}
+            {/* Registration required notice */ }
             <div className='bg-[var(--accent-primary)]/5 p-5 rounded-lg border-2 border-[var(--accent-primary)]/30'>
               <div className='flex items-start gap-3 mb-3'>
                 <span className='text-2xl'>📝</span>
@@ -365,17 +366,17 @@ export default function InvitationPage() {
                     Necesitas crear una cuenta
                   </h4>
                   <p className='text-sm text-[var(--text-secondary)] mb-3'>
-                    {invitation.invitee_email
+                    { invitation.invitee_email
                       ? 'Para aceptar esta invitación, primero debes crear tu cuenta con el email:'
-                      : 'Para aceptar esta invitación, primero debes crear una cuenta o iniciar sesión.'}
+                      : 'Para aceptar esta invitación, primero debes crear una cuenta o iniciar sesión.' }
                   </p>
-                  {invitation.invitee_email && (
+                  { invitation.invitee_email && (
                     <div className='bg-[var(--bg-secondary)] px-3 py-2 rounded-lg border border-[var(--accent-primary)]/30 inline-block'>
                       <span className='text-sm font-mono font-medium text-[var(--accent-primary)]'>
-                        {invitation.invitee_email}
+                        { invitation.invitee_email }
                       </span>
                     </div>
-                  )}
+                  ) }
                 </div>
               </div>
 
@@ -400,24 +401,24 @@ export default function InvitationPage() {
               </div>
             </div>
 
-            {/* Role Info */}
+            {/* Role Info */ }
             <div className='bg-[var(--accent-success)]/5 p-5 rounded-lg border-2 border-[var(--accent-success)]/30'>
               <h4 className='font-semibold text-[var(--text-primary)] mb-2 flex items-center gap-2'>
                 <span className='text-xl'>✨</span>
-                Como {invitation.role} podrás:
+                Como { invitation.role } podrás:
               </h4>
               <p className='text-sm text-[var(--text-secondary)] leading-relaxed'>
-                {getRoleDescription(invitation.role)}
+                { getRoleDescription(invitation.role) }
               </p>
             </div>
 
-            {/* Expiration Warning */}
+            {/* Expiration Warning */ }
             <div className='bg-orange-500/5 p-5 rounded-lg border-2 border-orange-500/30'>
               <div className='flex items-start gap-3'>
                 <Clock className='h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0' />
                 <div>
                   <p className='text-sm font-semibold text-[var(--text-primary)] mb-1'>
-                    La invitación expira en <span className='text-orange-500'>{daysUntilExpiration} {daysUntilExpiration === 1 ? 'día' : 'días'}</span>
+                    La invitación expira en <span className='text-orange-500'>{ daysUntilExpiration } { daysUntilExpiration === 1 ? 'día' : 'días' }</span>
                   </p>
                   <p className='text-xs text-[var(--text-secondary)]'>
                     No pierdas la oportunidad de unirte al equipo
@@ -426,11 +427,11 @@ export default function InvitationPage() {
               </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* Action Buttons */ }
             <div className='space-y-3 pt-4'>
               <Button
                 className='w-full bg-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/90 text-[var(--accent-primary-contrast)] font-semibold py-3'
-                onClick={handleRegisterClick}
+                onClick={ handleRegisterClick }
               >
                 <UserPlus className='h-5 w-5 mr-2' />
                 Crear Cuenta y Aceptar Invitación
@@ -450,14 +451,14 @@ export default function InvitationPage() {
               <Button
                 className='w-full font-semibold py-3'
                 variant='secondary'
-                onClick={handleLoginClick}
+                onClick={ handleLoginClick }
               >
                 <LogIn className='h-5 w-5 mr-2' />
                 Iniciar Sesión
               </Button>
             </div>
 
-            {/* Additional Info */}
+            {/* Additional Info */ }
             <div className='text-center pt-4 border-t-2 border-[var(--text-secondary)]/20'>
               <p className='text-xs text-[var(--text-secondary)] leading-relaxed'>
                 Al crear tu cuenta, aceptas los términos de servicio. La invitación se aceptará automáticamente después del registro.
@@ -472,17 +473,17 @@ export default function InvitationPage() {
   // Show acceptance interface if user is logged in with correct email
   return (
     <div className='min-h-dvh flex items-center justify-center bg-[var(--bg-primary)] p-4'>
-      {/* Theme Toggle - Floating */}
+      {/* Theme Toggle - Floating */ }
       <button
-        onClick={toggleTheme}
+        onClick={ toggleTheme }
         className="fixed top-6 right-6 rounded-lg p-3 bg-[var(--bg-secondary)] text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors shadow-lg border border-[var(--text-secondary)]/20 z-50"
         aria-label="Toggle theme"
       >
-        {theme === 'light' ? (
+        { theme === 'light' ? (
           <Moon className="h-5 w-5" />
         ) : (
           <Sun className="h-5 w-5" />
-        )}
+        ) }
       </button>
 
       <Card className='max-w-2xl w-full bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 shadow-lg'>
@@ -494,12 +495,12 @@ export default function InvitationPage() {
           </div>
           <CardTitle className='text-center text-2xl text-[var(--text-primary)]'>¡Has sido invitado!</CardTitle>
           <CardDescription className='text-center text-[var(--text-secondary)]'>
-            {(invitation.inviter?.name ?? invitation.inviter?.email ?? 'Usuario desconocido')} te ha invitado a colaborar
+            { (invitation.inviter?.name ?? invitation.inviter?.email ?? 'Usuario desconocido') } te ha invitado a colaborar
           </CardDescription>
         </CardHeader>
 
         <CardContent className='space-y-6'>
-          {/* Project Info */}
+          {/* Project Info */ }
           <div className='bg-[var(--bg-primary)] p-5 rounded-lg border-2 border-[var(--accent-primary)]/20'>
             <div className='flex items-start'>
               <div className='bg-[var(--accent-primary)]/10 p-2 rounded-lg'>
@@ -507,68 +508,66 @@ export default function InvitationPage() {
               </div>
               <div className='flex-1 ml-4'>
                 <h3 className='font-semibold text-[var(--text-primary)] text-lg mb-2'>
-                  {invitation.project?.name ?? 'Proyecto sin nombre'}
+                  { invitation.project?.name ?? 'Proyecto sin nombre' }
                 </h3>
-                <p className='text-sm text-[var(--text-secondary)]'>
-                  {invitation.project?.description || 'Sin descripción'}
-                </p>
+                <MessageContent content={ invitation.project?.description || 'Sin descripción' } />
               </div>
             </div>
           </div>
 
-          {/* Role Info */}
+          {/* Role Info */ }
           <div className='bg-[var(--accent-success)]/5 p-5 rounded-lg border-2 border-[var(--accent-success)]/30'>
             <h4 className='font-semibold text-[var(--text-primary)] mb-2'>
-              Rol asignado: <span className='text-[var(--accent-primary)] font-bold'>{invitation.role}</span>
+              Rol asignado: <span className='text-[var(--accent-primary)] font-bold'>{ invitation.role }</span>
             </h4>
             <p className='text-sm text-[var(--text-secondary)] leading-relaxed'>
-              {getRoleDescription(invitation.role)}
+              { getRoleDescription(invitation.role) }
             </p>
           </div>
 
-          {/* Expiration Warning */}
+          {/* Expiration Warning */ }
           <div className='bg-orange-500/5 p-5 rounded-lg border-2 border-orange-500/30'>
             <div className='flex items-start gap-3'>
               <Clock className='h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0' />
               <div className='flex-1'>
                 <p className='text-sm font-semibold text-[var(--text-primary)] mb-1'>
-                  Invitación expira en <span className='text-orange-500'>{daysUntilExpiration} {daysUntilExpiration === 1 ? 'día' : 'días'}</span>
+                  Invitación expira en <span className='text-orange-500'>{ daysUntilExpiration } { daysUntilExpiration === 1 ? 'día' : 'días' }</span>
                 </p>
                 <p className='text-xs text-[var(--text-secondary)]'>
-                  {new Date(invitation.expires_at).toLocaleDateString('es-ES', {
+                  { new Date(invitation.expires_at).toLocaleDateString('es-ES', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit'
-                  })}
+                  }) }
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Action Buttons */}
+          {/* Action Buttons */ }
           <div className='flex flex-col sm:flex-row gap-3 pt-4'>
             <Button
               className='flex-1 bg-[var(--accent-success)] hover:bg-[var(--accent-success)]/90 text-white font-semibold py-3'
-              onClick={handleAccept}
-              disabled={isProcessing}
+              onClick={ handleAccept }
+              disabled={ isProcessing }
             >
               <CheckCircle className='h-5 w-5 mr-2' />
-              {isProcessing ? 'Procesando...' : 'Aceptar Invitación'}
+              { isProcessing ? 'Procesando...' : 'Aceptar Invitación' }
             </Button>
             <Button
               className='flex-1 font-semibold py-3'
               variant='secondary'
-              onClick={handleReject}
-              disabled={isProcessing}
+              onClick={ handleReject }
+              disabled={ isProcessing }
             >
               <XCircle className='h-5 w-5 mr-2' />
               Rechazar
             </Button>
           </div>
 
-          {/* Additional Info */}
+          {/* Additional Info */ }
           <div className='text-center pt-4 border-t-2 border-[var(--text-secondary)]/20'>
             <p className='text-xs text-[var(--text-secondary)] leading-relaxed'>
               Al aceptar esta invitación, tendrás acceso inmediato al proyecto y podrás comenzar a colaborar con el equipo.
