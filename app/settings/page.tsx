@@ -1,45 +1,25 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { Header } from '@/components/ui/Header';
 import { SettingsView } from '@/components/dashboard/SettingsView';
 
 export default function SettingsPage() {
-  const supabase = createClient();
-  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
-  const { user, setUser } = useAuthStore();
+  const { user, isLoading: authLoading } = useAuthStore();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
+    if (!authLoading && !user) {
+      router.push('/auth');
+    }
+  }, [authLoading, user, router]);
 
-        if (!session) {
-          router.push('/auth');
-          return;
-        }
-
-        setUser(session.user);
-      } catch (error) {
-        console.error('Error checking auth:', error);
-        router.push('/auth');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router, setUser]);
-
-  if (isLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-[var(--bg-primary)]">
-        <p className="text-[var(--text-secondary)]">Cargando...</p>
+        <p className="text-[var(--text-secondary)]">Cargando sesión...</p>
       </div>
     );
   }

@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { createClient } from '@/lib/supabase/client';
+import { useAuthStore } from '@/store/authStore';
 import {
   Code2, MessageSquare, FolderKanban, Calendar, Sparkles,
   BarChart3, Check, X, Zap, ArrowRight,
@@ -13,19 +13,14 @@ import {
 import Logo from '@/components/ui/Logo';
 
 export default function HomePage() {
-  const supabase = createClient();
   const router = useRouter();
+  const { user, isLoading: authLoading } = useAuthStore();
 
   useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        router.push('/dashboard');
-      }
-    };
-    checkUser();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [authLoading, user, router]);
 
   const stats = [
     { value: 'Todo en uno', label: 'Sin cambiar de pestaña' },
@@ -131,23 +126,23 @@ export default function HomePage() {
 
   return (
     <div className="min-h-dvh bg-[var(--bg-primary)]">
-      {/* Header */}
+      {/* Header */ }
       <header className="sticky top-0 z-50 border-b border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]/80 backdrop-blur-md">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <Logo />
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <Button variant="secondary" size="sm" onClick={() => router.push('/auth')}>
+            <Button variant="secondary" size="sm" onClick={ () => router.push('/auth') }>
               Iniciar sesión
             </Button>
-            <Button size="sm" onClick={() => router.push('/auth')}>
+            <Button size="sm" onClick={ () => router.push('/auth') }>
               Empezar gratis
             </Button>
           </div>
         </div>
       </header>
 
-      {/* Hero */}
+      {/* Hero */ }
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none" aria-hidden>
           <div className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full bg-[var(--accent-primary)]/10 blur-3xl" />
@@ -167,12 +162,12 @@ export default function HomePage() {
             Deja de saltar entre Slack, Jira, Notion y Google Calendar. Veenzo los reemplaza a todos con una plataforma unificada, con IA integrada y sin fricción.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button size="lg" onClick={() => router.push('/auth')} className="gap-2 px-8">
+            <Button size="lg" onClick={ () => router.push('/auth') } className="gap-2 px-8">
               Crear cuenta gratis <ArrowRight className="h-4 w-4" />
             </Button>
-            <Button size="lg" variant="secondary" onClick={() => {
+            <Button size="lg" variant="secondary" onClick={ () => {
               document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
-            }}>
+            } }>
               Ver funciones
             </Button>
           </div>
@@ -180,21 +175,21 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Stats bar */}
+      {/* Stats bar */ }
       <section className="border-y border-[var(--text-secondary)]/15 bg-[var(--bg-secondary)]">
         <div className="container mx-auto px-4 py-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            {stats.map((stat, i) => (
-              <div key={i}>
-                <p className="text-2xl font-bold text-[var(--accent-primary)]">{stat.value}</p>
-                <p className="text-sm text-[var(--text-secondary)] mt-0.5">{stat.label}</p>
+            { stats.map((stat, i) => (
+              <div key={ i }>
+                <p className="text-2xl font-bold text-[var(--accent-primary)]">{ stat.value }</p>
+                <p className="text-sm text-[var(--text-secondary)] mt-0.5">{ stat.label }</p>
               </div>
-            ))}
+            )) }
           </div>
         </div>
       </section>
 
-      {/* Why Veenzo */}
+      {/* Why Veenzo */ }
       <section className="container mx-auto px-4 py-24">
         <div className="max-w-2xl mx-auto text-center mb-14">
           <h2 className="text-4xl font-bold text-[var(--text-primary)] mb-4">
@@ -205,21 +200,21 @@ export default function HomePage() {
           </p>
         </div>
         <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-          {whyVeenzo.map((item, i) => (
-            <div key={i} className="flex gap-4 p-6 rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] hover:border-[var(--accent-primary)]/40 transition-colors">
+          { whyVeenzo.map((item, i) => (
+            <div key={ i } className="flex gap-4 p-6 rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] hover:border-[var(--accent-primary)]/40 transition-colors">
               <div className="shrink-0 w-12 h-12 rounded-lg bg-[var(--accent-primary)]/10 flex items-center justify-center text-[var(--accent-primary)]">
-                {item.icon}
+                { item.icon }
               </div>
               <div>
-                <h3 className="font-semibold text-[var(--text-primary)] mb-1">{item.title}</h3>
-                <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{item.description}</p>
+                <h3 className="font-semibold text-[var(--text-primary)] mb-1">{ item.title }</h3>
+                <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{ item.description }</p>
               </div>
             </div>
-          ))}
+          )) }
         </div>
       </section>
 
-      {/* Features */}
+      {/* Features */ }
       <section id="features" className="bg-[var(--bg-secondary)] py-24">
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mx-auto text-center mb-14">
@@ -231,23 +226,23 @@ export default function HomePage() {
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((feature, i) => (
+            { features.map((feature, i) => (
               <div
-                key={i}
+                key={ i }
                 className="group p-6 rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)]/50 hover:shadow-lg transition-all"
               >
                 <div className="w-12 h-12 rounded-lg bg-[var(--accent-primary)]/10 flex items-center justify-center text-[var(--accent-primary)] mb-4 group-hover:bg-[var(--accent-primary)]/20 transition-colors">
-                  {feature.icon}
+                  { feature.icon }
                 </div>
-                <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">{feature.title}</h3>
-                <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{feature.description}</p>
+                <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">{ feature.title }</h3>
+                <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{ feature.description }</p>
               </div>
-            ))}
+            )) }
           </div>
         </div>
       </section>
 
-      {/* Comparison table */}
+      {/* Comparison table */ }
       <section className="container mx-auto px-4 py-24">
         <div className="max-w-2xl mx-auto text-center mb-14">
           <h2 className="text-4xl font-bold text-[var(--text-primary)] mb-4">
@@ -269,28 +264,28 @@ export default function HomePage() {
               </tr>
             </thead>
             <tbody>
-              {comparison.map((row, i) => (
+              { comparison.map((row, i) => (
                 <tr
-                  key={i}
-                  className={`border-b border-[var(--text-secondary)]/10 ${i % 2 === 0 ? 'bg-[var(--bg-primary)]' : 'bg-[var(--bg-secondary)]'}`}
+                  key={ i }
+                  className={ `border-b border-[var(--text-secondary)]/10 ${i % 2 === 0 ? 'bg-[var(--bg-primary)]' : 'bg-[var(--bg-secondary)]'}` }
                 >
-                  <td className="px-5 py-3 text-[var(--text-primary)]">{row.feature}</td>
-                  {[row.veenzo, row.slack, row.trello, row.notion].map((val, idx) => (
-                    <td key={idx} className="px-4 py-3 text-center">
-                      {val
-                        ? <Check className={`h-4 w-4 mx-auto ${idx === 0 ? 'text-[var(--accent-primary)]' : 'text-[var(--accent-success)]'}`} />
+                  <td className="px-5 py-3 text-[var(--text-primary)]">{ row.feature }</td>
+                  { [row.veenzo, row.slack, row.trello, row.notion].map((val, idx) => (
+                    <td key={ idx } className="px-4 py-3 text-center">
+                      { val
+                        ? <Check className={ `h-4 w-4 mx-auto ${idx === 0 ? 'text-[var(--accent-primary)]' : 'text-[var(--accent-success)]'}` } />
                         : <X className="h-4 w-4 mx-auto text-[var(--text-secondary)]/40" />
                       }
                     </td>
-                  ))}
+                  )) }
                 </tr>
-              ))}
+              )) }
             </tbody>
           </table>
         </div>
       </section>
 
-      {/* Plans preview */}
+      {/* Plans preview */ }
       <section className="bg-[var(--bg-secondary)] py-24">
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mx-auto text-center mb-14">
@@ -302,46 +297,46 @@ export default function HomePage() {
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-            {plans.map((plan, i) => (
+            { plans.map((plan, i) => (
               <div
-                key={i}
-                className={`relative rounded-xl border p-6 flex flex-col transition-all ${plan.highlighted
+                key={ i }
+                className={ `relative rounded-xl border p-6 flex flex-col transition-all ${plan.highlighted
                   ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/5 shadow-lg'
                   : 'border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]'
-                  }`}
+                  }` }
               >
-                {plan.highlighted && (
+                { plan.highlighted && (
                   <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-bold px-3 py-1 rounded-full bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]">
                     Más popular
                   </span>
-                )}
+                ) }
                 <div className="flex items-center mb-3 flex-col">
-                  <span className="text-[var(--accent-primary)] flex gap-1">{plan.icon}</span>
-                  <h3 className="font-bold text-[var(--text-primary)] text-lg">{plan.name}</h3>
+                  <span className="text-[var(--accent-primary)] flex gap-1">{ plan.icon }</span>
+                  <h3 className="font-bold text-[var(--text-primary)] text-lg">{ plan.name }</h3>
                 </div>
-                <p className="text-sm text-center text-[var(--text-secondary)] mb-5">{plan.description}</p>
+                <p className="text-sm text-center text-[var(--text-secondary)] mb-5">{ plan.description }</p>
                 <ul className="space-y-2 mb-6 flex-1">
-                  {plan.features.map((f, j) => (
-                    <li key={j} className="flex items-start gap-2 text-sm text-[var(--text-secondary)]">
+                  { plan.features.map((f, j) => (
+                    <li key={ j } className="flex items-start gap-2 text-sm text-[var(--text-secondary)]">
                       <Check className="h-4 w-4 text-[var(--accent-primary)] shrink-0 mt-0.5" />
-                      {f}
+                      { f }
                     </li>
-                  ))}
+                  )) }
                 </ul>
                 <Button
-                  variant={plan.highlighted ? 'primary' : 'secondary'}
+                  variant={ plan.highlighted ? 'primary' : 'secondary' }
                   className="w-full mt-auto"
-                  onClick={() => router.push('/auth')}
+                  onClick={ () => router.push('/auth') }
                 >
-                  {plan.cta}
+                  { plan.cta }
                 </Button>
               </div>
-            ))}
+            )) }
           </div>
         </div>
       </section>
 
-      {/* Testimonial-style CTA */}
+      {/* Testimonial-style CTA */ }
       <section className="container mx-auto px-4 py-24">
         <div className="max-w-4xl mx-auto rounded-2xl bg-[var(--accent-primary)] p-12 md:p-16 text-center relative overflow-hidden">
           <div className="absolute inset-0 pointer-events-none" aria-hidden>
@@ -350,9 +345,9 @@ export default function HomePage() {
           </div>
           <div className="relative">
             <div className="flex justify-center gap-1 mb-4">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} className="h-5 w-5 fill-[var(--accent-primary-contrast)] text-[var(--accent-primary-contrast)]" />
-              ))}
+              { Array.from({ length: 5 }).map((_, i) => (
+                <Star key={ i } className="h-5 w-5 fill-[var(--accent-primary-contrast)] text-[var(--accent-primary-contrast)]" />
+              )) }
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-[var(--accent-primary-contrast)] mb-4">
               Deja de pagar por 4 apps distintas
@@ -364,7 +359,7 @@ export default function HomePage() {
               <Button
                 size="lg"
                 variant="secondary"
-                onClick={() => router.push('/auth')}
+                onClick={ () => router.push('/auth') }
                 className="gap-2 px-8"
               >
                 Crear cuenta gratis <ArrowRight className="h-4 w-4" />
@@ -375,7 +370,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Footer */}
+      {/* Footer */ }
       <footer className="border-t border-[var(--text-secondary)]/20 py-10 bg-[var(--bg-secondary)]">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">

@@ -46,7 +46,7 @@ interface UseGoogleCalendarTokensReturn {
  */
 export function useGoogleCalendarTokens(): UseGoogleCalendarTokensReturn {
   const supabase = createClient();
-  const { user } = useAuthStore();
+  const { user, isLoading: authLoading } = useAuthStore();
   const { tokens, isConnected, userEmail, setTokens, disconnect } = useGoogleCalendarStore();
   const [isLoading, setIsLoading] = useState(true);
   const [authMethod, setAuthMethod] = useState<'google_login' | 'manual_link' | null>(null);
@@ -60,6 +60,10 @@ export function useGoogleCalendarTokens(): UseGoogleCalendarTokensReturn {
   // Cargar tokens al montar (prioriza sesión de Google, luego tabla manual)
   useEffect(() => {
     const loadTokens = async () => {
+      if (authLoading) {
+        return;
+      }
+
       if (!user?.id) {
         setIsLoading(false);
         return;
@@ -143,7 +147,7 @@ export function useGoogleCalendarTokens(): UseGoogleCalendarTokensReturn {
     };
 
     loadTokens();
-  }, [user?.id, supabase, setTokens, disconnect]);
+  }, [authLoading, user?.id, supabase, setTokens, disconnect]);
 
   // Refrescar tokens desde la sesión (útil después de reconexión)
   const refreshTokensFromSession = useCallback(async () => {
