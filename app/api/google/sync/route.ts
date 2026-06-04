@@ -24,6 +24,21 @@ interface GoogleTokens {
   expiry_date?: number;
 }
 
+type SessionIdentity = {
+  provider?: string;
+};
+
+type AuthSessionLike = {
+  provider_token?: string | null;
+  provider_refresh_token?: string | null;
+  user?: {
+    app_metadata?: {
+      provider?: string;
+    };
+    identities?: SessionIdentity[];
+  };
+};
+
 interface SyncEventPayload {
   title: string;
   start_date: string;
@@ -56,15 +71,44 @@ const toGoogleTokens = (row: GoogleTokenRow): GoogleTokens => ({
 const getAuthenticatedUser = async () => {
   const supabase = await createClient();
   const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const {
     data: { user },
     error,
   } = await supabase.auth.getUser();
 
   if (error || !user) {
-    return { supabase, user: null as null };
+    return { supabase, user: null as null, session: null as null };
   }
 
-  return { supabase, user };
+  return { supabase, user, session };
+};
+
+const getSessionGoogleTokens = (
+  session: AuthSessionLike | null,
+): GoogleTokens | null => {
+  if (!session?.provider_token) {
+    return null;
+  }
+
+  const provider = session.user?.app_metadata?.provider;
+  const identities = session.user?.identities || [];
+  const hasGoogleIdentity = identities.some(
+    (identity) => identity.provider === 'google',
+  );
+
+  if (provider !== 'google' && !hasGoogleIdentity) {
+    return null;
+  }
+
+  return {
+    access_token: session.provider_token,
+    refresh_token: session.provider_refresh_token || undefined,
+    scope:
+      'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
+    token_type: 'Bearer',
+  };
 };
 
 const getUserGoogleTokens = async (userId: string) => {
@@ -171,7 +215,7 @@ const getProjectGoogleTokens = async (projectId: string) => {
 
 export async function POST(request: NextRequest) {
   try {
-    const { user } = await getAuthenticatedUser();
+    const { user, session } = await getAuthenticatedUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -188,7 +232,11 @@ export async function POST(request: NextRequest) {
       checkDuplicate?: boolean;
     };
 
-    const tokens = await getUserGoogleTokens(user.id);
+    const storedTokens = await getUserGoogleTokens(user.id);
+    const sessionTokens = getSessionGoogleTokens(
+      (session as AuthSessionLike | null) || null,
+    );
+    const tokens = storedTokens || sessionTokens;
 
     if (!tokens) {
       return NextResponse.json(
@@ -304,13 +352,17 @@ export async function POST(request: NextRequest) {
 // Obtener eventos de Google Calendar
 export async function GET() {
   try {
-    const { user } = await getAuthenticatedUser();
+    const { user, session } = await getAuthenticatedUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const tokens = await getUserGoogleTokens(user.id);
+    const storedTokens = await getUserGoogleTokens(user.id);
+    const sessionTokens = getSessionGoogleTokens(
+      (session as AuthSessionLike | null) || null,
+    );
+    const tokens = storedTokens || sessionTokens;
 
     if (!tokens) {
       return NextResponse.json(
@@ -334,7 +386,7 @@ export async function GET() {
 // Eliminar evento de Google Calendar
 export async function DELETE(request: NextRequest) {
   try {
-    const { user } = await getAuthenticatedUser();
+    const { user, session } = await getAuthenticatedUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -358,7 +410,11 @@ export async function DELETE(request: NextRequest) {
     const tokenSources: GoogleTokens[] = [];
     const dedup = new Set<string>();
 
-    const userTokens = await getUserGoogleTokens(user.id);
+    const userStoredTokens = await getUserGoogleTokens(user.id);
+    const userSessionTokens = getSessionGoogleTokens(
+      (session as AuthSessionLike | null) || null,
+    );
+    const userTokens = userStoredTokens || userSessionTokens;
     if (userTokens) {
       const ownKey = userTokens.refresh_token || userTokens.access_token;
       if (ownKey) {
