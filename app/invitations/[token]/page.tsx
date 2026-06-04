@@ -1,5 +1,4 @@
 'use client';
-import ReactMarkdown from 'react-markdown';
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -100,8 +99,11 @@ export default function InvitationPage() {
         return;
       }
 
+      // En invitaciones por link, el estado no debe bloquear la aceptación para otros usuarios.
+      const isLinkInvitation = data.invite_type === 'link';
+
       // Check if already responded
-      if (data.status !== 'pending') {
+      if (!isLinkInvitation && data.status !== 'pending') {
         if (data.status === 'accepted') {
           setError('Ya has aceptado esta invitación');
           setTimeout(() => router.push('/dashboard'), 2000);
