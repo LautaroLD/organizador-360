@@ -86,7 +86,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
                 throw new Error('Failed to create push subscription');
             }
 
-            const saved = await savePushSubscription(subscription, user.id);
+            const saved = await savePushSubscription(subscription);
             if (!saved) {
                 throw new Error('Failed to save subscription to backend');
             }
@@ -113,7 +113,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
             await unsubscribeFromPush(registration);
 
             // Delete subscription from backend
-            await deletePushSubscription(user.id);
+            await deletePushSubscription();
 
             setIsSubscribed(false);
             return true;
