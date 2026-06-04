@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuthStore } from '@/store/authStore';
 import { createClient } from '@/lib/supabase/client';
+import { clearLocalPushSubscription, deletePushSubscription } from '@/lib/webpush';
 import { Settings, LogOut, ChevronDown, Home } from 'lucide-react';
 import { toast } from 'react-toastify';
 import Link from 'next/link';
@@ -53,6 +54,10 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
         });
       }
 
+      // Remove push subscriptions while the auth session is still valid.
+      await deletePushSubscription();
+      await clearLocalPushSubscription();
+
       await supabase.auth.signOut();
       logout();
       toast.success('Sesión cerrada');
@@ -80,11 +85,11 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
     <header className="border-b border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] sticky top-0 z-30">
 
       <div className="flex items-center justify-between border-b border-[var(--text-secondary)]/20 px-6 py-2">
-        <Link href='/dashboard' className={clsx('flex items-center', !location.pathname.includes('/projects') ? 'flex' : 'hidden')}>
-          {screenWidth !== null && screenWidth >= 640 ? (
+        <Link href='/dashboard' className={ clsx('flex items-center', !location.pathname.includes('/projects') ? 'flex' : 'hidden') }>
+          { screenWidth !== null && screenWidth >= 640 ? (
             <Logo />
           ) :
-            <Image src='/veenzo-logo-square.png' alt='Veenzo' width={40} height={40} />
+            <Image src='/veenzo-logo-square.png' alt='Veenzo' width={ 40 } height={ 40 } />
           }
         </Link>
 
@@ -92,51 +97,51 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
         <div className="flex items-center space-x-4 ml-auto">
           <ThemeToggle />
 
-          {/* User Menu */}
-          <div className="relative" ref={menuRef}>
+          {/* User Menu */ }
+          <div className="relative" ref={ menuRef }>
             <button
-              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              onClick={ () => setIsUserMenuOpen(!isUserMenuOpen) }
               className="flex items-center space-x-3 p-2 rounded-lg hover:bg-[var(--bg-primary)] transition-colors"
             >
               <div className="flex items-center space-x-2">
-                {/* Avatar */}
+                {/* Avatar */ }
                 <div className="w-8 h-8 rounded-full bg-[var(--accent-primary)] flex items-center justify-center text-[var(--accent-primary-contrast)] text-sm font-semibold">
-                  {user?.user_metadata.name[0]}
+                  { user?.user_metadata.name[0] }
                 </div>
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-medium text-[var(--text-primary)] max-w-[150px] truncate">
-                    {user?.user_metadata.name ?? 'Usuario'}
+                    { user?.user_metadata.name ?? 'Usuario' }
                   </p>
                 </div>
               </div>
 
               <ChevronDown
-                className={`h-4 w-4 text-[var(--text-secondary)] transition-transform ${isUserMenuOpen ? 'rotate-180' : ''
-                  }`}
+                className={ `h-4 w-4 text-[var(--text-secondary)] transition-transform ${isUserMenuOpen ? 'rotate-180' : ''
+                  }` }
               />
             </button>
 
-            {/* Dropdown Menu */}
-            {isUserMenuOpen && (
+            {/* Dropdown Menu */ }
+            { isUserMenuOpen && (
               <div className="absolute right-0 mt-2 w-64 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg overflow-hidden z-50">
-                {/* User Info */}
+                {/* User Info */ }
                 <div className="px-4 py-3 border-b border-[var(--text-secondary)]/20">
                   <p className="text-sm font-semibold text-[var(--text-primary)] truncate flex justify-between items-center">
-                    {user?.email || 'Usuario'}
+                    { user?.email || 'Usuario' }
                   </p>
                   <p className="text-xs text-[var(--text-secondary)] mt-0.5">
                     Cuenta Personal
                   </p>
                 </div>
 
-                {/* Menu Items */}
+                {/* Menu Items */ }
                 <div className="py-2">
-                  <Link href="/dashboard" onClick={closeMenu} className="w-full px-4 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors flex items-center space-x-3">
+                  <Link href="/dashboard" onClick={ closeMenu } className="w-full px-4 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors flex items-center space-x-3">
                     <Home className="h-4 w-4 text-[var(--text-secondary)]" />
                     <span>Inicio</span>
                   </Link>
                   <Link href="/settings"
-                    onClick={closeMenu}
+                    onClick={ closeMenu }
                     className="w-full px-4 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors flex items-center space-x-3"
                   >
                     <Settings className="h-4 w-4 text-[var(--text-secondary)]" />
@@ -145,10 +150,10 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
 
                 </div>
 
-                {/* Logout */}
+                {/* Logout */ }
                 <div className="border-t border-[var(--text-secondary)]/20 py-2">
                   <button
-                    onClick={handleLogout}
+                    onClick={ handleLogout }
                     className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors flex items-center space-x-3"
                   >
                     <LogOut className="h-4 w-4" />
@@ -156,17 +161,17 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
                   </button>
                 </div>
               </div>
-            )}
+            ) }
           </div>
         </div>
       </div>
       {
         title && subtitle &&
         <div className='px-6 py-1'>
-          <h2 className=" font-bold text-[var(--text-primary)]">{title}</h2>
-          {subtitle && (
-            <p className="text-xs text-[var(--text-secondary)]">{subtitle}</p>
-          )}
+          <h2 className=" font-bold text-[var(--text-primary)]">{ title }</h2>
+          { subtitle && (
+            <p className="text-xs text-[var(--text-secondary)]">{ subtitle }</p>
+          ) }
         </div>
       }
     </header>
