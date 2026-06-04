@@ -46,6 +46,7 @@ export default function AuthPage() {
   const searchParams = useSearchParams();
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const router = useRouter();
   const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<AuthFormData>();
 
@@ -76,6 +77,7 @@ export default function AuthPage() {
   }, [mode, email, setValue]);
 
   const onSubmit = async (data: AuthFormData) => {
+    let shouldStopLoading = true;
     setIsLoading(true);
     try {
       if (isForgotPassword) {
@@ -115,6 +117,8 @@ export default function AuthPage() {
         await supabase.auth.signOut();
 
         toast.success('Contraseña actualizada exitosamente. Ya puedes iniciar sesión.');
+        shouldStopLoading = false;
+        setIsRedirecting(true);
         router.push('/auth?mode=login');
         return;
       }
@@ -134,10 +138,16 @@ export default function AuthPage() {
           : null;
 
         if (pendingInvitation) {
+          shouldStopLoading = false;
+          setIsRedirecting(true);
           router.push(`/invitations/${pendingInvitation}`);
         } else if (redirect) {
+          shouldStopLoading = false;
+          setIsRedirecting(true);
           router.push(buildRedirectUrl(redirect));
         } else {
+          shouldStopLoading = false;
+          setIsRedirecting(true);
           router.push(buildRedirectUrl('/dashboard'));
         }
       } else {
@@ -181,18 +191,27 @@ export default function AuthPage() {
             : null;
 
           if (pendingInvitation) {
+            shouldStopLoading = false;
+            setIsRedirecting(true);
             router.push(`/invitations/${pendingInvitation}`);
           } else if (redirect) {
+            shouldStopLoading = false;
+            setIsRedirecting(true);
             router.push(buildRedirectUrl(redirect));
           } else {
+            shouldStopLoading = false;
+            setIsRedirecting(true);
             router.push(buildRedirectUrl('/dashboard'));
           }
         } else {
           toast.success('Cuenta creada exitosamente. Por favor verifica tu email.');
+          shouldStopLoading = false;
+          setIsRedirecting(true);
           router.push(`/auth/confirm?email=${encodeURIComponent(data.email)}`);
         }
       }
     } catch (error) {
+      setIsRedirecting(false);
       const authError = error instanceof Error ? error : new Error(String(error));
       console.error('Auth error:', authError);
 
@@ -212,7 +231,9 @@ export default function AuthPage() {
         toast.error('Ocurrió un error. Por favor intenta de nuevo.');
       }
     } finally {
-      setIsLoading(false);
+      if (shouldStopLoading) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -240,15 +261,19 @@ export default function AuthPage() {
   };
 
   const toggleMode = () => {
+    if (isLoading || isRedirecting) return;
     setIsLogin(!isLogin);
     reset();
   };
 
   const goToLogin = () => {
+    if (isLoading || isRedirecting) return;
     reset();
     setIsLogin(true);
     router.push('/auth?mode=login');
   };
+
+  const isBusy = isLoading || isRedirecting;
 
   return (
     <div className="min-h-dvh flex items-center justify-center p-4 bg-[var(--bg-primary)]">
@@ -262,102 +287,102 @@ export default function AuthPage() {
         <Card className="w-full bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20">
           <CardHeader>
             <CardTitle className="text-center text-[var(--text-primary)]">
-              {isForgotPassword
+              { isForgotPassword
                 ? 'Recuperar Contraseña'
                 : isRecoveryMode
                   ? 'Nueva Contraseña'
                   : isLogin
                     ? 'Iniciar Sesión'
-                    : 'Crear Cuenta'}
+                    : 'Crear Cuenta' }
             </CardTitle>
             <CardDescription className="text-center text-[var(--text-secondary)]">
-              {isForgotPassword
+              { isForgotPassword
                 ? 'Ingresa tu email y te enviaremos un enlace de recuperación'
                 : isRecoveryMode
                   ? 'Elige una nueva contraseña para tu cuenta'
                   : isLogin
                     ? 'Ingresa a tu cuenta para continuar'
-                    : 'Crea una nueva cuenta para comenzar'}
+                    : 'Crea una nueva cuenta para comenzar' }
             </CardDescription>
 
-            {email && (
+            { email && (
               <div className="mt-4 p-3 bg-[var(--accent-primary)]/10 rounded-lg border border-[var(--accent-primary)]/30">
                 <p className="text-sm text-[var(--text-primary)] text-center">
-                  📧 Estás {isLogin ? 'iniciando sesión' : 'creando una cuenta'} para aceptar una invitación
+                  📧 Estás { isLogin ? 'iniciando sesión' : 'creando una cuenta' } para aceptar una invitación
                 </p>
               </div>
-            )}
+            ) }
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              {!isLogin && !isForgotPassword && !isRecoveryMode && (
+            <form onSubmit={ handleSubmit(onSubmit) } className="space-y-4">
+              { !isLogin && !isForgotPassword && !isRecoveryMode && (
                 <Input
                   label="Nombre"
-                  {...register('name', {
+                  { ...register('name', {
                     required: !isLogin ? 'El nombre es requerido' : false,
-                  })}
-                  error={errors.name?.message}
+                  }) }
+                  error={ errors.name?.message }
                   placeholder="Tu nombre"
                 />
-              )}
+              ) }
 
-              {!isRecoveryMode && (
+              { !isRecoveryMode && (
                 <Input
                   label="Email"
                   type="email"
-                  {...register('email', {
+                  { ...register('email', {
                     required: 'El email es requerido',
                     pattern: {
                       value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
                       message: 'Email inválido',
                     },
-                  })}
-                  error={errors.email?.message}
+                  }) }
+                  error={ errors.email?.message }
                   placeholder="tu@email.com"
                 />
-              )}
+              ) }
 
-              {!isForgotPassword && (
+              { !isForgotPassword && (
                 <Input
-                  label={isRecoveryMode ? 'Nueva Contraseña' : 'Contraseña'}
+                  label={ isRecoveryMode ? 'Nueva Contraseña' : 'Contraseña' }
                   type="password"
-                  {...register('password', {
+                  { ...register('password', {
                     required: 'La contraseña es requerida',
                     validate: (value) => {
                       if (isLogin) return true;
                       return isStrongPassword(value) || PASSWORD_REQUIREMENTS_MESSAGE;
                     },
-                  })}
-                  error={errors.password?.message}
+                  }) }
+                  error={ errors.password?.message }
                   placeholder="••••••••"
                 />
-              )}
+              ) }
 
-              {isRecoveryMode && (
+              { isRecoveryMode && (
                 <Input
                   label="Confirmar Nueva Contraseña"
                   type="password"
-                  {...register('confirmPassword', {
+                  { ...register('confirmPassword', {
                     required: 'Debes confirmar la contraseña',
-                  })}
-                  error={errors.confirmPassword?.message}
+                  }) }
+                  error={ errors.confirmPassword?.message }
                   placeholder="••••••••"
                 />
-              )}
+              ) }
 
-              {!isLogin && !isForgotPassword && (
+              { !isLogin && !isForgotPassword && (
                 <p className="text-xs text-[var(--text-secondary)]">
-                  {PASSWORD_REQUIREMENTS_MESSAGE}
+                  { PASSWORD_REQUIREMENTS_MESSAGE }
                 </p>
-              )}
+              ) }
 
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isLoading}
+                disabled={ isBusy }
               >
-                {isLoading ? (
+                { isBusy ? (
                   'Cargando...'
                 ) : isForgotPassword ? (
                   <>
@@ -379,11 +404,11 @@ export default function AuthPage() {
                     <UserPlus className="mr-2 h-4 w-4" />
                     Crear Cuenta
                   </>
-                )}
+                ) }
               </Button>
             </form>
 
-            {!isForgotPassword && !isRecoveryMode && (
+            { !isForgotPassword && !isRecoveryMode && (
               <>
                 <div className="relative my-6">
                   <div className="absolute inset-0 flex items-center">
@@ -400,8 +425,8 @@ export default function AuthPage() {
                   type="button"
                   variant="secondary"
                   className="w-full border-[var(--text-secondary)]/30 hover:bg-[var(--bg-primary)]"
-                  onClick={signInWithGoogle}
-                  disabled={isLoading}
+                  onClick={ signInWithGoogle }
+                  disabled={ isBusy }
                 >
                   <GoogleIcon />
                   Continuar con Google
@@ -411,47 +436,50 @@ export default function AuthPage() {
                   Al usar Google, tu calendario se vinculará automáticamente
                 </p>
               </>
-            )}
+            ) }
 
             <div className="mt-4 text-center">
-              {!isForgotPassword && !isRecoveryMode && (
+              { !isForgotPassword && !isRecoveryMode && (
                 <button
                   type="button"
-                  onClick={toggleMode}
+                  onClick={ toggleMode }
+                  disabled={ isBusy }
                   className="text-sm text-[var(--accent-primary)] hover:underline"
                 >
-                  {isLogin
+                  { isLogin
                     ? '¿No tienes cuenta? Regístrate'
-                    : '¿Ya tienes cuenta? Inicia sesión'}
+                    : '¿Ya tienes cuenta? Inicia sesión' }
                 </button>
-              )}
+              ) }
 
-              {isLogin && !isForgotPassword && !isRecoveryMode && (
+              { isLogin && !isForgotPassword && !isRecoveryMode && (
                 <div className="mt-2">
                   <button
                     type="button"
-                    onClick={() => router.push('/auth?mode=forgot')}
+                    onClick={ () => router.push('/auth?mode=forgot') }
+                    disabled={ isBusy }
                     className="text-sm text-[var(--text-secondary)] hover:text-[var(--accent-primary)] hover:underline"
                   >
                     ¿Olvidaste tu contraseña?
                   </button>
                 </div>
-              )}
+              ) }
 
-              {(isForgotPassword || isRecoveryMode) && (
+              { (isForgotPassword || isRecoveryMode) && (
                 <button
                   type="button"
-                  onClick={goToLogin}
+                  onClick={ goToLogin }
+                  disabled={ isBusy }
                   className="text-sm text-[var(--accent-primary)] hover:underline"
                 >
                   Volver a iniciar sesión
                 </button>
-              )}
+              ) }
             </div>
 
             <div className="mt-6 pt-4 border-t border-[var(--text-secondary)]/20">
               <p className="text-xs text-center text-[var(--text-secondary)]">
-                {!isLogin && 'Al crear una cuenta, aceptas nuestros '}
+                { !isLogin && 'Al crear una cuenta, aceptas nuestros ' }
                 <a
                   href="/terms"
                   target="_blank"
@@ -460,7 +488,7 @@ export default function AuthPage() {
                 >
                   Términos de Servicio
                 </a>
-                {' y '}
+                { ' y ' }
                 <a
                   href="/privacy"
                   target="_blank"

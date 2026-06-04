@@ -1,15 +1,27 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
+import { usePathname } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useRealtimeUserMessages } from '@/hooks/useRealtimeUserMessages';
 
+const PUBLIC_ROUTES = ['/auth', '/privacy', '/terms', '/invitations'];
+
+function isPublicRoute(pathname: string): boolean {
+  if (pathname === '/') {
+    return true;
+  }
+
+  return PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode; }) {
   const supabase = useMemo(() => createClient(), []);
-  const { user, setUser, setIsLoading } = useAuthStore();
+  const pathname = usePathname();
+  const { user, isLoading, setUser, setIsLoading } = useAuthStore();
   const { setCustomColors } = useThemeStore();
 
   useRealtimeUserMessages({
@@ -67,5 +79,16 @@ export function AuthProvider({ children }: { children: React.ReactNode; }) {
 
   }, [setUser, setIsLoading, setCustomColors, supabase]);
 
-  return <>{children}</>;
+  if (isLoading && !isPublicRoute(pathname)) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-[var(--bg-primary)]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent-primary)] mx-auto mb-4" />
+          <p className="text-[var(--text-secondary)]">Cargando sesión...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{ children }</>;
 }

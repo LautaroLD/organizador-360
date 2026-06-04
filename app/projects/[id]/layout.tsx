@@ -16,14 +16,27 @@ export default function ProjectLayout({
   const supabase = createClient();
   const params = useParams();
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { user, isLoading: authLoading } = useAuthStore();
   const { currentProject, setCurrentProject } = useProjectStore();
   const [isLoading, setIsLoading] = useState(true);
   const projectId = params?.id as string;
 
   useEffect(() => {
     const loadProject = async () => {
-      if (!user || !projectId) return;
+      if (authLoading) {
+        return;
+      }
+
+      if (!user) {
+        router.push('/auth');
+        setIsLoading(false);
+        return;
+      }
+
+      if (!projectId) {
+        setIsLoading(false);
+        return;
+      }
 
       try {
         // Verificar que el usuario es miembro del proyecto
@@ -62,7 +75,7 @@ export default function ProjectLayout({
 
     loadProject();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, projectId, router, setCurrentProject]);
+  }, [authLoading, user, projectId, router, setCurrentProject]);
 
   if (isLoading) {
     return (
@@ -87,7 +100,7 @@ export default function ProjectLayout({
       <Sidebar />
       <div className="lg:pl-56 min-h-dvh flex flex-col max-h-dvh overflow-hidden">
         <Header />
-        {children}
+        { children }
       </div>
     </div>
   );
