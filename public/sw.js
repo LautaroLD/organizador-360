@@ -170,6 +170,7 @@ self.addEventListener('push', (event) => {
         badge: data.badge,
         tag: data.tag,
         data: data.data,
+        renotify: true,
         vibrate: [200, 100, 200],
         requireInteraction: false,
     };
