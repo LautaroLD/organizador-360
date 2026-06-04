@@ -40,6 +40,26 @@ const toISODate = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const isEndTimeBeforeStart = (
+  startDate?: string,
+  startTime?: string,
+  endDate?: string,
+  endTime?: string,
+) => {
+  if (!startDate || !startTime || !endDate || !endTime) {
+    return false;
+  }
+
+  const start = new Date(`${startDate}T${startTime}:00`);
+  const end = new Date(`${endDate}T${endTime}:00`);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return false;
+  }
+
+  return end < start;
+};
+
 interface EventModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -74,6 +94,7 @@ export const EventModal: React.FC<EventModalProps> = ({
   const recurrenceType = watch('recurrence_type');
   const startDate = watch('start_date');
   const startTime = watch('start_time');
+  const endDate = watch('end_date') || startDate;
   const endTime = watch('end_time');
   const recurrenceEndDate = watch('recurrence_end_date');
 
@@ -106,8 +127,8 @@ export const EventModal: React.FC<EventModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Crear Nuevo Evento" size="lg">
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <Modal isOpen={ isOpen } onClose={ onClose } title="Crear Nuevo Evento" size="lg">
+      <form onSubmit={ handleSubmit(onSubmit) } className="space-y-5">
         <div className="rounded-xl border border-[var(--accent-primary)]/20 bg-[var(--accent-primary)]/5 p-3">
           <p className="flex items-center gap-2 text-xs font-medium text-[var(--accent-primary)]">
             <Sparkles className="h-3.5 w-3.5" />
@@ -117,8 +138,8 @@ export const EventModal: React.FC<EventModalProps> = ({
 
         <Input
           label="Título del Evento"
-          {...register('title', { required: 'El título es requerido' })}
-          error={errors.title?.message}
+          { ...register('title', { required: 'El título es requerido' }) }
+          error={ errors.title?.message }
           placeholder="Reunión de equipo"
         />
 
@@ -128,9 +149,9 @@ export const EventModal: React.FC<EventModalProps> = ({
             Descripción
           </label>
           <textarea
-            {...register('description')}
+            { ...register('description') }
             className="flex min-h-[96px] w-full resize-none rounded-xl border border-[var(--text-secondary)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
-            rows={4}
+            rows={ 4 }
             placeholder="Describe el evento..."
           />
         </div>
@@ -143,14 +164,14 @@ export const EventModal: React.FC<EventModalProps> = ({
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Fecha del evento</label>
-            <input type="hidden" {...register('start_date', { required: 'La fecha es requerida' })} />
+            <input type="hidden" { ...register('start_date', { required: 'La fecha es requerida' }) } />
             <DatePicker
-              value={parseDateValue(startDate) ?? undefined}
-              onChange={(date) => setValue('start_date', date ? toISODate(date) : '', { shouldValidate: true })}
-              minDate={new Date()}
+              value={ parseDateValue(startDate) ?? undefined }
+              onChange={ (date) => setValue('start_date', date ? toISODate(date) : '', { shouldValidate: true }) }
+              minDate={ new Date() }
               placeholder="Seleccionar fecha"
             />
-            {errors.start_date?.message && <p className="mt-1 text-sm text-red-500">{errors.start_date.message}</p>}
+            { errors.start_date?.message && <p className="mt-1 text-sm text-red-500">{ errors.start_date.message }</p> }
           </div>
 
           <div className="flex items-center gap-3">
@@ -162,15 +183,23 @@ export const EventModal: React.FC<EventModalProps> = ({
             <div className="h-px flex-1 bg-[var(--text-secondary)]/15" />
           </div>
 
-          <input type="hidden" {...register('start_time', { required: 'La hora de inicio es requerida' })} />
-          <input type="hidden" {...register('end_time', { required: 'La hora de fin es requerida' })} />
+          <input type="hidden" { ...register('start_time', { required: 'La hora de inicio es requerida' }) } />
+          <input
+            type="hidden"
+            { ...register('end_time', {
+              required: 'La hora de fin es requerida',
+              validate: (value) =>
+                !isEndTimeBeforeStart(startDate, startTime, endDate, value) ||
+                'La hora de fin no puede ser menor que la hora de inicio',
+            }) }
+          />
           <TimeRangePicker
-            startValue={startTime}
-            endValue={endTime}
-            onStartChange={(time) => setValue('start_time', time, { shouldValidate: true })}
-            onEndChange={(time) => setValue('end_time', time, { shouldValidate: true })}
-            startError={errors.start_time?.message}
-            endError={errors.end_time?.message}
+            startValue={ startTime }
+            endValue={ endTime }
+            onStartChange={ (time) => setValue('start_time', time, { shouldValidate: true }) }
+            onEndChange={ (time) => setValue('end_time', time, { shouldValidate: true }) }
+            startError={ errors.start_time?.message }
+            endError={ errors.end_time?.message }
             className='grid grid-cols-2 gap-3'
           />
           <p className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
@@ -191,14 +220,14 @@ export const EventModal: React.FC<EventModalProps> = ({
             </label>
             <div className="relative">
               <select
-                {...register('recurrence_type')}
-                onChange={(e) => {
+                { ...register('recurrence_type') }
+                onChange={ (e) => {
                   setValue('recurrence_type', e.target.value as 'none' | 'weekly' | 'custom');
                   setShowRecurrenceOptions(e.target.value !== 'none');
                   if (e.target.value === 'none') {
                     setSelectedDays([]);
                   }
-                }}
+                } }
                 className="flex h-10 w-full appearance-none rounded-lg border border-[var(--text-secondary)]/30 bg-[var(--bg-primary)] px-3 py-2 pr-9 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
               >
                 <option value="none">No repetir</option>
@@ -209,19 +238,19 @@ export const EventModal: React.FC<EventModalProps> = ({
             </div>
           </div>
 
-          {showRecurrenceOptions && recurrenceType === 'weekly' && (
+          { showRecurrenceOptions && recurrenceType === 'weekly' && (
             <div className="space-y-3">
               <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-secondary)]">Días de repetición</p>
 
               <div className="grid grid-cols-7 gap-2">
-                {WEEKDAYS.map((day) => (
+                { WEEKDAYS.map((day) => (
                   <button
-                    key={day.id}
+                    key={ day.id }
                     type="button"
-                    title={day.label}
-                    onClick={() => toggleDay(day.id)}
-                    aria-pressed={selectedDays.includes(day.id)}
-                    className={`
+                    title={ day.label }
+                    onClick={ () => toggleDay(day.id) }
+                    aria-pressed={ selectedDays.includes(day.id) }
+                    className={ `
                       h-9 rounded-lg text-xs font-semibold transition-all
                       ${selectedDays.includes(day.id)
                         ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] shadow-sm ring-2 ring-[var(--accent-primary)]/30'
@@ -229,68 +258,68 @@ export const EventModal: React.FC<EventModalProps> = ({
                       }
                     `}
                   >
-                    {day.short}
+                    { day.short }
                   </button>
-                ))}
+                )) }
               </div>
 
-              {selectedDays.length === 0 && (
+              { selectedDays.length === 0 && (
                 <p className="text-xs text-red-500">Selecciona al menos un día</p>
-              )}
+              ) }
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Repetir hasta</label>
-                <input type="hidden" {...register('recurrence_end_date')} />
+                <input type="hidden" { ...register('recurrence_end_date') } />
                 <DatePicker
-                  value={parseDateValue(recurrenceEndDate || '') ?? undefined}
-                  onChange={(date) => setValue('recurrence_end_date', date ? toISODate(date) : '')}
-                  minDate={parseDateValue(startDate || '') ?? new Date()}
+                  value={ parseDateValue(recurrenceEndDate || '') ?? undefined }
+                  onChange={ (date) => setValue('recurrence_end_date', date ? toISODate(date) : '') }
+                  minDate={ parseDateValue(startDate || '') ?? new Date() }
                   placeholder="Fecha final de repeticion"
                 />
               </div>
             </div>
-          )}
+          ) }
 
-          {showRecurrenceOptions && recurrenceType === 'custom' && (
+          { showRecurrenceOptions && recurrenceType === 'custom' && (
             <div className="rounded-lg border border-dashed border-[var(--text-secondary)]/25 bg-[var(--bg-primary)]/50 p-3 text-center">
               <p className="text-sm text-[var(--text-secondary)]">Funcionalidad personalizada disponible próximamente</p>
             </div>
-          )}
+          ) }
         </div>
 
-        {recurrenceType !== 'none' && selectedDays.length > 0 && startDate && startTime && endTime && (
+        { recurrenceType !== 'none' && selectedDays.length > 0 && startDate && startTime && endTime && (
           <div className="rounded-xl border border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/8 p-4">
             <div className="mb-2 flex items-center gap-2">
               <CalendarCheck className="h-4 w-4 text-[var(--accent-primary)]" />
               <p className="text-sm font-semibold text-[var(--accent-primary)]">
-                Se crearán {eventCount} evento{eventCount !== 1 ? 's' : ''}
+                Se crearán { eventCount } evento{ eventCount !== 1 ? 's' : '' }
               </p>
             </div>
             <p className="mb-2 text-xs text-[var(--text-secondary)]">
-              Del {startDate}{recurrenceEndDate ? ` al ${recurrenceEndDate}` : ''} · {selectedDays.length} día{selectedDays.length !== 1 ? 's' : ''} por semana
+              Del { startDate }{ recurrenceEndDate ? ` al ${recurrenceEndDate}` : '' } · { selectedDays.length } día{ selectedDays.length !== 1 ? 's' : '' } por semana
             </p>
             <div className="flex flex-wrap gap-1">
-              {selectedDays.map(dayId => {
+              { selectedDays.map(dayId => {
                 const day = WEEKDAYS.find(d => d.id === dayId);
                 return day ? (
-                  <span key={dayId} className="rounded-full bg-[var(--accent-primary)]/15 px-2 py-0.5 text-xs font-medium text-[var(--accent-primary)]">
-                    {day.label}
+                  <span key={ dayId } className="rounded-full bg-[var(--accent-primary)]/15 px-2 py-0.5 text-xs font-medium text-[var(--accent-primary)]">
+                    { day.label }
                   </span>
                 ) : null;
-              })}
+              }) }
             </div>
           </div>
-        )}
+        ) }
 
         <div className="flex justify-end gap-3 pt-4 border-t border-[var(--text-secondary)]/20">
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={ onClose }>
             Cancelar
           </Button>
           <Button
             type="submit"
-            disabled={isLoading || (recurrenceType === 'weekly' && selectedDays.length === 0)}
+            disabled={ isLoading || (recurrenceType === 'weekly' && selectedDays.length === 0) }
           >
-            {isLoading ? 'Creando...' : 'Crear Evento(s)'}
+            { isLoading ? 'Creando...' : 'Crear Evento(s)' }
           </Button>
         </div>
       </form>

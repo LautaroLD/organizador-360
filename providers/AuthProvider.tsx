@@ -11,10 +11,6 @@ import { useRealtimeUserMessages } from '@/hooks/useRealtimeUserMessages';
 const PUBLIC_ROUTES = ['/auth', '/privacy', '/terms', '/invitations'];
 
 function isPublicRoute(pathname: string): boolean {
-  if (pathname === '/') {
-    return true;
-  }
-
   return PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 

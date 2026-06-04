@@ -18,7 +18,7 @@ export async function proxy(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
+            request.cookies.set(name, value),
           );
           response = NextResponse.next({
             request: {
@@ -26,11 +26,11 @@ export async function proxy(request: NextRequest) {
             },
           });
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            response.cookies.set(name, value, options),
           );
         },
       },
-    }
+    },
   );
 
   const {
@@ -48,12 +48,10 @@ export async function proxy(request: NextRequest) {
   const isAuthCallbackRoute = pathname.startsWith('/auth/callback');
   const isRecoveryAuthPage = pathname === '/auth' && mode === 'recovery';
 
-  const publicApiRoutes = [
-    '/api/health',
-    '/api/auth',
-    '/api/google',
-  ];
-  const isPublicApiRoute = publicApiRoutes.some(route => pathname.startsWith(route));
+  const publicApiRoutes = ['/api/health', '/api/auth', '/api/google'];
+  const isPublicApiRoute = publicApiRoutes.some((route) =>
+    pathname.startsWith(route),
+  );
 
   const protectedRoutes = [
     '/dashboard',
@@ -61,12 +59,18 @@ export async function proxy(request: NextRequest) {
     '/settings',
     '/invitations',
   ];
-  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+  const isProtectedRoute = protectedRoutes.some((route) =>
+    pathname.startsWith(route),
+  );
 
   if (isPublicApiRoute) {
     return response;
   }
-
+  if (pathname === '/' && user) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/dashboard';
+    return NextResponse.redirect(redirectUrl);
+  }
   if (!user && isProtectedRoute) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/auth';

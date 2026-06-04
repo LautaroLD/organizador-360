@@ -66,6 +66,21 @@ interface SyncSummary {
 
 const SYNC_BATCH_SIZE = 20;
 
+const isEndBeforeStart = (data: Pick<EventFormData, 'start_date' | 'start_time' | 'end_date' | 'end_time'>) => {
+  if (!data.start_date || !data.start_time || !data.end_date || !data.end_time) {
+    return false;
+  }
+
+  const start = new Date(`${data.start_date}T${data.start_time}:00`);
+  const end = new Date(`${data.end_date}T${data.end_time}:00`);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return false;
+  }
+
+  return end < start;
+};
+
 const toSyncPayloadEvent = (event: Event, userTimeZone: string): SyncPayloadEvent => {
   const startParts = event.start_date.includes('T')
     ? event.start_date.split('T')
@@ -372,6 +387,10 @@ export const CalendarView: React.FC = () => {
   // Create event mutation
   const createEventMutation = useMutation({
     mutationFn: async (data: EventFormData) => {
+      if (isEndBeforeStart(data)) {
+        throw new Error('La hora de fin no puede ser menor que la hora de inicio');
+      }
+
       const events = generateRecurringEvents(data);
 
       // Crear múltiples eventos si es recurrente
@@ -591,9 +610,9 @@ export const CalendarView: React.FC = () => {
 
   return (
     <>
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-[var(--bg-primary)] relative">
+      <div ref={ scrollContainerRef } className="flex-1 overflow-y-auto bg-[var(--bg-primary)] relative">
         <div className="p-4 md:p-6  mx-auto">
-          {/* Header */}
+          {/* Header */ }
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-8">
             <div>
               <h2 className="flex items-center gap-2 text-2xl md:text-3xl font-bold text-[var(--text-primary)]">
@@ -602,9 +621,9 @@ export const CalendarView: React.FC = () => {
               </h2>
               <div className="mt-1 flex items-center gap-3">
                 <p className="text-sm text-[var(--text-secondary)]">
-                  {events?.length || 0} evento{events?.length !== 1 ? 's' : ''} en total
+                  { events?.length || 0 } evento{ events?.length !== 1 ? 's' : '' } en total
                 </p>
-                {(() => {
+                { (() => {
                   const now = new Date();
                   now.setHours(0, 0, 0, 0);
                   const pastCount = events?.filter(e => new Date(e.start_date) < now).length ?? 0;
@@ -612,92 +631,92 @@ export const CalendarView: React.FC = () => {
                   return pastCount > 0 ? (
                     <>
                       <span className="text-[var(--text-secondary)]/40">·</span>
-                      <span className="text-xs text-[var(--accent-primary)] font-medium">{upcomingCount} próximos</span>
+                      <span className="text-xs text-[var(--accent-primary)] font-medium">{ upcomingCount } próximos</span>
                       <span className="text-[var(--text-secondary)]/40">·</span>
-                      <span className="text-xs text-[var(--text-secondary)]">{pastCount} pasados</span>
+                      <span className="text-xs text-[var(--text-secondary)]">{ pastCount } pasados</span>
                     </>
                   ) : null;
-                })()}
+                })() }
               </div>
             </div>
 
-            {/* Google Calendar Integration */}
+            {/* Google Calendar Integration */ }
             <div className="flex flex-col gap-2">
-              {activeIsConnected && activeUserEmail && (
+              { activeIsConnected && activeUserEmail && (
                 <div className="text-xs text-[var(--text-secondary)] text-center sm:text-right flex items-center justify-center sm:justify-end gap-1">
-                  {authMethod === 'google_login' && (
+                  { authMethod === 'google_login' && (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-green-500/20 text-green-600 dark:text-green-400">
                       Auto
                     </span>
-                  )}
-                  Conectado: {activeUserEmail}
+                  ) }
+                  Conectado: { activeUserEmail }
                 </div>
-              )}
+              ) }
 
-              {/* Mensaje para usuarios de Google que necesitan reconectar */}
-              {isGoogleUser && needsReconnect && !activeIsConnected && (
+              {/* Mensaje para usuarios de Google que necesitan reconectar */ }
+              { isGoogleUser && needsReconnect && !activeIsConnected && (
                 <div className="text-xs text-amber-600 dark:text-amber-400 text-center sm:text-right bg-amber-500/10 px-2 py-1 rounded">
                   Tu sesión de Google Calendar expiró. Reconecta para sincronizar.
                 </div>
-              )}
+              ) }
 
               <div className="flex flex-col sm:flex-row gap-2">
-                {activeIsConnected ? (
+                { activeIsConnected ? (
                   <>
                     <Button
-                      onClick={syncAllEventsToGoogle}
+                      onClick={ syncAllEventsToGoogle }
                       variant="secondary"
-                      disabled={isSyncing || !events || events.length === 0}
+                      disabled={ isSyncing || !events || events.length === 0 }
                     >
-                      <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-                      {isSyncing ? `Sincronizando (${syncProgress.current}/${syncProgress.total})` : 'Sincronizar Todos'}
+                      <RefreshCw className={ `h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}` } />
+                      { isSyncing ? `Sincronizando (${syncProgress.current}/${syncProgress.total})` : 'Sincronizar Todos' }
                     </Button>
-                    {authMethod !== 'google_login' && (
+                    { authMethod !== 'google_login' && (
                       <Button
-                        onClick={disconnectGoogleCalendar}
+                        onClick={ disconnectGoogleCalendar }
                         variant="secondary"
                       >
                         🔗 Desconectar Google
                       </Button>
-                    )}
+                    ) }
                   </>
                 ) : (
                   <Button
-                    onClick={connectGoogleCalendar}
+                    onClick={ connectGoogleCalendar }
                     variant="secondary"
-                    disabled={isGoogleLoading}
+                    disabled={ isGoogleLoading }
                   >
-                    {isGoogleUser && needsReconnect ? '🔄 Reconectar Calendar' : '📅 Conectar Google Calendar'}
+                    { isGoogleUser && needsReconnect ? '🔄 Reconectar Calendar' : '📅 Conectar Google Calendar' }
                   </Button>
-                )}
+                ) }
                 <Button
-                  onClick={() => {
+                  onClick={ () => {
                     setIsModalOpen(true);
                     reset();
                     setSelectedDays([]);
                     setShowRecurrenceOptions(false);
-                  }}
+                  } }
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Nuevo Evento
                 </Button>
-                {events && events.some(e => new Date(e.start_date) < (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })()) && (
+                { events && events.some(e => new Date(e.start_date) < (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })()) && (
                   <Button
                     variant="secondary"
-                    onClick={handleDeletePastEvents}
+                    onClick={ handleDeletePastEvents }
                     title="Eliminar todos los eventos que ya pasaron"
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
                     Limpiar pasados
                   </Button>
-                )}
+                ) }
               </div>
 
-              {activeIsConnected && (
+              { activeIsConnected && (
                 <div className="rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] p-2.5">
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="text-[var(--text-secondary)]">Estado de sincronización</span>
-                    {isSyncing ? (
+                    { isSyncing ? (
                       <span className="inline-flex items-center gap-1 text-[var(--accent-primary)]">
                         <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                         En progreso
@@ -714,42 +733,42 @@ export const CalendarView: React.FC = () => {
                       </span>
                     ) : (
                       <span className="text-[var(--text-secondary)]">Sin ejecuciones</span>
-                    )}
+                    ) }
                   </div>
 
                   <div className="mt-2 h-1.5 w-full rounded-full bg-[var(--bg-primary)] overflow-hidden">
                     <div
                       className="h-full bg-[var(--accent-primary)] transition-all duration-300"
-                      style={{ width: syncProgress.total > 0 ? `${(syncProgress.current / syncProgress.total) * 100}%` : '0%' }}
+                      style={ { width: syncProgress.total > 0 ? `${(syncProgress.current / syncProgress.total) * 100}%` : '0%' } }
                     />
                   </div>
 
-                  {lastSyncSummary && !isSyncing && (
+                  { lastSyncSummary && !isSyncing && (
                     <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
-                      Ultima sincronizacion: {lastSyncSummary.created} creados, {lastSyncSummary.skipped} omitidos, {lastSyncSummary.errors} errores.
+                      Ultima sincronizacion: { lastSyncSummary.created } creados, { lastSyncSummary.skipped } omitidos, { lastSyncSummary.errors } errores.
                     </p>
-                  )}
+                  ) }
                 </div>
-              )}
+              ) }
 
 
             </div>
           </div>
 
-          {isEventsLoading ? (
+          { isEventsLoading ? (
             <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="h-20 rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] animate-pulse" />
-              ))}
+              { Array.from({ length: 4 }).map((_, index) => (
+                <div key={ index } className="h-20 rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] animate-pulse" />
+              )) }
             </div>
           ) : events && events.length > 0 ? (
             <EventList
-              groupedEvents={groupedAndSortedEvents}
-              sortedDates={sortedDates}
-              onDeleteEvent={(eventId) => deleteEventMutation.mutate(eventId)}
-              onDeleteAllEventsFromDate={handleDeleteAllEventsFromDate}
-              onDeleteMultipleEvents={handleDeleteMultipleEvents}
-              onDeletePastEvents={handleDeletePastEvents}
+              groupedEvents={ groupedAndSortedEvents }
+              sortedDates={ sortedDates }
+              onDeleteEvent={ (eventId) => deleteEventMutation.mutate(eventId) }
+              onDeleteAllEventsFromDate={ handleDeleteAllEventsFromDate }
+              onDeleteMultipleEvents={ handleDeleteMultipleEvents }
+              onDeletePastEvents={ handleDeletePastEvents }
             />
           ) : (
             <div className="flex flex-col items-center justify-center py-16 px-4">
@@ -762,7 +781,7 @@ export const CalendarView: React.FC = () => {
                   Crea tu primer evento para comenzar a organizar
                 </p>
                 <Button
-                  onClick={() => setIsModalOpen(true)}
+                  onClick={ () => setIsModalOpen(true) }
                   size="lg"
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -770,48 +789,54 @@ export const CalendarView: React.FC = () => {
                 </Button>
               </div>
             </div>
-          )}
+          ) }
         </div>
 
-        {/* Create Event Modal */}
+        {/* Create Event Modal */ }
         <EventModal
-          isOpen={isModalOpen}
-          onClose={() => {
+          isOpen={ isModalOpen }
+          onClose={ () => {
             setIsModalOpen(false);
             setShowRecurrenceOptions(false);
             setSelectedDays([]);
-          }}
-          onSubmit={(data) => {
+          } }
+          onSubmit={ (data) => {
             const formData = {
               ...data,
               selected_days: data.recurrence_type !== 'none' ? selectedDays : [],
             };
+
+            if (isEndBeforeStart(formData)) {
+              toast.error('La hora de fin no puede ser menor que la hora de inicio');
+              return;
+            }
+
             createEventMutation.mutate(formData);
-          }}
-          handleSubmit={handleSubmit}
-          register={register}
-          errors={errors}
-          watch={watch}
-          setValue={setValue}
-          selectedDays={selectedDays}
-          setSelectedDays={setSelectedDays}
-          showRecurrenceOptions={showRecurrenceOptions}
-          setShowRecurrenceOptions={setShowRecurrenceOptions}
-          isLoading={createEventMutation.isPending}
+          } }
+          handleSubmit={ handleSubmit }
+          register={ register }
+          errors={ errors }
+          watch={ watch }
+          setValue={ setValue }
+          selectedDays={ selectedDays }
+          setSelectedDays={ setSelectedDays }
+          showRecurrenceOptions={ showRecurrenceOptions }
+          setShowRecurrenceOptions={ setShowRecurrenceOptions }
+          isLoading={ createEventMutation.isPending }
         />
       </div>
 
-      {/* Botón Scroll to Top */}
-      {showScrollTop && (
+      {/* Botón Scroll to Top */ }
+      { showScrollTop && (
         <button
-          onClick={scrollToTop}
+          onClick={ scrollToTop }
           className="fixed bottom-6 right-6 z-50 p-3 bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all"
           aria-label="Volver arriba"
           title="Volver arriba"
         >
           <ArrowUp className="h-5 w-5" />
         </button>
-      )}
+      ) }
     </>
   );
 };
