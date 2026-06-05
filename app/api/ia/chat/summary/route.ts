@@ -3,12 +3,37 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 
+const CHAT_SUMMARY_MAX_MESSAGES = 100;
+
+function formatDateTimeForUser(
+  value: string,
+  locale: string,
+  timeZone: string,
+): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(locale, {
+    timeZone,
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(parsed);
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Verificar que el usuario esté autenticado
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
@@ -18,24 +43,62 @@ export async function POST(req: NextRequest) {
     if (!canUseAI) {
       return NextResponse.json(
         { error: 'Esta función está disponible solo para plan Pro' },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
-    const { messages, startDate, endDate, channelName } = await req.json();
+    const {
+      messages,
+      startDate,
+      endDate,
+      startDateLocal,
+      endDateLocal,
+      rangeHours,
+      userTimeZone,
+      userLocale,
+      channelName,
+    } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json({ error: 'Messages array is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Messages array is required' },
+        { status: 400 },
+      );
     }
 
-    const messagesText = messages.map(msg => {
+    const locale =
+      typeof userLocale === 'string' && userLocale ? userLocale : 'es-ES';
+    const timeZone =
+      typeof userTimeZone === 'string' && userTimeZone ? userTimeZone : 'UTC';
+
+    const formattedStartDate =
+      typeof startDateLocal === 'string' && startDateLocal
+        ? startDateLocal
+        : formatDateTimeForUser(startDate, locale, timeZone);
+    const formattedEndDate =
+      typeof endDateLocal === 'string' && endDateLocal
+        ? endDateLocal
+        : formatDateTimeForUser(endDate, locale, timeZone);
+
+    const cappedMessages = messages.slice(-CHAT_SUMMARY_MAX_MESSAGES);
+    const reachedMessageLimit = messages.length > CHAT_SUMMARY_MAX_MESSAGES;
+
+    const messagesText = cappedMessages
+      .map((msg) => {
         const senderName = msg.user?.name || 'Usuario desconocido';
-        const timestamp = new Date(msg.created_at).toLocaleString('es-ES');
+        const timestamp = formatDateTimeForUser(
+          msg.created_at,
+          locale,
+          timeZone,
+        );
         return `[${timestamp}] ${senderName}: ${msg.content}`;
-    }).join('\n');
+      })
+      .join('\n');
 
     const prompt = `
-Genera un resumen conciso y estructurado de la conversación del chat "${channelName}" para el rango de fechas ${startDate} a ${endDate}.
+Genera un resumen conciso y estructurado de la conversación del chat "${channelName}" para el rango de las últimas ${rangeHours} horas.
+
+Periodo en hora local del usuario (${timeZone}): ${formattedStartDate} - ${formattedEndDate}
 
 Aquí están los mensajes:
 ${messagesText}
@@ -46,10 +109,11 @@ Instrucciones:
 3.  Mantén un tono profesional y objetivo.
 4.  Si no hay suficiente información relevante, indícalo.
 5.  Formatea la respuesta en Markdown.
+6.  ${reachedMessageLimit ? `Indica explícitamente que se alcanzó el límite y que solo analizaste los últimos ${CHAT_SUMMARY_MAX_MESSAGES} mensajes.` : 'No menciones límites de mensajes si no se alcanzó ninguno.'}
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite',
       contents: [
         {
           text: prompt,
@@ -61,12 +125,24 @@ Instrucciones:
           'Tu objetivo es proporcionar resúmenes claros, accionables y bien organizados.',
           'Responde siempre en español.',
         ],
-      }
+      },
     });
-    
-    return NextResponse.json({ summary: response.text });
+
+    const limitNotice = reachedMessageLimit
+      ? `\n\n> Nota: Se alcanzó el límite de mensajes y se usaron como referencia solo los últimos ${CHAT_SUMMARY_MAX_MESSAGES} mensajes.`
+      : '';
+
+    return NextResponse.json({
+      summary: `${response.text}${limitNotice}`,
+      usedMessages: cappedMessages.length,
+      reachedMessageLimit,
+      maxMessages: CHAT_SUMMARY_MAX_MESSAGES,
+    });
   } catch (error) {
     console.error('Error generating chat summary:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 },
+    );
   }
 }

@@ -1,6 +1,6 @@
 /**
  * Tests para la lógica de sugerencias de tareas con Gemini
- * 
+ *
  * Nota: Estos tests prueban la lógica de integración con Gemini.
  * Los tests E2E cubren el flujo completo de la API.
  */
@@ -46,17 +46,23 @@ describe('Gemini Task Suggestions Generation', () => {
     };
 
     const result = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite',
       contents: [
-        { text: 'Sugiere una lista de tareas relevantes para el siguiente proyecto.' },
-        { text: `Proyecto: {nombre: ${project.name}, descripcion: ${project.description}}` },
-        { text: `Tareas actuales: ${JSON.stringify(currentTasks)}. no repitas tareas ya existentes.` }
+        {
+          text: 'Sugiere una lista de tareas relevantes para el siguiente proyecto.',
+        },
+        {
+          text: `Proyecto: {nombre: ${project.name}, descripcion: ${project.description}}`,
+        },
+        {
+          text: `Tareas actuales: ${JSON.stringify(currentTasks)}. no repitas tareas ya existentes.`,
+        },
       ],
       config: {
         systemInstruction: [
           'Eres un asistente de un equipo debes sugerir tareas para un proyecto dado.',
         ],
-      }
+      },
     });
 
     expect(result.text).toBe(mockSuggestions);
@@ -75,12 +81,12 @@ describe('Gemini Task Suggestions Generation', () => {
     };
 
     await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite',
       contents: [
         { text: 'Sugiere tareas' },
-        { text: `Tareas actuales: ${JSON.stringify(currentTasks)}` }
+        { text: `Tareas actuales: ${JSON.stringify(currentTasks)}` },
       ],
-      config: { systemInstruction: [] }
+      config: { systemInstruction: [] },
     });
 
     expect(mockGenerateContent).toHaveBeenCalledWith(
@@ -90,7 +96,7 @@ describe('Gemini Task Suggestions Generation', () => {
             text: expect.stringContaining(JSON.stringify(currentTasks)),
           }),
         ]),
-      })
+      }),
     );
   });
 
@@ -99,10 +105,10 @@ describe('Gemini Task Suggestions Generation', () => {
 
     await expect(
       ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.1-flash-lite',
         contents: [{ text: 'Test' }],
-        config: { systemInstruction: [] }
-      })
+        config: { systemInstruction: [] },
+      }),
     ).rejects.toThrow('Gemini API error');
   });
 
@@ -112,10 +118,10 @@ describe('Gemini Task Suggestions Generation', () => {
 
     await expect(
       ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.1-flash-lite',
         contents: [{ text: 'Test' }],
-        config: { systemInstruction: [] }
-      })
+        config: { systemInstruction: [] },
+      }),
     ).rejects.toEqual(rateLimitError);
   });
 
@@ -127,9 +133,9 @@ describe('Gemini Task Suggestions Generation', () => {
     });
 
     const result = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite',
       contents: [{ text: 'Sugiere tareas' }],
-      config: { systemInstruction: [] }
+      config: { systemInstruction: [] },
     });
 
     const parsed = JSON.parse(result.text as string);
@@ -146,11 +152,13 @@ describe('Gemini Task Suggestions Generation', () => {
     const project = { name: 'Solo nombre' };
 
     await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite',
       contents: [
-        { text: `Proyecto: {nombre: ${project.name}, descripcion: ${undefined}}` }
+        {
+          text: `Proyecto: {nombre: ${project.name}, descripcion: ${undefined}}`,
+        },
       ],
-      config: { systemInstruction: [] }
+      config: { systemInstruction: [] },
     });
 
     expect(mockGenerateContent).toHaveBeenCalled();

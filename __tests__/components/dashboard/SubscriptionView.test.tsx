@@ -88,6 +88,12 @@ describe('SubscriptionView', () => {
   it('renders plans when no subscription is active', () => {
     // Mockear useQuery para devolver null (no subscription)
     mockUseQuery.mockImplementation((options) => {
+      if (options.queryKey[0] === 'plan-context') {
+        return {
+          data: { plan_tier: 'free', source: 'free', expires_at: null },
+          isLoading: false,
+        };
+      }
       if (options.queryKey[0] === 'subscription') {
         return { data: null, isLoading: false };
       }
@@ -120,9 +126,10 @@ describe('SubscriptionView', () => {
     // Mock suscripción activa
     const mockSub = {
       status: 'active',
+      plan_tier: 'pro',
       mercadopago_subscription_id: 'sub-123',
       current_period_start: '2023-01-01',
-      current_period_end: '2023-02-01',
+      current_period_end: '2099-02-01',
     };
 
     // Mock detalles MP
@@ -139,6 +146,12 @@ describe('SubscriptionView', () => {
     };
 
     mockUseQuery.mockImplementation((options) => {
+      if (options.queryKey[0] === 'plan-context') {
+        return {
+          data: { plan_tier: 'pro', source: 'subscription', expires_at: null },
+          isLoading: false,
+        };
+      }
       if (options.queryKey[0] === 'subscription') {
         return { data: mockSub, isLoading: false };
       }
@@ -178,6 +191,8 @@ describe('SubscriptionView', () => {
 
     const mockSubscription = {
       status: 'canceled', // Canceled status
+      plan_tier: 'pro',
+      cancel_at_period_end: true,
       plan_id: 'pro',
       current_period_end: futureDate.toISOString(), // But still valid period
     };
@@ -196,6 +211,12 @@ describe('SubscriptionView', () => {
     };
 
     mockUseQuery.mockImplementation((options) => {
+      if (options.queryKey[0] === 'plan-context') {
+        return {
+          data: { plan_tier: 'pro', source: 'subscription', expires_at: null },
+          isLoading: false,
+        };
+      }
       if (options.queryKey[0] === 'subscription') {
         return { data: mockSubscription, isLoading: false };
       }

@@ -22,7 +22,6 @@ import {
 import { formatDate } from '@/lib/utils';
 import {
   hasPaidAccess,
-  resolveEffectivePlanTier,
 } from '@/lib/subscriptionUtils';
 import PlanCard from '../ui/PlanCard';
 
@@ -57,10 +56,40 @@ interface MercadoPagoDetails {
   isPending: boolean;
 }
 
+interface PlanContextResponse {
+  plan_tier?: 'free' | 'starter' | 'pro' | 'enterprise';
+  source?: 'manual' | 'subscription' | 'free';
+  expires_at?: string | null;
+}
+
 export const SubscriptionView: React.FC = () => {
   const supabase = createClient();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const { data: planContext, isLoading: planContextLoading } = useQuery({
+    queryKey: ['plan-context', user?.id],
+    queryFn: async () => {
+      if (!user?.id) {
+        return {
+          plan_tier: 'free',
+          source: 'free',
+          expires_at: null,
+        } as PlanContextResponse;
+      }
+
+      const { data } = await supabase.rpc('get_user_plan_context', {
+        p_user_id: user.id,
+      });
+
+      return (data ?? {
+        plan_tier: 'free',
+        source: 'free',
+        expires_at: null,
+      }) as PlanContextResponse;
+    },
+    enabled: !!user?.id,
+  });
+
   // Solo mensual
   // Fetch subscription data from local DB
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({
@@ -97,6 +126,14 @@ export const SubscriptionView: React.FC = () => {
   });
 
   const mpDetails = mpData?.details;
+  const contextTier =
+    planContext?.plan_tier === 'starter' ||
+      planContext?.plan_tier === 'pro' ||
+      planContext?.plan_tier === 'enterprise'
+      ? planContext.plan_tier
+      : 'free';
+  const isManualAccess = planContext?.source === 'manual';
+
   // Mutation para cancelar suscripción
   const cancelMutation = useMutation({
     mutationFn: async () => {
@@ -120,27 +157,35 @@ export const SubscriptionView: React.FC = () => {
     },
   });
 
-  // Determinar si es Pro: Status activo O (status cancelado Y fecha fin futura)
-  const currentPlanTier = resolveEffectivePlanTier({
-    planTier: subscription?.plan_tier,
-    internalPlanTier: mpData?.internalPlanId,
-    priceId: subscription?.price_id ?? null,
-  });
+  const currentPlanTier = contextTier;
+
+  const hasFuturePeriodEnd = Boolean(
+    subscription?.current_period_end &&
+    new Date(subscription.current_period_end) > new Date()
+  );
+
   const isPaid =
     currentPlanTier !== 'free' &&
-    hasPaidAccess(
-      {
-        status: subscription?.status,
-        cancel_at_period_end: subscription?.cancel_at_period_end,
-        current_period_end: subscription?.current_period_end,
-      },
-      mpData?.details?.status
-    );
+    (isManualAccess ||
+      hasPaidAccess(
+        {
+          status: subscription?.status,
+          cancel_at_period_end: subscription?.cancel_at_period_end,
+          current_period_end: subscription?.current_period_end,
+        },
+        mpData?.details?.status
+      ));
+
   const isCanceled = Boolean(
-    subscription?.cancel_at_period_end ||
-    mpData?.details?.isCancelled ||
-    subscription?.status === 'canceled' ||
-    subscription?.status === 'cancelled'
+    isPaid &&
+    !isManualAccess &&
+    hasFuturePeriodEnd &&
+    (
+      subscription?.cancel_at_period_end ||
+      mpData?.details?.isCancelled ||
+      subscription?.status === 'canceled' ||
+      subscription?.status === 'cancelled'
+    )
   );
 
   const handleSubscriptionCreated = async (subscriptionId: string) => {
@@ -164,7 +209,7 @@ export const SubscriptionView: React.FC = () => {
     ]);
   };
 
-  if (subscriptionLoading || mpLoading) {
+  if (subscriptionLoading || mpLoading || planContextLoading) {
     return (
       <div className='flex items-center justify-center h-full p-12'>
         <div className='text-center'>
@@ -212,17 +257,28 @@ export const SubscriptionView: React.FC = () => {
       </div>
 
       {/* Estado actual de suscripción */ }
-      { isPaid && subscription && (
+      { isPaid && (subscription || isManualAccess) && (
         <Card className='mb-8 border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/5'>
           <CardHeader>
             <div className='flex items-center justify-between'>
               <div className=' space-y-2'>
                 <CardTitle className='flex items-center gap-2'>
                   <Star className='h-5 w-5 text-[var(--accent-primary)]' />
-                  { mpDetails?.reason }
+                  { isManualAccess
+                    ? `Plan ${currentPlanTier.toUpperCase()} (Manual)`
+                    : mpDetails?.reason }
                 </CardTitle>
                 <CardDescription>
-                  { mpDetails ? (
+                  { isManualAccess ? (
+                    <span className='inline-flex items-center gap-2 text-[var(--text-secondary)]'>
+                      Acceso manual activo
+                      { planContext?.expires_at && (
+                        <span className='text-xs bg-[var(--accent-warning)]/10 text-[var(--text-warning)] px-2 py-0.5 rounded'>
+                          Vence el { formatDate(planContext.expires_at) }
+                        </span>
+                      ) }
+                    </span>
+                  ) : mpDetails ? (
                     <span className={ `inline-flex items-center gap-2 ${mpDetails.status === 'authorized' ? 'text-green-600' :
                       mpDetails.status === 'paused' ? 'text-[var(--text-warning)]' :
                         mpDetails.status === 'cancelled' ? 'text-[var(--accent-danger)]' :
@@ -244,14 +300,18 @@ export const SubscriptionView: React.FC = () => {
               </div>
               <div className='text-right'>
                 <div className='text-sm text-[var(--text-secondary)]'>
-                  { mpDetails?.nextPaymentDate ? 'Próximo pago:' : 'Próxima renovación:' }
+                  { isManualAccess
+                    ? 'Validez:'
+                    : (mpDetails?.nextPaymentDate ? 'Próximo pago:' : 'Próxima renovación:') }
                 </div>
                 <div className='text-lg font-semibold text-[var(--text-primary)]'>
-                  { mpDetails?.nextPaymentDate
-                    ? formatDate(mpDetails.nextPaymentDate)
-                    : formatDate(subscription.current_period_end) }
+                  { isManualAccess
+                    ? (planContext?.expires_at ? formatDate(planContext.expires_at) : 'Sin vencimiento')
+                    : mpDetails?.nextPaymentDate
+                      ? formatDate(mpDetails.nextPaymentDate)
+                      : (subscription?.current_period_end ? formatDate(subscription.current_period_end) : 'N/A') }
                 </div>
-                { mpDetails?.amount && (
+                { !isManualAccess && mpDetails?.amount && (
                   <div className='text-sm text-[var(--text-secondary)]'>
                     ${ mpDetails.amount.toLocaleString() } { mpDetails.currency }
                   </div>
@@ -262,7 +322,7 @@ export const SubscriptionView: React.FC = () => {
           <CardContent>
             <div className='flex flex-col gap-4'>
               {/* Información detallada de MP */ }
-              { mpDetails && (
+              { !isManualAccess && mpDetails && (
                 <div className='grid grid-cols-2 md:grid-cols-4 gap-4 text-sm'>
                   <div>
                     <span className='text-[var(--text-secondary)] block'>Pagos realizados</span>
@@ -293,7 +353,7 @@ export const SubscriptionView: React.FC = () => {
                     </div>
                   ) }
                   {
-                    subscription.canceled_at && (
+                    subscription?.canceled_at && (
                       <div>
                         <span className='text-[var(--text-secondary)] block'>Cancelado el</span>
                         <span className='font-medium text-[var(--text-primary)]'>
@@ -307,13 +367,15 @@ export const SubscriptionView: React.FC = () => {
 
               {/* Período y botón cancelar */ }
               <div className='flex items-center gap-4 text-sm border-t border-[var(--border-primary)] pt-4'>
-                <div>
-                  <span className='text-[var(--text-secondary)]'>
-                    Período actual: { formatDate(subscription.current_period_start) } a{ ' ' }
-                    { formatDate(subscription.current_period_end) }
-                  </span>
-                </div>
-                { !subscription.cancel_at_period_end && (
+                { subscription?.current_period_start && subscription?.current_period_end && (
+                  <div>
+                    <span className='text-[var(--text-secondary)]'>
+                      Período actual: { formatDate(subscription.current_period_start) } a{ ' ' }
+                      { formatDate(subscription.current_period_end) }
+                    </span>
+                  </div>
+                ) }
+                { !isManualAccess && subscription && !subscription.cancel_at_period_end && (
                   <Button
                     variant='secondary'
                     size='sm'
@@ -323,7 +385,7 @@ export const SubscriptionView: React.FC = () => {
                     { cancelMutation.isPending ? 'Cancelando...' : 'Cancelar suscripción' }
                   </Button>
                 ) }
-                { subscription.cancel_at_period_end && (
+                { !isManualAccess && subscription?.cancel_at_period_end && (
                   <div className='px-3 py-1 bg-[var(--accent-danger)]/10 border border-[var(--accent-danger)]/30 rounded text-[var(--accent-danger)] text-xs font-medium'>
                     Cancelada al final del período
                   </div>

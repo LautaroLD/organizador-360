@@ -74,7 +74,27 @@ export default function useGemini() {
     }
   };
 
-  const generateChatSummary = async ({ messages, startDate, endDate, channelName }: { messages: unknown[]; startDate: string; endDate: string; channelName: string; }) => {
+  const generateChatSummary = async ({
+    messages,
+    startDate,
+    endDate,
+    startDateLocal,
+    endDateLocal,
+    rangeHours,
+    userTimeZone,
+    userLocale,
+    channelName,
+  }: {
+    messages: unknown[];
+    startDate: string;
+    endDate: string;
+    startDateLocal?: string;
+    endDateLocal?: string;
+    rangeHours: number;
+    userTimeZone?: string;
+    userLocale?: string;
+    channelName: string;
+  }) => {
     try {
       const res = await fetch('/api/ia/chat/summary', {
         method: 'POST',
@@ -85,6 +105,11 @@ export default function useGemini() {
           messages,
           startDate,
           endDate,
+          startDateLocal,
+          endDateLocal,
+          rangeHours,
+          userTimeZone,
+          userLocale,
           channelName,
         }),
       });

@@ -52,7 +52,10 @@ const normalizePriority = (value: unknown): TaskPriority => {
   return null;
 };
 
-const parseTask = (raw: unknown, fallbackStatus: TaskStatus): TaskSnapshot | null => {
+const parseTask = (
+  raw: unknown,
+  fallbackStatus: TaskStatus,
+): TaskSnapshot | null => {
   if (!raw || typeof raw !== 'object') {
     return null;
   }
@@ -67,12 +70,19 @@ const parseTask = (raw: unknown, fallbackStatus: TaskStatus): TaskSnapshot | nul
   return {
     id: typeof task.id === 'string' ? task.id : undefined,
     title,
-    description: typeof task.description === 'string' ? cleanText(task.description).slice(0, 200) : undefined,
+    description:
+      typeof task.description === 'string'
+        ? cleanText(task.description).slice(0, 200)
+        : undefined,
     status: normalizeStatus(task.status, fallbackStatus),
     priority: normalizePriority(task.priority),
-    phase_roadmap_id: typeof task.phase_roadmap_id === 'number' ? task.phase_roadmap_id : null,
+    phase_roadmap_id:
+      typeof task.phase_roadmap_id === 'number' ? task.phase_roadmap_id : null,
     epic_id: typeof task.epic_id === 'string' ? task.epic_id : null,
-    done_estimated_at: typeof task.done_estimated_at === 'string' ? task.done_estimated_at : null,
+    done_estimated_at:
+      typeof task.done_estimated_at === 'string'
+        ? task.done_estimated_at
+        : null,
   };
 };
 
@@ -81,16 +91,21 @@ const extractPayload = (raw: unknown): SuggestionPayload => {
     return {};
   }
 
-  const payload = raw as SuggestionPayload & Partial<Record<TaskStatus, unknown[]>>;
+  const payload = raw as SuggestionPayload &
+    Partial<Record<TaskStatus, unknown[]>>;
 
   // Backward compatibility: allow directly passing {todo, in-progress, done}
   if (!payload.columns) {
-    const hasLegacyShape = STATUS_KEYS.some((status) => Array.isArray(payload[status]));
+    const hasLegacyShape = STATUS_KEYS.some((status) =>
+      Array.isArray(payload[status]),
+    );
     if (hasLegacyShape) {
       return {
         columns: {
           todo: Array.isArray(payload.todo) ? payload.todo : [],
-          'in-progress': Array.isArray(payload['in-progress']) ? payload['in-progress'] : [],
+          'in-progress': Array.isArray(payload['in-progress'])
+            ? payload['in-progress']
+            : [],
           done: Array.isArray(payload.done) ? payload.done : [],
         },
       };
@@ -100,26 +115,39 @@ const extractPayload = (raw: unknown): SuggestionPayload => {
   return payload;
 };
 
-const collectTasksByStatus = (payload: SuggestionPayload): Record<TaskStatus, TaskSnapshot[]> => {
+const collectTasksByStatus = (
+  payload: SuggestionPayload,
+): Record<TaskStatus, TaskSnapshot[]> => {
   const source = payload.columns || {};
 
-  return STATUS_KEYS.reduce<Record<TaskStatus, TaskSnapshot[]>>((acc, status) => {
-    const rawTasks = Array.isArray(source[status]) ? source[status] : [];
-    acc[status] = rawTasks
-      .map((task) => parseTask(task, status))
-      .filter((task): task is TaskSnapshot => Boolean(task));
-    return acc;
-  }, {
-    todo: [],
-    'in-progress': [],
-    done: [],
-  });
+  return STATUS_KEYS.reduce<Record<TaskStatus, TaskSnapshot[]>>(
+    (acc, status) => {
+      const rawTasks = Array.isArray(source[status]) ? source[status] : [];
+      acc[status] = rawTasks
+        .map((task) => parseTask(task, status))
+        .filter((task): task is TaskSnapshot => Boolean(task));
+      return acc;
+    },
+    {
+      todo: [],
+      'in-progress': [],
+      done: [],
+    },
+  );
 };
 
-const buildProjectStateSummary = (tasksByStatus: Record<TaskStatus, TaskSnapshot[]>, payload: SuggestionPayload) => {
-  const allTasks = [...tasksByStatus.todo, ...tasksByStatus['in-progress'], ...tasksByStatus.done];
+const buildProjectStateSummary = (
+  tasksByStatus: Record<TaskStatus, TaskSnapshot[]>,
+  payload: SuggestionPayload,
+) => {
+  const allTasks = [
+    ...tasksByStatus.todo,
+    ...tasksByStatus['in-progress'],
+    ...tasksByStatus.done,
+  ];
   const total = allTasks.length;
-  const donePct = total > 0 ? Math.round((tasksByStatus.done.length / total) * 100) : 0;
+  const donePct =
+    total > 0 ? Math.round((tasksByStatus.done.length / total) * 100) : 0;
 
   const now = Date.now();
   const overdue = allTasks
@@ -133,13 +161,22 @@ const buildProjectStateSummary = (tasksByStatus: Record<TaskStatus, TaskSnapshot
     });
 
   const priorities = {
-    alta: allTasks.filter((task) => task.priority === 'alta' && task.status !== 'done').length,
-    media: allTasks.filter((task) => task.priority === 'media' && task.status !== 'done').length,
-    baja: allTasks.filter((task) => task.priority === 'baja' && task.status !== 'done').length,
+    alta: allTasks.filter(
+      (task) => task.priority === 'alta' && task.status !== 'done',
+    ).length,
+    media: allTasks.filter(
+      (task) => task.priority === 'media' && task.status !== 'done',
+    ).length,
+    baja: allTasks.filter(
+      (task) => task.priority === 'baja' && task.status !== 'done',
+    ).length,
   };
 
   const bottlenecks: string[] = [];
-  if (tasksByStatus.todo.length >= Math.max(4, tasksByStatus['in-progress'].length * 2)) {
+  if (
+    tasksByStatus.todo.length >=
+    Math.max(4, tasksByStatus['in-progress'].length * 2)
+  ) {
     bottlenecks.push('Backlog alto respecto a tareas en progreso');
   }
   if (tasksByStatus['in-progress'].length > tasksByStatus.todo.length + 2) {
@@ -156,7 +193,9 @@ const buildProjectStateSummary = (tasksByStatus: Record<TaskStatus, TaskSnapshot
   const epicCounts: Record<string, number> = {};
   for (const task of allTasks) {
     if (typeof task.phase_roadmap_id === 'number') {
-      const phaseName = payload.phaseLabels?.[String(task.phase_roadmap_id)] || `Fase ${task.phase_roadmap_id}`;
+      const phaseName =
+        payload.phaseLabels?.[String(task.phase_roadmap_id)] ||
+        `Fase ${task.phase_roadmap_id}`;
       phaseCounts[phaseName] = (phaseCounts[phaseName] || 0) + 1;
     }
     if (task.epic_id) {
@@ -166,7 +205,9 @@ const buildProjectStateSummary = (tasksByStatus: Record<TaskStatus, TaskSnapshot
   }
 
   const topTodo = tasksByStatus.todo.slice(0, 12).map((task) => task.title);
-  const topInProgress = tasksByStatus['in-progress'].slice(0, 12).map((task) => task.title);
+  const topInProgress = tasksByStatus['in-progress']
+    .slice(0, 12)
+    .map((task) => task.title);
   const topDone = tasksByStatus.done.slice(0, 8).map((task) => task.title);
 
   return {
@@ -185,7 +226,10 @@ const buildProjectStateSummary = (tasksByStatus: Record<TaskStatus, TaskSnapshot
     topDone,
     phaseDistribution: phaseCounts,
     epicDistribution: epicCounts,
-    activeFilters: payload.filters || { selectedPhaseId: 'all', selectedEpicId: 'all' },
+    activeFilters: payload.filters || {
+      selectedPhaseId: 'all',
+      selectedEpicId: 'all',
+    },
   };
 };
 
@@ -203,7 +247,12 @@ const parseSuggestionsText = (rawText: string): string[] => {
       return parsed
         .map((item) => {
           if (typeof item === 'string') return item;
-          if (item && typeof item === 'object' && 'title' in item && typeof item.title === 'string') {
+          if (
+            item &&
+            typeof item === 'object' &&
+            'title' in item &&
+            typeof item.title === 'string'
+          ) {
             return item.title;
           }
           return null;
@@ -229,7 +278,10 @@ const parseSuggestionsText = (rawText: string): string[] => {
     .filter(Boolean);
 };
 
-const cleanAndDeduplicateSuggestions = (rawSuggestions: string[], existingTitles: Set<string>) => {
+const cleanAndDeduplicateSuggestions = (
+  rawSuggestions: string[],
+  existingTitles: Set<string>,
+) => {
   const seen = new Set<string>();
   const finalSuggestions: string[] = [];
 
@@ -259,8 +311,10 @@ export async function POST(req: NextRequest) {
   try {
     // Verificar que el usuario esté autenticado
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
@@ -270,19 +324,28 @@ export async function POST(req: NextRequest) {
     if (!canUseAI) {
       return NextResponse.json(
         { error: 'Esta función está disponible solo para plan Pro' },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
     const { project, currentTasks } = await req.json();
     const suggestionPayload = extractPayload(currentTasks);
     const tasksByStatus = collectTasksByStatus(suggestionPayload);
-    const allExistingTasks = [...tasksByStatus.todo, ...tasksByStatus['in-progress'], ...tasksByStatus.done];
-    const existingTitles = new Set(allExistingTasks.map((task) => normalizeForComparison(task.title)));
-    const projectStateSummary = buildProjectStateSummary(tasksByStatus, suggestionPayload);
-    
+    const allExistingTasks = [
+      ...tasksByStatus.todo,
+      ...tasksByStatus['in-progress'],
+      ...tasksByStatus.done,
+    ];
+    const existingTitles = new Set(
+      allExistingTasks.map((task) => normalizeForComparison(task.title)),
+    );
+    const projectStateSummary = buildProjectStateSummary(
+      tasksByStatus,
+      suggestionPayload,
+    );
+
     const res = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite',
       contents: [
         {
           text: 'Sugiere las siguientes tareas mas valiosas para el estado actual del proyecto.',
@@ -314,11 +377,14 @@ export async function POST(req: NextRequest) {
           'No repitas tareas existentes, ni tareas hechas, ni duplicados entre sugerencias.',
           'Sugiere entre 3 y 5 tareas.',
         ],
-      }
+      },
     });
 
     const suggestionsRaw = parseSuggestionsText(res.text || '');
-    const suggestions = cleanAndDeduplicateSuggestions(suggestionsRaw, existingTitles);
+    const suggestions = cleanAndDeduplicateSuggestions(
+      suggestionsRaw,
+      existingTitles,
+    );
 
     return NextResponse.json({ suggestions });
   } catch (error: unknown) {

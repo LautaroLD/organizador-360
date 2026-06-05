@@ -276,7 +276,7 @@ ${tasks
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite',
       contents: [{ role: 'user', parts: [{ text: summaryText }] }],
       config: {
         systemInstruction: `Eres un analista de proyectos. Resume el estado actual y da 3-5 recomendaciones accionables.
