@@ -74,7 +74,17 @@ export default function useGemini() {
     }
   };
 
-  const generateChatSummary = async ({ messages, startDate, endDate, rangeHours, channelName }: {
+  const generateChatSummary = async ({
+    messages,
+    startDate,
+    endDate,
+    startDateLocal,
+    endDateLocal,
+    rangeHours,
+    userTimeZone,
+    userLocale,
+    channelName,
+  }: {
     messages: unknown[];
     startDate: string;
     endDate: string;
