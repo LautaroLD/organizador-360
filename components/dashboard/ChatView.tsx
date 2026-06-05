@@ -624,94 +624,96 @@ export const ChatView: React.FC = () => {
 
   return (
     <div className="flex grow max-h-full overflow-hidden relative">
-      {/* Mobile Overlay */}
-      {isSidebarOpen && (
+      {/* Mobile Overlay */ }
+      { isSidebarOpen && (
         <div
           className="md:hidden fixed inset-0 bg-black/50 z-30"
-          onClick={() => setIsSidebarOpen(false)}
+          onClick={ () => setIsSidebarOpen(false) }
           aria-hidden="true"
         />
-      )}
+      ) }
 
-      {/* Channels Sidebar */}
+      {/* Channels Sidebar */ }
       <aside
-        className={clsx(
+        className={ clsx(
           "w-52 border-r border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex flex-col transition-transform duration-300 ease-in-out z-40",
           "md:relative md:translate-x-0 md:z-0",
           "fixed inset-y-0 left-0",
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-        )}
+        ) }
         aria-label="Canales de chat"
       >
         <div className="p-4 border-b border-[var(--text-secondary)]/20">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-[var(--text-primary)]">Canales</h3>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setIsChannelModalOpen(true)}
-              aria-label="Crear nuevo canal"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
+            { (currentProject?.userRole === 'Owner' || currentProject?.userRole === 'Admin') && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={ () => setIsChannelModalOpen(true) }
+                aria-label="Crear nuevo canal"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            ) }
           </div>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-1" aria-label="Lista de canales">
-          {channelsLoading ? (
+          { channelsLoading ? (
             <div className="flex items-center justify-center py-8">
               <p className="text-sm text-[var(--text-secondary)]">Cargando canales...</p>
             </div>
           ) : channels && channels.length > 0 ? (
             channels.map((channel) => (
               <button
-                key={channel.id}
-                onClick={() => handleChannelSelect(channel)}
-                className={clsx(
+                key={ channel.id }
+                onClick={ () => handleChannelSelect(channel) }
+                className={ clsx(
                   "w-full flex items-center justify-between px-3 py-2 rounded-lg mb-1 transition-colors",
                   selectedChannel?.id === channel.id
                     ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
                     : 'text-[var(--text-primary)] hover:bg-[var(--bg-primary)]'
-                )}
-                aria-label={`Canal ${channel.name}`}
-                aria-current={selectedChannel?.id === channel.id ? 'page' : undefined}
+                ) }
+                aria-label={ `Canal ${channel.name}` }
+                aria-current={ selectedChannel?.id === channel.id ? 'page' : undefined }
               >
                 <div className="flex items-center min-w-0">
                   <Hash className="h-4 w-4 mr-2 flex-shrink-0" />
-                  <span className="truncate">{channel.name}</span>
+                  <span className="truncate">{ channel.name }</span>
                 </div>
-                {channel.name !== 'general' && selectedChannel?.id === channel.id && (
+                { channel.name !== 'general' && selectedChannel?.id === channel.id && (
                   <div className="flex items-center gap-1 ml-2 flex-shrink-0">
                     <span
                       role="button"
-                      tabIndex={0}
+                      tabIndex={ 0 }
                       className="h-6 w-6 flex items-center justify-center cursor-pointer hover:bg-white/20 rounded"
-                      onClick={(e) => {
+                      onClick={ (e) => {
                         e.stopPropagation();
                         openRenameChannelModal(channel);
-                      }}
-                      onKeyDown={(e) => {
+                      } }
+                      onKeyDown={ (e) => {
                         e.stopPropagation();
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
                           openRenameChannelModal(channel);
                         }
-                      }}
+                      } }
                       aria-label="Renombrar canal"
                     >
                       <Edit2 className="h-3.5 w-3.5" />
                     </span>
                     <span
                       role="button"
-                      tabIndex={0}
+                      tabIndex={ 0 }
                       className="h-6 w-6 flex items-center justify-center cursor-pointer hover:bg-white/20 rounded"
-                      onClick={(e) => {
+                      onClick={ (e) => {
                         e.stopPropagation();
                         if (confirm('¿Eliminar este canal?')) {
                           deleteChannelMutation.mutate(channel.id);
                         }
-                      }}
-                      onKeyDown={(e) => {
+                      } }
+                      onKeyDown={ (e) => {
                         e.stopPropagation();
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
@@ -719,13 +721,13 @@ export const ChatView: React.FC = () => {
                             deleteChannelMutation.mutate(channel.id);
                           }
                         }
-                      }}
+                      } }
                       aria-label="Eliminar canal"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </span>
                   </div>
-                )}
+                ) }
               </button>
             ))
           ) : (
@@ -734,59 +736,59 @@ export const ChatView: React.FC = () => {
               <p className="text-sm text-[var(--text-secondary)] mb-2">No hay canales</p>
               <p className="text-xs text-[var(--text-secondary)]">Crea uno para comenzar</p>
             </div>
-          )}
+          ) }
         </nav>
       </aside>
 
-      {/* Chat Area */}
+      {/* Chat Area */ }
       <div className="flex-1 flex flex-col min-w-0">
-        {selectedChannel ? (
+        { selectedChannel ? (
           <>
-            {/* Channel Header */}
+            {/* Channel Header */ }
             <header className="flex flex-col border-b border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex-shrink-0">
               <div className="p-3 md:p-4 flex items-center gap-2">
                 <button
-                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className={clsx(
+                  onClick={ () => setIsSidebarOpen(!isSidebarOpen) }
+                  className={ clsx(
                     "text-[var(--text-secondary)] hover:bg-[var(--bg-primary)] md:hidden rounded-lg cursor-pointer p-1 transition-transform duration-300",
                     !isSidebarOpen && 'rotate-180'
-                  )}
-                  aria-label={isSidebarOpen ? 'Cerrar sidebar' : 'Abrir sidebar'}
+                  ) }
+                  aria-label={ isSidebarOpen ? 'Cerrar sidebar' : 'Abrir sidebar' }
                 >
-                  <ChevronsLeft size={24} />
+                  <ChevronsLeft size={ 24 } />
                 </button>
                 <Hash className="h-5 w-5 text-[var(--text-secondary)] flex-shrink-0" />
                 <div className="min-w-0 flex-1">
                   <h2 className="font-semibold text-[var(--text-primary)] truncate">
-                    {selectedChannel.name}
+                    { selectedChannel.name }
                   </h2>
                   <p className="text-xs md:text-sm text-[var(--text-secondary)] truncate">
-                    {selectedChannel.description || 'Sin descripción'}
+                    { selectedChannel.description || 'Sin descripción' }
                   </p>
                 </div>
-                {/* Summary Button */}
+                {/* Summary Button */ }
                 <div className="relative group">
                   <Button
                     variant="ghost"
-                    onClick={openSummaryModal}
-                    disabled={!isPremium}
-                    title={!isPremium ? "Función disponible solo en Plan Pro" : "Resumir chat con IA"}
+                    onClick={ openSummaryModal }
+                    disabled={ !isPremium }
+                    title={ !isPremium ? "Función disponible solo en Plan Pro" : "Resumir chat con IA" }
                     className="mr-2 text-[var(--text-secondary)] hover:text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/10"
                   >
-                    {<Sparkles className="h-5 w-5" />}
+                    { <Sparkles className="h-5 w-5" /> }
                   </Button>
-                  {!isPremium && (
+                  { !isPremium && (
                     <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
                       <p>El resumen de chat está disponible solo en Plan Pro</p>
                     </div>
-                  )}
+                  ) }
                 </div>
 
-                {/* Notification Toggle */}
-                {isSupported && (
+                {/* Notification Toggle */ }
+                { isSupported && (
                   <Button
                     variant='ghost'
-                    onClick={async () => {
+                    onClick={ async () => {
                       setIsNotificationLoading(true);
                       try {
                         if (!notificationsEnabled && permission === 'default') {
@@ -840,49 +842,49 @@ export const ChatView: React.FC = () => {
                       } finally {
                         setIsNotificationLoading(false);
                       }
-                    }}
-                    disabled={isNotificationLoading}
-                    className={clsx(
+                    } }
+                    disabled={ isNotificationLoading }
+                    className={ clsx(
                       notificationsEnabled
                         ? "text-[var(--accent-primary)] bg-[var(--accent-primary)]/10 hover:bg-[var(--accent-primary)]/20"
                         : "text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]",
                       isNotificationLoading && "opacity-50 cursor-not-allowed"
-                    )}
-                    aria-label={notificationsEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones'}
-                    title={notificationsEnabled ? (pushEnabled ? 'Notificaciones push activadas' : 'Notificaciones activadas') : 'Activar notificaciones'}
+                    ) }
+                    aria-label={ notificationsEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones' }
+                    title={ notificationsEnabled ? (pushEnabled ? 'Notificaciones push activadas' : 'Notificaciones activadas') : 'Activar notificaciones' }
                   >
-                    {isNotificationLoading ? (
+                    { isNotificationLoading ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : notificationsEnabled ? (
                       <Bell className="h-5 w-5" />
                     ) : (
                       <BellOff className="h-5 w-5" />
-                    )}
+                    ) }
                   </Button>
-                )}
+                ) }
               </div>
 
-              {/* Tabs */}
+              {/* Tabs */ }
               <div className="flex px-4 gap-4">
                 <button
-                  onClick={() => setActiveTab('chat')}
-                  className={clsx(
+                  onClick={ () => setActiveTab('chat') }
+                  className={ clsx(
                     "pb-2 text-sm font-medium border-b-2 transition-colors",
                     activeTab === 'chat'
                       ? "border-[var(--accent-primary)] text-[var(--text-primary)]"
                       : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  )}
+                  ) }
                 >
                   Chat
                 </button>
                 <button
-                  onClick={() => setActiveTab('pinned')}
-                  className={clsx(
+                  onClick={ () => setActiveTab('pinned') }
+                  className={ clsx(
                     "pb-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1",
                     activeTab === 'pinned'
                       ? "border-[var(--accent-primary)] text-[var(--text-primary)]"
                       : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  )}
+                  ) }
                 >
                   <Pin className="h-3 w-3" />
                   Destacados
@@ -890,93 +892,93 @@ export const ChatView: React.FC = () => {
               </div>
             </header>
 
-            {/* Messages */}
+            {/* Messages */ }
             <div className="flex-1 p-3 md:p-4 flex flex-col gap-3 md:gap-4 bg-[var(--bg-primary)] overflow-y-auto">
-              {messagesLoading ? (
+              { messagesLoading ? (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-sm text-[var(--text-secondary)]">Cargando mensajes...</p>
                 </div>
               ) : filteredMessages && filteredMessages.length > 0 ? (
                 filteredMessages.map((message) => (
                   <div
-                    key={message.id}
-                    ref={(el) => {
+                    key={ message.id }
+                    ref={ (el) => {
                       messageRefs.current[message.id] = el;
-                    }}
-                    className={clsx(
+                    } }
+                    className={ clsx(
                       "group relative flex gap-2 md:gap-3 max-w-[85%] md:max-w-[70%] w-fit transition-colors duration-300 p-1",
                       message.user?.id === user?.id ? 'ml-auto flex-row-reverse' : 'flex-row',
                       highlightedMessageId === message.id && 'bg-[var(--accent-primary)]/30 rounded-lg'
-                    )}
-                    onMouseLeave={() => setOpenMenuMessageId(null)}
+                    ) }
+                    onMouseLeave={ () => setOpenMenuMessageId(null) }
                   >
-                    {/* Avatar */}
+                    {/* Avatar */ }
                     <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[var(--accent-primary)] flex items-center justify-center text-[var(--accent-primary-contrast)] font-semibold text-sm flex-shrink-0">
-                      {message.user?.name?.[0]?.toUpperCase() || 'U'}
+                      { message.user?.name?.[0]?.toUpperCase() || 'U' }
                     </div>
 
-                    {/* Message Content */}
-                    <div className={clsx(
+                    {/* Message Content */ }
+                    <div className={ clsx(
                       "flex-1 flex flex-col min-w-0 relative",
                       message.user?.id === user?.id ? 'items-end' : 'items-start'
-                    )}>
+                    ) }>
                       <div className="flex items-baseline space-x-2 mb-1">
                         <span className="font-semibold text-sm truncate space-x-2">
-                          {message.user?.name || 'Usuario'}
+                          { message.user?.name || 'Usuario' }
                         </span>
                         <span className="text-xs text-[var(--text-secondary)] flex-shrink-0">
-                          {formatChatTimestamp(message.created_at)}
+                          { formatChatTimestamp(message.created_at) }
                         </span>
-                        {message.is_pinned && (
+                        { message.is_pinned && (
                           <Pin className="h-3 w-3 text-[var(--accent-primary)]" />
-                        )}
+                        ) }
                       </div>
 
-                      <div className={clsx(
+                      <div className={ clsx(
                         "relative py-2 md:py-3 px-2 md:px-3 rounded-xl w-full",
                         "bg-[var(--bg-secondary)] border border-[var(--accent-primary)]/40"
-                      )}>
-                        {message.replied_message && (
+                      ) }>
+                        { message.replied_message && (
                           <button
-                            onClick={() => scrollToMessage(message.replied_message)}
+                            onClick={ () => scrollToMessage(message.replied_message) }
                             className="mb-2 border-l-2 border-[var(--accent-primary)] p-2 bg-[var(--bg-primary)]/50 rounded hover:bg-[var(--bg-primary)]/70 transition-colors w-full text-left cursor-pointer"
                           >
                             <div className="flex items-center gap-1 text-xs text-[var(--text-secondary)] mb-1">
                               <Reply className="h-3 w-3" />
-                              <span className="font-semibold">{message.replied_message.user?.name}</span>
+                              <span className="font-semibold">{ message.replied_message.user?.name }</span>
                             </div>
                             <p className="text-xs text-[var(--text-secondary)] line-clamp-2">
-                              {message.replied_message.content}
+                              { message.replied_message.content }
                             </p>
                           </button>
-                        )}
-                        {editingMessageId === message.id ? (
+                        ) }
+                        { editingMessageId === message.id ? (
                           <div className="flex flex-col gap-2">
                             <RichTextEditor
-                              value={editContent}
-                              onChange={setEditContent}
+                              value={ editContent }
+                              onChange={ setEditContent }
                               submitBehavior="enter"
-                              onSubmit={() => {
+                              onSubmit={ () => {
                                 if (editContent.trim()) {
                                   updateMessageMutation.mutate({ messageId: message.id, content: editContent });
                                 }
-                              }}
+                              } }
                               placeholder="Editar mensaje..."
                               className="w-full"
                             />
                             <div className="flex justify-end gap-2">
                               <button
-                                onClick={() => setEditingMessageId(null)}
+                                onClick={ () => setEditingMessageId(null) }
                                 className="p-1 hover:bg-[var(--bg-primary)] rounded text-[var(--text-secondary)]"
                               >
                                 <X className="h-4 w-4" />
                               </button>
                               <button
-                                onClick={() => {
+                                onClick={ () => {
                                   if (editContent.trim()) {
                                     updateMessageMutation.mutate({ messageId: message.id, content: editContent });
                                   }
-                                }}
+                                } }
                                 className="p-1 hover:bg-[var(--bg-primary)] rounded text-[var(--accent-primary)]"
                               >
                                 <Check className="h-4 w-4" />
@@ -984,124 +986,124 @@ export const ChatView: React.FC = () => {
                             </div>
                           </div>
                         ) : (
-                          <MessageContent content={message.content} />
-                        )}
+                          <MessageContent content={ message.content } />
+                        ) }
                       </div>
                     </div>
 
-                    {/* Actions Menu */}
-                    {!editingMessageId && (
-                      <div className={clsx(
+                    {/* Actions Menu */ }
+                    { !editingMessageId && (
+                      <div className={ clsx(
                         "flex items-start pt-6 transition-opacity",
                         message.user?.id === user?.id ? 'flex-row-reverse' : 'flex-row',
                         openMenuMessageId === message.id ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'
-                      )}>
+                      ) }>
                         <div className=" h-full">
                           <button
-                            onClick={() => setOpenMenuMessageId(openMenuMessageId === message.id ? null : message.id)}
+                            onClick={ () => setOpenMenuMessageId(openMenuMessageId === message.id ? null : message.id) }
                             className="p-1 hover:bg-[var(--bg-secondary)] rounded text-[var(--text-secondary)]"
                           >
                             <MoreVertical className="h-4 w-4" />
                           </button>
 
-                          {openMenuMessageId === message.id && (
-                            <div className={clsx(
+                          { openMenuMessageId === message.id && (
+                            <div className={ clsx(
                               "absolute flex  top-0   bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg shadow-lg z-50 min-w-auto p-1",
                               message.user?.id === user?.id ? 'left-0' : 'right-0'
-                            )}>
+                            ) }>
                               <button
-                                onClick={() => {
+                                onClick={ () => {
                                   setReplyingTo(message);
                                   setOpenMenuMessageId(null);
-                                }}
+                                } }
                                 className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] rounded-lg flex items-center gap-2"
                               >
-                                <Reply size={16} />
+                                <Reply size={ 16 } />
                               </button>
                               <button
-                                onClick={() => togglePinMutation.mutate({ messageId: message.id })}
+                                onClick={ () => togglePinMutation.mutate({ messageId: message.id }) }
                                 className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] flex items-center gap-2 rounded-lg"
                               >
-                                {message.is_pinned ? <PinOff size={16} /> : <Pin size={16} />}
+                                { message.is_pinned ? <PinOff size={ 16 } /> : <Pin size={ 16 } /> }
                               </button>
 
-                              {message.user?.id === user?.id && (
+                              { message.user?.id === user?.id && (
                                 <>
                                   <button
-                                    onClick={() => {
+                                    onClick={ () => {
                                       setEditingMessageId(message.id);
                                       setEditContent(message.content);
                                       setOpenMenuMessageId(null);
-                                    }}
+                                    } }
                                     className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] flex items-center gap-2 rounded-lg"
                                   >
-                                    <Edit2 size={16} />
+                                    <Edit2 size={ 16 } />
                                   </button>
                                   <button
-                                    onClick={() => {
+                                    onClick={ () => {
                                       if (confirm('¿Eliminar mensaje?')) {
                                         deleteMessageMutation.mutate(message.id);
                                       }
-                                    }}
+                                    } }
                                     className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-primary)] text-red-500 flex items-center gap-2 rounded-lg"
                                   >
-                                    <Trash2 size={16} />
+                                    <Trash2 size={ 16 } />
                                   </button>
                                 </>
-                              )}
+                              ) }
                             </div>
-                          )}
+                          ) }
                         </div>
                       </div>
-                    )}
+                    ) }
                   </div>
                 ))
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center px-4">
                   <MessageSquare className="h-12 w-12 md:h-16 md:w-16 text-[var(--text-secondary)]/50 mb-3" />
                   <p className="text-sm md:text-base text-[var(--text-secondary)] mb-2">
-                    {activeTab === 'pinned' ? 'No hay mensajes destacados' : 'No hay mensajes aún'}
+                    { activeTab === 'pinned' ? 'No hay mensajes destacados' : 'No hay mensajes aún' }
                   </p>
                   <p className="text-xs md:text-sm text-[var(--text-secondary)]">
-                    {activeTab === 'pinned'
+                    { activeTab === 'pinned'
                       ? 'Destaca mensajes importantes para verlos aquí'
-                      : `Sé el primero en enviar un mensaje en #${selectedChannel.name}`}
+                      : `Sé el primero en enviar un mensaje en #${selectedChannel.name}` }
                   </p>
                 </div>
-              )}
-              <div ref={messagesEndRef} />
+              ) }
+              <div ref={ messagesEndRef } />
             </div>
 
-            {/* Message Input */}
+            {/* Message Input */ }
             <div className="p-2  border-t border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex-shrink-0">
-              {replyingTo && (
+              { replyingTo && (
                 <div className="mb-2 p-2 bg-[var(--bg-primary)] rounded-lg border border-[var(--accent-primary)]/40 flex items-start justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1 text-xs text-[var(--text-secondary)] mb-1">
                       <Reply className="h-3 w-3" />
-                      <span className="font-semibold">Respondiendo a {replyingTo.user?.name}</span>
+                      <span className="font-semibold">Respondiendo a { replyingTo.user?.name }</span>
                     </div>
-                    <p className="text-xs text-[var(--text-secondary)] truncate">{replyingTo.content}</p>
+                    <p className="text-xs text-[var(--text-secondary)] truncate">{ replyingTo.content }</p>
                   </div>
                   <button
-                    onClick={() => setReplyingTo(null)}
+                    onClick={ () => setReplyingTo(null) }
                     className="ml-2 p-1 hover:bg-[var(--bg-secondary)] rounded text-[var(--text-secondary)]"
                     aria-label="Cancelar respuesta"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-              )}
+              ) }
               <div className="flex gap-2 flex-row">
                 <RichTextEditor
-                  showToolbar={showToolbar}
-                  value={messageContent}
-                  rows={showToolbar ? 3 : 1}
-                  onChange={setMessageContent}
-                  onSubmit={onSubmitMessage}
+                  showToolbar={ showToolbar }
+                  value={ messageContent }
+                  rows={ showToolbar ? 3 : 1 }
+                  onChange={ setMessageContent }
+                  onSubmit={ onSubmitMessage }
                   submitBehavior="enter"
-                  placeholder={`Mensaje en #${selectedChannel.name}`}
-                  disabled={sendMessageMutation.isPending}
+                  placeholder={ `Mensaje en #${selectedChannel.name}` }
+                  disabled={ sendMessageMutation.isPending }
                   className="flex-1"
                 />
                 <div className='flex flex-col justify-between gap-2'>
@@ -1109,8 +1111,8 @@ export const ChatView: React.FC = () => {
                     type="button"
                     className='flex-1'
                     title="Enviar mensaje (Enter)"
-                    onClick={onSubmitMessage}
-                    disabled={sendMessageMutation.isPending || !messageContent.trim()}
+                    onClick={ onSubmitMessage }
+                    disabled={ sendMessageMutation.isPending || !messageContent.trim() }
                     aria-label="Enviar mensaje"
                   >
                     <Send className="h-5 w-5" />
@@ -1126,22 +1128,22 @@ export const ChatView: React.FC = () => {
             <p className="text-sm md:text-base text-[var(--text-secondary)] mb-2">Selecciona un canal</p>
             <p className="text-xs md:text-sm text-[var(--text-secondary)]">Elige un canal de la lista para comenzar a chatear</p>
           </div>
-        )}
+        ) }
       </div>
 
-      {/* Summary Modal */}
+      {/* Summary Modal */ }
       <Modal
         size='lg'
-        isOpen={isSummaryModalOpen}
-        onClose={() => setIsSummaryModalOpen(false)}
+        isOpen={ isSummaryModalOpen }
+        onClose={ () => setIsSummaryModalOpen(false) }
         title="Resumen del Chat con IA"
       >
         <div className="space-y-4">
           <DateRangePicker
-            startValue={parseDateValue(summaryStartDate) ?? undefined}
-            endValue={parseDateValue(summaryEndDate) ?? undefined}
-            onStartChange={(date) => setSummaryStartDate(date ? toISODate(date) : '')}
-            onEndChange={(date) => setSummaryEndDate(date ? toISODate(date) : '')}
+            startValue={ parseDateValue(summaryStartDate) ?? undefined }
+            endValue={ parseDateValue(summaryEndDate) ?? undefined }
+            onStartChange={ (date) => setSummaryStartDate(date ? toISODate(date) : '') }
+            onEndChange={ (date) => setSummaryEndDate(date ? toISODate(date) : '') }
             startLabel='Desde'
             endLabel='Hasta'
             startPlaceholder='Fecha inicio'
@@ -1149,11 +1151,11 @@ export const ChatView: React.FC = () => {
           />
 
           <Button
-            onClick={handleGenerateSummary}
-            disabled={isGeneratingSummary}
+            onClick={ handleGenerateSummary }
+            disabled={ isGeneratingSummary }
             className="w-full flex items-center justify-center gap-2 bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] hover:opacity-90 transition-opacity"
           >
-            {isGeneratingSummary ? (
+            { isGeneratingSummary ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Generando...
@@ -1163,86 +1165,86 @@ export const ChatView: React.FC = () => {
                 <FileText className="h-4 w-4" />
                 Generar Resumen
               </>
-            )}
+            ) }
           </Button>
 
-          {summaryError && (
+          { summaryError && (
             <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-900/50 text-sm">
-              {summaryError}
+              { summaryError }
             </div>
-          )}
+          ) }
 
-          {summaryResult && (
+          { summaryResult && (
             <div className="mt-4 p-4 bg-[var(--bg-secondary)] rounded-lg border border-[var(--text-secondary)]/20 max-h-60 overflow-y-auto">
               <h4 className="font-semibold text-[var(--text-primary)] mb-2 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-[var(--accent-primary)]" />
                 Resumen Generado
               </h4>
-              <MessageContent content={summaryResult} />
+              <MessageContent content={ summaryResult } />
             </div>
-          )}
+          ) }
         </div>
       </Modal>
 
-      {/* Create Channel Modal */}
+      {/* Create Channel Modal */ }
       <Modal
-        isOpen={isChannelModalOpen}
-        onClose={() => setIsChannelModalOpen(false)}
+        isOpen={ isChannelModalOpen }
+        onClose={ () => setIsChannelModalOpen(false) }
         title="Crear Nuevo Canal"
       >
-        <form onSubmit={handleSubmitChannel(onSubmitChannel)} className="space-y-4">
+        <form onSubmit={ handleSubmitChannel(onSubmitChannel) } className="space-y-4">
           <Input
             label="Nombre del Canal"
-            {...registerChannel('name', {
+            { ...registerChannel('name', {
               required: 'El nombre es requerido',
               pattern: {
                 value: /^[a-z0-9-]+$/,
                 message: 'Solo letras minúsculas, números y guiones',
               },
-            })}
-            error={errors.name?.message}
+            }) }
+            error={ errors.name?.message }
             placeholder="nombre-del-canal"
           />
           <Input
             label="Descripción"
-            {...registerChannel('description', {
+            { ...registerChannel('description', {
               maxLength: {
                 value: 100,
                 message: 'Máximo 100 caracteres',
               },
-            })}
-            error={errors.description?.message}
+            }) }
+            error={ errors.description?.message }
             placeholder="Descripción del canal"
-            maxLength={100}
+            maxLength={ 100 }
           />
           <div className="flex justify-end space-x-2">
             <Button
               type="button"
               variant="secondary"
-              onClick={() => setIsChannelModalOpen(false)}
+              onClick={ () => setIsChannelModalOpen(false) }
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={createChannelMutation.isPending}>
-              {createChannelMutation.isPending ? 'Creando...' : 'Crear Canal'}
+            <Button type="submit" disabled={ createChannelMutation.isPending }>
+              { createChannelMutation.isPending ? 'Creando...' : 'Crear Canal' }
             </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Rename Channel Modal */}
+      {/* Rename Channel Modal */ }
       <Modal
-        isOpen={isRenameChannelModalOpen}
-        onClose={() => {
+        isOpen={ isRenameChannelModalOpen }
+        onClose={ () => {
           setIsRenameChannelModalOpen(false);
           setChannelToRename(null);
-        }}
+        } }
         title="Editar Canal"
       >
-        <form onSubmit={handleSubmitRenameChannel(onSubmitRenameChannel)} className="space-y-4">
+        <form onSubmit={ handleSubmitRenameChannel(onSubmitRenameChannel) } className="space-y-4">
           <Input
             label="Nuevo nombre del canal"
-            {...registerRenameChannel('name', {
+            { ...registerRenameChannel('name', {
               required: 'El nombre es requerido',
               pattern: {
                 value: /^[a-z0-9-]+$/,
@@ -1251,35 +1253,35 @@ export const ChatView: React.FC = () => {
               validate: {
                 notGeneral: (value) => value !== 'general' || 'El canal general está reservado',
               },
-            })}
-            error={renameChannelErrors.name?.message}
+            }) }
+            error={ renameChannelErrors.name?.message }
             placeholder="nuevo-nombre-del-canal"
           />
           <Input
             label="Descripción"
-            {...registerRenameChannel('description', {
+            { ...registerRenameChannel('description', {
               maxLength: {
                 value: 100,
                 message: 'Máximo 100 caracteres',
               },
-            })}
-            error={renameChannelErrors.description?.message}
+            }) }
+            error={ renameChannelErrors.description?.message }
             placeholder="Descripción del canal"
-            maxLength={100}
+            maxLength={ 100 }
           />
           <div className="flex justify-end space-x-2">
             <Button
               type="button"
               variant="secondary"
-              onClick={() => {
+              onClick={ () => {
                 setIsRenameChannelModalOpen(false);
                 setChannelToRename(null);
-              }}
+              } }
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={renameChannelMutation.isPending}>
-              {renameChannelMutation.isPending ? 'Guardando...' : 'Guardar'}
+            <Button type="submit" disabled={ renameChannelMutation.isPending }>
+              { renameChannelMutation.isPending ? 'Guardando...' : 'Guardar' }
             </Button>
           </div>
         </form>

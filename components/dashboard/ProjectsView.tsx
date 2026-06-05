@@ -222,8 +222,8 @@ export const ProjectsView: React.FC = () => {
 
   return (
     <div className='space-y-6'>
-      {/* Alert for disabled projects */}
-      {disabledProjectsCount > 0 && (
+      {/* Alert for disabled projects */ }
+      { disabledProjectsCount > 0 && (
         <div className='relative overflow-hidden rounded-xl border border-amber-500/30 bg-amber-500/5 p-4'>
           <div className='absolute inset-y-0 left-0 w-1 rounded-l-xl bg-amber-500' />
           <div className='flex items-start gap-3 pl-2'>
@@ -232,19 +232,19 @@ export const ProjectsView: React.FC = () => {
             </div>
             <div className='flex-1 min-w-0'>
               <h3 className='font-semibold text-amber-600 dark:text-amber-400 text-sm mb-0.5'>
-                {disabledProjectsCount} proyecto{disabledProjectsCount > 1 ? 's' : ''} deshabilitado{disabledProjectsCount > 1 ? 's' : ''}
+                { disabledProjectsCount } proyecto{ disabledProjectsCount > 1 ? 's' : '' } deshabilitado{ disabledProjectsCount > 1 ? 's' : '' }
               </h3>
               <p className='text-xs text-amber-600/80 dark:text-amber-400/80'>
-                {currentLimits.MAX_PROJECTS === null
+                { currentLimits.MAX_PROJECTS === null
                   ? 'Tu plan permite proyectos ilimitados.'
-                  : `Tu plan ${currentTier.toUpperCase()} permite hasta ${currentLimits.MAX_PROJECTS} proyectos habilitados.`}
+                  : `Tu plan ${currentTier.toUpperCase()} permite hasta ${currentLimits.MAX_PROJECTS} proyectos habilitados.` }
               </p>
             </div>
           </div>
         </div>
-      )}
+      ) }
 
-      {/* Header */}
+      {/* Header */ }
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-3'>
           <div className='hidden sm:flex items-center justify-center w-10 h-10 rounded-xl bg-[var(--accent-primary)]/10 border border-[var(--accent-primary)]/20'>
@@ -255,142 +255,142 @@ export const ProjectsView: React.FC = () => {
               Tus Proyectos
             </h2>
             <p className='text-sm text-[var(--text-secondary)]'>
-              {projects?.length
+              { projects?.length
                 ? `${projects.length} proyecto${projects.length !== 1 ? 's' : ''} disponible${projects.length !== 1 ? 's' : ''}`
-                : 'Sin proyectos aún'}
+                : 'Sin proyectos aún' }
             </p>
           </div>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} className='gap-2 shadow-sm'>
+        <Button onClick={ () => setIsModalOpen(true) } className='gap-2 shadow-sm'>
           <Plus className='h-4 w-4' />
           <span className='hidden sm:inline'>Nuevo Proyecto</span>
           <span className='sm:hidden'>Nuevo</span>
         </Button>
       </div>
 
-      {projects && projects.length > 0 ? (
+      { projects && projects.length > 0 ? (
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
-          {projects.map((project) => (
+          { projects.map((project) => (
             <div
-              key={project.id}
-              className={clsx(
+              key={ project.id }
+              className={ clsx(
                 'group relative flex flex-col rounded-2xl border transition-all duration-200 overflow-hidden',
                 project.enabled
                   ? 'cursor-pointer border-[var(--text-secondary)]/15 bg-[var(--bg-secondary)] hover:border-[var(--accent-primary)]/50 hover:shadow-xl hover:shadow-[var(--accent-primary)]/5 hover:-translate-y-0.5'
                   : 'cursor-not-allowed opacity-60 border-[var(--text-secondary)]/10 bg-[var(--bg-secondary)]'
-              )}
-              onClick={() => project.enabled && selectProject(project.id)}
+              ) }
+              onClick={ () => project.enabled && selectProject(project.id) }
             >
-              {/* Top accent bar */}
-              <div className={clsx(
+              {/* Top accent bar */ }
+              <div className={ clsx(
                 'h-1 w-full transition-all duration-200',
                 project.enabled
                   ? 'bg-gradient-to-r from-[var(--accent-primary)] to-[var(--accent-primary)]/50 group-hover:from-[var(--accent-primary)] group-hover:to-[var(--accent-primary)]'
                   : 'bg-[var(--text-secondary)]/20'
-              )} />
+              ) } />
 
               <div className='flex flex-col flex-1 p-5 gap-4'>
-                {/* Card header row */}
+                {/* Card header row */ }
                 <div className='flex items-start justify-between gap-3'>
-                  <div className={clsx(
+                  <div className={ clsx(
                     'flex items-center justify-center w-11 h-11 rounded-xl flex-shrink-0 transition-colors duration-200',
                     project.enabled
                       ? 'bg-[var(--accent-primary)]/10 group-hover:bg-[var(--accent-primary)]/20'
                       : 'bg-[var(--text-secondary)]/10'
-                  )}>
-                    <FolderKanban className={clsx(
+                  ) }>
+                    <FolderKanban className={ clsx(
                       'h-5 w-5 transition-colors',
                       project.enabled ? 'text-[var(--accent-primary)]' : 'text-[var(--text-secondary)]'
-                    )} />
+                    ) } />
                   </div>
                   <div className='flex flex-col items-end gap-1.5 min-w-0'>
-                    <span className={clsx('text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap', getRoleBadgeStyle(project.userRole))}>
-                      {project.userRole}
+                    <span className={ clsx('text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap', getRoleBadgeStyle(project.userRole)) }>
+                      { project.userRole }
                     </span>
                     <div className='flex items-center gap-1.5 text-xs text-[var(--text-secondary)]'>
-                      <span className={clsx(
+                      <span className={ clsx(
                         'inline-flex items-center gap-1',
                         project.enabled ? 'text-emerald-500' : 'text-[var(--text-secondary)]'
-                      )}>
-                        <span className={clsx(
+                      ) }>
+                        <span className={ clsx(
                           'inline-block w-1.5 h-1.5 rounded-full',
                           project.enabled ? 'bg-emerald-500' : 'bg-[var(--text-secondary)]/50'
-                        )} />
-                        {project.enabled ? 'Activo' : 'Inactivo'}
+                        ) } />
+                        { project.enabled ? 'Activo' : 'Inactivo' }
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Project name + description */}
+                {/* Project name + description */ }
                 <div className='flex-1'>
                   <div className='flex items-center justify-between gap-2 mb-1.5'>
                     <h3 className='font-semibold text-[var(--text-primary)] text-base leading-snug line-clamp-1'>
-                      {project.name}
+                      { project.name }
                     </h3>
-                    {project.enabled && (
+                    { project.enabled && (
                       <ChevronRight className='h-4 w-4 text-[var(--text-secondary)] flex-shrink-0 -translate-x-1 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200' />
-                    )}
+                    ) }
                   </div>
                   <div className='text-sm text-[var(--text-secondary)] line-clamp-2 leading-relaxed min-h-[2.5rem]'>
-                    {project.description ? (
-                      <MessageContent content={project.description} />
+                    { project.description ? (
+                      <MessageContent content={ project.description } />
                     ) : (
                       <span className='italic opacity-60'>Sin descripción</span>
-                    )}
+                    ) }
                   </div>
                 </div>
 
-                {/* Metadata row */}
+                {/* Metadata row */ }
                 <div className='flex items-center justify-between text-xs text-[var(--text-secondary)] pt-1 border-t border-[var(--text-secondary)]/10'>
                   <div className='flex items-center gap-1'>
                     <Users className='h-3.5 w-3.5' />
-                    <span>{project.members.length} miembro{project.members.length !== 1 ? 's' : ''}</span>
+                    <span>{ project.members.length } miembro{ project.members.length !== 1 ? 's' : '' }</span>
                   </div>
-                  <span>{formatDate(project.created_at)}</span>
+                  <span>{ formatDate(project.created_at) }</span>
                 </div>
 
-                {/* Storage */}
+                {/* Storage */ }
                 <StorageIndicator
-                  used={project.storage_used || 0}
-                  limit={getPlanLimits(getProjectTier(project)).MAX_STORAGE_BYTES}
+                  used={ project.storage_used || 0 }
+                  limit={ getPlanLimits(getProjectTier(project)).MAX_STORAGE_BYTES }
                 />
 
-                {/* Action buttons */}
+                {/* Action buttons */ }
                 <div className='flex gap-2 pt-1'>
-                  {project.userRole === 'Owner' && (
+                  { project.userRole === 'Owner' && (
                     <Button
                       variant='ghost'
                       size='sm'
                       className='flex-1 text-xs h-8 bg-[var(--bg-primary)] border border-[var(--text-secondary)]/15 hover:border-[var(--text-secondary)]/30'
-                      onClick={(e) => handleActiveClick(project, e)}
+                      onClick={ (e) => handleActiveClick(project, e) }
                     >
-                      {project.enabled ? (
+                      { project.enabled ? (
                         <><Lock className='h-3.5 w-3.5 mr-1.5' />Desactivar</>
                       ) : (
                         <><LockOpen className='h-3.5 w-3.5 mr-1.5' />Activar</>
-                      )}
+                      ) }
                     </Button>
-                  )}
-                  {(project.userRole === 'Owner' || project.userRole === 'Admin') && (
+                  ) }
+                  { (project.userRole === 'Owner' || project.userRole === 'Admin') && (
                     <Button
                       size='sm'
                       className='flex-1 text-xs h-8'
-                      disabled={!project.enabled}
-                      onClick={(e) => project.enabled && handleInviteClick(project, e)}
+                      disabled={ !project.enabled }
+                      onClick={ (e) => project.enabled && handleInviteClick(project, e) }
                     >
                       <UserPlus className='h-3.5 w-3.5 mr-1.5' />
                       Invitar
                     </Button>
-                  )}
+                  ) }
                 </div>
               </div>
             </div>
-          ))}
+          )) }
 
-          {/* New project card */}
+          {/* New project card */ }
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={ () => setIsModalOpen(true) }
             className='group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--text-secondary)]/20 bg-transparent p-8 text-[var(--text-secondary)] transition-all duration-200 hover:border-[var(--accent-primary)]/50 hover:bg-[var(--accent-primary)]/5 hover:text-[var(--accent-primary)] min-h-[220px]'
           >
             <div className='mb-3 flex h-12 w-12 items-center justify-center rounded-xl border-2 border-dashed border-current/30 transition-transform duration-200 group-hover:scale-110'>
@@ -414,24 +414,24 @@ export const ProjectsView: React.FC = () => {
           <p className='text-[var(--text-secondary)] text-sm mb-7 max-w-xs leading-relaxed'>
             Crea tu primer proyecto para comenzar a colaborar con tu equipo y gestionar tareas.
           </p>
-          <Button onClick={() => setIsModalOpen(true)} size='lg' className='gap-2 shadow-md'>
+          <Button onClick={ () => setIsModalOpen(true) } size='lg' className='gap-2 shadow-md'>
             <Plus className='h-5 w-5' />
             Crear primer proyecto
           </Button>
         </div>
-      )}
+      ) }
 
       <Modal
-        isOpen={isModalOpen}
+        isOpen={ isModalOpen }
         size='xl'
-        onClose={() => setIsModalOpen(false)}
+        onClose={ () => setIsModalOpen(false) }
         title='Crear Nuevo Proyecto'
       >
-        <form onSubmit={handleSubmit(onSubmit)} className='space-y-4'>
+        <form onSubmit={ handleSubmit(onSubmit) } className='space-y-4'>
           <Input
             label='Nombre del Proyecto'
-            {...register('name', { required: 'El nombre es requerido' })}
-            error={errors.name?.message}
+            { ...register('name', { required: 'El nombre es requerido' }) }
+            error={ errors.name?.message }
             placeholder='Mi Proyecto Awesome'
           />
           <div>
@@ -442,81 +442,81 @@ export const ProjectsView: React.FC = () => {
               </p>
             </label>
             <div className='flex gap-1 p-1 bg-[var(--bg-primary)] border border-[var(--text-secondary)]/20 rounded-lg mb-3 text-xs'>
-              {(['richtext', 'preview'] as const).map((tab) => (
+              { (['richtext', 'preview'] as const).map((tab) => (
                 <button
-                  key={tab}
+                  key={ tab }
                   type='button'
-                  onClick={() => setDescriptionTab(tab)}
-                  className={`flex-1 py-1.5 px-2 rounded-md font-medium transition-colors ${descriptionTab === tab
+                  onClick={ () => setDescriptionTab(tab) }
+                  className={ `flex-1 py-1.5 px-2 rounded-md font-medium transition-colors ${descriptionTab === tab
                     ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                    }`}
+                    }` }
                 >
-                  {tab === 'richtext' ? 'Editar' : 'Vista previa'}
+                  { tab === 'richtext' ? 'Editar' : 'Vista previa' }
                 </button>
-              ))}
+              )) }
             </div>
-            {descriptionTab === 'richtext' ? (
+            { descriptionTab === 'richtext' ? (
               <RichTextEditor
-                rows={15}
-                value={descriptionValue}
-                onChange={(value) => setValue('description', value)}
+                rows={ 15 }
+                value={ descriptionValue }
+                onChange={ (value) => setValue('description', value) }
                 placeholder='Describe tu proyecto...'
               />
             ) : (
               <div className='rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-3 min-h-[10rem]'>
-                {descriptionValue.trim().length > 0
-                  ? <MessageContent content={descriptionValue} />
-                  : <span className='text-[var(--text-secondary)] italic text-sm'>Sin contenido</span>}
+                { descriptionValue.trim().length > 0
+                  ? <MessageContent content={ descriptionValue } />
+                  : <span className='text-[var(--text-secondary)] italic text-sm'>Sin contenido</span> }
               </div>
-            )}
+            ) }
           </div>
           <div className='flex justify-end space-x-2 pt-4'>
             <Button
               type='button'
               variant='secondary'
-              onClick={() => setIsModalOpen(false)}
+              onClick={ () => setIsModalOpen(false) }
             >
               Cancelar
             </Button>
-            <Button type='submit' disabled={createProjectMutation.isPending}>
-              {createProjectMutation.isPending
+            <Button type='submit' disabled={ createProjectMutation.isPending }>
+              { createProjectMutation.isPending
                 ? 'Creando...'
-                : 'Crear Proyecto'}
+                : 'Crear Proyecto' }
             </Button>
           </div>
         </form>
       </Modal>
 
       <InviteMemberModal
-        isOpen={isInviteModalOpen}
-        onClose={() => {
+        isOpen={ isInviteModalOpen }
+        onClose={ () => {
           setIsInviteModalOpen(false);
           setSelectedProjectForInvite(null);
-        }}
-        projectId={selectedProjectForInvite?.id ?? null}
-        projectName={selectedProjectForInvite?.name}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['projects'] })}
+        } }
+        projectId={ selectedProjectForInvite?.id ?? null }
+        projectName={ selectedProjectForInvite?.name }
+        onSuccess={ () => queryClient.invalidateQueries({ queryKey: ['projects'] }) }
       />
 
-      <Modal isOpen={isActiveModalOpen} onClose={() => {
+      <Modal isOpen={ isActiveModalOpen } onClose={ () => {
         setIsActiveModalOpen(false);
         setSelectedProjectForActive(null);
-      }} title={selectedProjectForActive?.enabled ? 'Desactivar Proyecto' : 'Activar Proyecto'}>
+      } } title={ selectedProjectForActive?.enabled ? 'Desactivar Proyecto' : 'Activar Proyecto' }>
         <div className='space-y-4'>
-          <p>¿Estás seguro que deseas {selectedProjectForActive?.enabled ? 'desactivar' : 'activar'} el proyecto <strong>{selectedProjectForActive?.name}</strong>?</p>
+          <p>¿Estás seguro que deseas { selectedProjectForActive?.enabled ? 'desactivar' : 'activar' } el proyecto <strong>{ selectedProjectForActive?.name }</strong>?</p>
           <div className='flex justify-end space-x-2 pt-4'>
             <Button
               type='button'
               variant='secondary'
-              onClick={() => {
+              onClick={ () => {
                 setIsActiveModalOpen(false);
                 setSelectedProjectForActive(null);
-              }}
+              } }
             >
               Cancelar
             </Button>
-            <Button type='button' onClick={async () => {
+            <Button type='button' onClick={ async () => {
               if (!selectedProjectForActive) return;
 
               try {
@@ -546,8 +546,8 @@ export const ProjectsView: React.FC = () => {
                 console.error('Error toggling project:', err);
                 toast.error(err.message || 'Error al actualizar el estado del proyecto');
               }
-            }}>
-              {selectedProjectForActive?.enabled ? 'Desactivar' : 'Activar'}
+            } }>
+              { selectedProjectForActive?.enabled ? 'Desactivar' : 'Activar' }
             </Button>
           </div>
         </div>
