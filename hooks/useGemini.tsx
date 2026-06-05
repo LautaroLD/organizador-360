@@ -78,7 +78,11 @@ export default function useGemini() {
     messages: unknown[];
     startDate: string;
     endDate: string;
+    startDateLocal?: string;
+    endDateLocal?: string;
     rangeHours: number;
+    userTimeZone?: string;
+    userLocale?: string;
     channelName: string;
   }) => {
     try {
@@ -91,7 +95,11 @@ export default function useGemini() {
           messages,
           startDate,
           endDate,
+          startDateLocal,
+          endDateLocal,
           rangeHours,
+          userTimeZone,
+          userLocale,
           channelName,
         }),
       });

@@ -5,6 +5,27 @@ import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 
 const CHAT_SUMMARY_MAX_MESSAGES = 100;
 
+function formatDateTimeForUser(
+  value: string,
+  locale: string,
+  timeZone: string,
+): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(locale, {
+    timeZone,
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(parsed);
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Verificar que el usuario esté autenticado
@@ -26,8 +47,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { messages, startDate, endDate, rangeHours, channelName } =
-      await req.json();
+    const {
+      messages,
+      startDate,
+      endDate,
+      startDateLocal,
+      endDateLocal,
+      rangeHours,
+      userTimeZone,
+      userLocale,
+      channelName,
+    } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -36,19 +66,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const locale =
+      typeof userLocale === 'string' && userLocale ? userLocale : 'es-ES';
+    const timeZone =
+      typeof userTimeZone === 'string' && userTimeZone ? userTimeZone : 'UTC';
+
+    const formattedStartDate =
+      typeof startDateLocal === 'string' && startDateLocal
+        ? startDateLocal
+        : formatDateTimeForUser(startDate, locale, timeZone);
+    const formattedEndDate =
+      typeof endDateLocal === 'string' && endDateLocal
+        ? endDateLocal
+        : formatDateTimeForUser(endDate, locale, timeZone);
+
     const cappedMessages = messages.slice(-CHAT_SUMMARY_MAX_MESSAGES);
     const reachedMessageLimit = messages.length > CHAT_SUMMARY_MAX_MESSAGES;
 
     const messagesText = cappedMessages
       .map((msg) => {
         const senderName = msg.user?.name || 'Usuario desconocido';
-        const timestamp = new Date(msg.created_at).toLocaleString('es-ES');
+        const timestamp = formatDateTimeForUser(
+          msg.created_at,
+          locale,
+          timeZone,
+        );
         return `[${timestamp}] ${senderName}: ${msg.content}`;
       })
       .join('\n');
 
     const prompt = `
-Genera un resumen conciso y estructurado de la conversación del chat "${channelName}" para el rango de las últimas ${rangeHours} horas (desde ${startDate} hasta ${endDate}).
+Genera un resumen conciso y estructurado de la conversación del chat "${channelName}" para el rango de las últimas ${rangeHours} horas.
+
+Periodo en hora local del usuario (${timeZone}): ${formattedStartDate} - ${formattedEndDate}
 
 Aquí están los mensajes:
 ${messagesText}

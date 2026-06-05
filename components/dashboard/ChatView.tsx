@@ -92,6 +92,21 @@ export const ChatView: React.FC = () => {
     try {
       const end = new Date();
       const start = new Date(end.getTime() - summaryRangeHours * 60 * 60 * 1000);
+      const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const userLocale =
+        typeof navigator !== 'undefined' && navigator.language
+          ? navigator.language
+          : 'es-ES';
+
+      const localFormatter = new Intl.DateTimeFormat(userLocale, {
+        timeZone: userTimeZone,
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
 
       const msgsToSummarize = messages?.filter(msg => {
         if (msg.is_deleted) return false;
@@ -109,7 +124,11 @@ export const ChatView: React.FC = () => {
         messages: msgsToSummarize,
         startDate: start.toISOString(),
         endDate: end.toISOString(),
+        startDateLocal: localFormatter.format(start),
+        endDateLocal: localFormatter.format(end),
         rangeHours: summaryRangeHours,
+        userTimeZone,
+        userLocale,
         channelName: selectedChannel.name
       });
 
