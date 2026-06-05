@@ -7,7 +7,6 @@ import { useAuthStore } from '@/store/authStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { DateRangePicker } from '@/components/ui/DateRangePicker';
 import { Modal } from '@/components/ui/Modal';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { MessageContent } from '@/components/ui/MessageContent';
@@ -15,7 +14,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import { ChevronsLeft, Hash, Plus, Send, Trash2, MessageSquare, Bell, BellOff, Loader2, Pin, PinOff, Edit2, MoreVertical, X, Check, Reply, FileText, Sparkles } from 'lucide-react';
 import useGemini from '@/hooks/useGemini';
-import { formatChatTimestamp, parseDateValue } from '@/lib/utils';
+import { formatChatTimestamp } from '@/lib/utils';
 import clsx from 'clsx';
 import { Channel } from '@/models';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -23,6 +22,9 @@ import { useNotificationStore } from '@/store/notificationStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
+
+const CHAT_SUMMARY_HOUR_OPTIONS = [1, 4, 12, 24] as const;
+const CHAT_SUMMARY_MAX_MESSAGES = 100;
 
 interface MessageFormData {
   content: string;
@@ -37,13 +39,6 @@ interface RenameChannelFormData {
   name: string;
   description: string;
 }
-
-const toISODate = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
 
 export const ChatView: React.FC = () => {
   const supabase = createClient();
@@ -62,8 +57,9 @@ export const ChatView: React.FC = () => {
   const { subscribe: subscribePush, unsubscribe: unsubscribePush, isSupported: isPushSupported } = usePushNotifications();
   const { generateChatSummary } = useGemini();
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
-  const [summaryStartDate, setSummaryStartDate] = useState('');
-  const [summaryEndDate, setSummaryEndDate] = useState('');
+  const [summaryRangeHours, setSummaryRangeHours] = useState<
+    (typeof CHAT_SUMMARY_HOUR_OPTIONS)[number]
+  >(4);
   const [summaryResult, setSummaryResult] = useState('');
   const [summaryError, setSummaryError] = useState('');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
@@ -81,12 +77,7 @@ export const ChatView: React.FC = () => {
   }, [user, supabase]);
 
   const openSummaryModal = () => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - 7);
-
-    setSummaryStartDate(start.toISOString().split('T')[0]);
-    setSummaryEndDate(end.toISOString().split('T')[0]);
+    setSummaryRangeHours(4);
     setSummaryResult('');
     setSummaryError('');
     setIsSummaryModalOpen(true);
@@ -99,9 +90,8 @@ export const ChatView: React.FC = () => {
     setSummaryResult('');
 
     try {
-      // Usamos T00:00:00 para asegurar que se interprete como hora local del usuario y no UTC
-      const start = new Date(`${summaryStartDate}T00:00:00`);
-      const end = new Date(`${summaryEndDate}T23:59:59.999`);
+      const end = new Date();
+      const start = new Date(end.getTime() - summaryRangeHours * 60 * 60 * 1000);
 
       const msgsToSummarize = messages?.filter(msg => {
         if (msg.is_deleted) return false;
@@ -110,15 +100,16 @@ export const ChatView: React.FC = () => {
       }) || [];
 
       if (msgsToSummarize.length === 0) {
-        setSummaryError('No hay mensajes en el rango de fechas seleccionado.');
+        setSummaryError(`No hay mensajes en las últimas ${summaryRangeHours} hora${summaryRangeHours === 1 ? '' : 's'}.`);
         setIsGeneratingSummary(false);
         return;
       }
 
       const summary = await generateChatSummary({
         messages: msgsToSummarize,
-        startDate: summaryStartDate,
-        endDate: summaryEndDate,
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+        rangeHours: summaryRangeHours,
         channelName: selectedChannel.name
       });
 
@@ -1139,16 +1130,25 @@ export const ChatView: React.FC = () => {
         title="Resumen del Chat con IA"
       >
         <div className="space-y-4">
-          <DateRangePicker
-            startValue={ parseDateValue(summaryStartDate) ?? undefined }
-            endValue={ parseDateValue(summaryEndDate) ?? undefined }
-            onStartChange={ (date) => setSummaryStartDate(date ? toISODate(date) : '') }
-            onEndChange={ (date) => setSummaryEndDate(date ? toISODate(date) : '') }
-            startLabel='Desde'
-            endLabel='Hasta'
-            startPlaceholder='Fecha inicio'
-            endPlaceholder='Fecha fin'
-          />
+          <div className='space-y-2'>
+            <p className='text-sm text-[var(--text-secondary)]'>Selecciona el rango a resumir</p>
+            <div className='grid grid-cols-2 gap-2'>
+              { CHAT_SUMMARY_HOUR_OPTIONS.map((hours) => (
+                <Button
+                  key={ hours }
+                  type='button'
+                  variant={ summaryRangeHours === hours ? 'primary' : 'secondary' }
+                  onClick={ () => setSummaryRangeHours(hours) }
+                >
+                  Últimas { hours } hora{ hours === 1 ? '' : 's' }
+                </Button>
+              )) }
+            </div>
+          </div>
+
+          <p className='text-xs text-[var(--text-secondary)]'>
+            Para proteger el rendimiento, el resumen usa como maximo los ultimos { CHAT_SUMMARY_MAX_MESSAGES } mensajes.
+          </p>
 
           <Button
             onClick={ handleGenerateSummary }

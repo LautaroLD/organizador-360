@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 
+const CHAT_SUMMARY_MAX_MESSAGES = 100;
+
 export async function POST(req: NextRequest) {
   try {
     // Verificar que el usuario esté autenticado
@@ -24,7 +26,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { messages, startDate, endDate, channelName } = await req.json();
+    const { messages, startDate, endDate, rangeHours, channelName } =
+      await req.json();
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -33,7 +36,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const messagesText = messages
+    const cappedMessages = messages.slice(-CHAT_SUMMARY_MAX_MESSAGES);
+    const reachedMessageLimit = messages.length > CHAT_SUMMARY_MAX_MESSAGES;
+
+    const messagesText = cappedMessages
       .map((msg) => {
         const senderName = msg.user?.name || 'Usuario desconocido';
         const timestamp = new Date(msg.created_at).toLocaleString('es-ES');
@@ -42,7 +48,7 @@ export async function POST(req: NextRequest) {
       .join('\n');
 
     const prompt = `
-Genera un resumen conciso y estructurado de la conversación del chat "${channelName}" para el rango de fechas ${startDate} a ${endDate}.
+Genera un resumen conciso y estructurado de la conversación del chat "${channelName}" para el rango de las últimas ${rangeHours} horas (desde ${startDate} hasta ${endDate}).
 
 Aquí están los mensajes:
 ${messagesText}
@@ -53,6 +59,7 @@ Instrucciones:
 3.  Mantén un tono profesional y objetivo.
 4.  Si no hay suficiente información relevante, indícalo.
 5.  Formatea la respuesta en Markdown.
+6.  ${reachedMessageLimit ? `Indica explícitamente que se alcanzó el límite y que solo analizaste los últimos ${CHAT_SUMMARY_MAX_MESSAGES} mensajes.` : 'No menciones límites de mensajes si no se alcanzó ninguno.'}
 `;
 
     const response = await ai.models.generateContent({
@@ -71,7 +78,16 @@ Instrucciones:
       },
     });
 
-    return NextResponse.json({ summary: response.text });
+    const limitNotice = reachedMessageLimit
+      ? `\n\n> Nota: Se alcanzó el límite de mensajes y se usaron como referencia solo los últimos ${CHAT_SUMMARY_MAX_MESSAGES} mensajes.`
+      : '';
+
+    return NextResponse.json({
+      summary: `${response.text}${limitNotice}`,
+      usedMessages: cappedMessages.length,
+      reachedMessageLimit,
+      maxMessages: CHAT_SUMMARY_MAX_MESSAGES,
+    });
   } catch (error) {
     console.error('Error generating chat summary:', error);
     return NextResponse.json(

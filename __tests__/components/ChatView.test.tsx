@@ -83,12 +83,12 @@ jest.mock('react-toastify', () => ({
 
 // Mock UI components that might cause issues or are not focus of this test
 jest.mock('@/components/ui/RichTextEditor', () => ({
-  RichTextEditor: ({ onChange }: { onChange: (value: string) => void; }) => <textarea data-testid="rich-text-editor" onChange={(e) => onChange(e.target.value)} />
+  RichTextEditor: ({ onChange }: { onChange: (value: string) => void; }) => <textarea data-testid="rich-text-editor" onChange={ (e) => onChange(e.target.value) } />
 }));
 
 // Mock MessageContent to avoid react-markdown ESM issues
 jest.mock('@/components/ui/MessageContent', () => ({
-  MessageContent: ({ content }: { content: string; }) => <div data-testid="message-content">{content}</div>
+  MessageContent: ({ content }: { content: string; }) => <div data-testid="message-content">{ content }</div>
 }));
 
 describe('ChatView Summary', () => {
@@ -184,11 +184,12 @@ describe('ChatView Summary', () => {
     // Check arguments passed to generateChatSummary with strict ISO date format
     const summaryArgs = mockGenerateChatSummary.mock.calls[0][0];
     expect(summaryArgs).toEqual(expect.objectContaining({
-      startDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-      endDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      startDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      endDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      rangeHours: 4,
       channelName: 'General',
     }));
-    expect(summaryArgs.startDate <= summaryArgs.endDate).toBe(true);
+    expect(new Date(summaryArgs.startDate).getTime()).toBeLessThanOrEqual(new Date(summaryArgs.endDate).getTime());
 
     // Check result is displayed
     expect(await screen.findByText('Resumen generado exitosamente.')).toBeInTheDocument();
