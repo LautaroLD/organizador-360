@@ -238,7 +238,7 @@ export async function POST(req: NextRequest) {
       })) || [];
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite',
       contents: [
         { role: 'user', parts: [{ text: contextText }] },
         ...conversationHistory,

@@ -8,13 +8,19 @@ export async function POST(req: NextRequest) {
     const { resourceId } = await req.json();
 
     if (!resourceId) {
-      return NextResponse.json({ error: 'Resource ID is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Resource ID is required' },
+        { status: 400 },
+      );
     }
 
     const supabase = await createClient();
 
     // Verificar autenticación
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -24,7 +30,7 @@ export async function POST(req: NextRequest) {
     if (!canUseAI) {
       return NextResponse.json(
         { error: 'Esta función está disponible solo para plan Pro' },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -36,30 +42,41 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error || !resource) {
-      return NextResponse.json({ error: 'Resource not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Resource not found' },
+        { status: 404 },
+      );
     }
 
     if (resource.type !== 'file') {
-         return NextResponse.json({ error: 'Only files can be analyzed' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Only files can be analyzed' },
+        { status: 400 },
+      );
     }
-    
+
     // 2. Descargar el archivo
     // Asumimos que la URL es accesible (publicUrl). Si no, usaríamos supabase.storage.download
     const fileResponse = await fetch(resource.url);
     if (!fileResponse.ok) {
-        return NextResponse.json({ error: 'Failed to download file' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to download file' },
+        { status: 500 },
+      );
     }
-    
+
     const arrayBuffer = await fileResponse.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const base64Data = buffer.toString('base64');
-    const mimeType = fileResponse.headers.get('content-type') || 'application/pdf'; // Fallback común
+    const mimeType =
+      fileResponse.headers.get('content-type') || 'application/pdf'; // Fallback común
 
     // 3. Enviar a Gemini
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite',
       config: {
-        systemInstruction: "Eres un analista experto. Tu tarea es leer el archivo adjunto y generar un resumen conciso y útil para el equipo."
+        systemInstruction:
+          'Eres un analista experto. Tu tarea es leer el archivo adjunto y generar un resumen conciso y útil para el equipo.',
       },
       contents: [
         {
@@ -68,8 +85,8 @@ export async function POST(req: NextRequest) {
             {
               inlineData: {
                 data: base64Data,
-                mimeType: mimeType
-              }
+                mimeType: mimeType,
+              },
             },
             {
               text: `Analiza este archivo: "${resource.title}".
@@ -79,19 +96,21 @@ export async function POST(req: NextRequest) {
               2. **Puntos Clave:** (Lista de bullets)
               3. **Conclusión/Acciones Sugeridas:** (Si aplica)
               
-              Mantén el tono profesional y responde en español.`
-            }
-          ]
-        }
-      ]
+              Mantén el tono profesional y responde en español.`,
+            },
+          ],
+        },
+      ],
     });
 
-    const summary = response.text
+    const summary = response.text;
 
     return NextResponse.json({ summary });
-
   } catch (error) {
     console.error('Error analyzing resource:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 },
+    );
   }
 }

@@ -7,8 +7,10 @@ export async function POST(req: NextRequest) {
   try {
     // Verificar que el usuario esté autenticado
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
@@ -18,21 +20,26 @@ export async function POST(req: NextRequest) {
     if (!canUseAI) {
       return NextResponse.json(
         { error: 'Esta función está disponible solo para plan Pro' },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
     const { messages, startDate, endDate, channelName } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json({ error: 'Messages array is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Messages array is required' },
+        { status: 400 },
+      );
     }
 
-    const messagesText = messages.map(msg => {
+    const messagesText = messages
+      .map((msg) => {
         const senderName = msg.user?.name || 'Usuario desconocido';
         const timestamp = new Date(msg.created_at).toLocaleString('es-ES');
         return `[${timestamp}] ${senderName}: ${msg.content}`;
-    }).join('\n');
+      })
+      .join('\n');
 
     const prompt = `
 Genera un resumen conciso y estructurado de la conversación del chat "${channelName}" para el rango de fechas ${startDate} a ${endDate}.
@@ -49,7 +56,7 @@ Instrucciones:
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite',
       contents: [
         {
           text: prompt,
@@ -61,12 +68,15 @@ Instrucciones:
           'Tu objetivo es proporcionar resúmenes claros, accionables y bien organizados.',
           'Responde siempre en español.',
         ],
-      }
+      },
     });
-    
+
     return NextResponse.json({ summary: response.text });
   } catch (error) {
     console.error('Error generating chat summary:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 },
+    );
   }
 }

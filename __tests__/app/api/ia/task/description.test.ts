@@ -1,6 +1,6 @@
 /**
  * Tests para la lógica de generación de descripciones de tareas con Gemini
- * 
+ *
  * Nota: Estos tests prueban la lógica de integración con Gemini.
  * Los tests E2E cubren el flujo completo de la API.
  */
@@ -41,28 +41,34 @@ describe('Gemini Task Description Generation', () => {
     const current_checklist: unknown[] = [];
 
     await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite',
       contents: [
-        { text: 'Genera una descripcion breve y un checklist para la siguiente tarea del proyecto.' },
-        { text: `Proyecto: {nombre: ${project.name}, descripcion: ${project.description}}` },
+        {
+          text: 'Genera una descripcion breve y un checklist para la siguiente tarea del proyecto.',
+        },
+        {
+          text: `Proyecto: {nombre: ${project.name}, descripcion: ${project.description}}`,
+        },
         { text: `Titulo de la tarea: ${title_task}` },
-        { text: `Checklist actual: ${JSON.stringify(current_checklist)}. No debes repetir los items que ya están en el checklist.` }
+        {
+          text: `Checklist actual: ${JSON.stringify(current_checklist)}. No debes repetir los items que ya están en el checklist.`,
+        },
       ],
       config: {
         systemInstruction: [
           'Eres un asistente de un equipo debes generar descripciones breves y checklists para las tareas del proyecto.',
         ],
-      }
+      },
     });
 
     expect(mockGenerateContent).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.1-flash-lite',
         contents: expect.any(Array),
         config: expect.objectContaining({
           systemInstruction: expect.any(Array),
         }),
-      })
+      }),
     );
   });
 
@@ -79,12 +85,12 @@ describe('Gemini Task Description Generation', () => {
     });
 
     await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite',
       contents: [
         { text: 'Genera una descripcion' },
-        { text: `Checklist actual: ${JSON.stringify(currentChecklist)}` }
+        { text: `Checklist actual: ${JSON.stringify(currentChecklist)}` },
       ],
-      config: { systemInstruction: [] }
+      config: { systemInstruction: [] },
     });
 
     expect(mockGenerateContent).toHaveBeenCalledWith(
@@ -94,7 +100,7 @@ describe('Gemini Task Description Generation', () => {
             text: expect.stringContaining(JSON.stringify(currentChecklist)),
           }),
         ]),
-      })
+      }),
     );
   });
 
@@ -103,10 +109,10 @@ describe('Gemini Task Description Generation', () => {
 
     await expect(
       ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.1-flash-lite',
         contents: [{ text: 'Test' }],
-        config: { systemInstruction: [] }
-      })
+        config: { systemInstruction: [] },
+      }),
     ).rejects.toThrow('Gemini API error');
   });
 
@@ -121,9 +127,9 @@ describe('Gemini Task Description Generation', () => {
     });
 
     const result = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite',
       contents: [{ text: 'Test' }],
-      config: { systemInstruction: [] }
+      config: { systemInstruction: [] },
     });
 
     const parsed = JSON.parse(result.text as string);
