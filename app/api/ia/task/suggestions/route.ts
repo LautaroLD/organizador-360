@@ -2,6 +2,7 @@ import { ai } from '@/lib/gemini';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
+import { AICreditError, consumeAICredits } from '@/lib/aiCredits';
 
 type TaskStatus = 'todo' | 'in-progress' | 'done';
 type TaskPriority = 'alta' | 'media' | 'baja' | null;
@@ -328,7 +329,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { project, currentTasks } = await req.json();
+    const { project, currentTasks, requestId } = await req.json();
     const suggestionPayload = extractPayload(currentTasks);
     const tasksByStatus = collectTasksByStatus(suggestionPayload);
     const allExistingTasks = [
@@ -343,6 +344,20 @@ export async function POST(req: NextRequest) {
       tasksByStatus,
       suggestionPayload,
     );
+
+    // Nivel 2: sugerencias analíticas de tareas
+    await consumeAICredits(supabase, {
+      userId: user.id,
+      action: 'task_suggestions',
+      projectId: project?.id ?? null,
+      idempotencyKey:
+        typeof requestId === 'string' && requestId
+          ? requestId
+          : crypto.randomUUID(),
+      metadata: {
+        endpoint: '/api/ia/task/suggestions',
+      },
+    });
 
     const res = await ai.models.generateContent({
       model: 'gemini-3.1-flash-lite',
@@ -388,6 +403,23 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ suggestions });
   } catch (error: unknown) {
+    if (error instanceof AICreditError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          creditStatus: error.details
+            ? {
+                remaining: error.details.remaining,
+                required: error.details.cost,
+                quota: error.details.quota,
+              }
+            : undefined,
+        },
+        { status: error.status },
+      );
+    }
+
     const err = error as { status?: number };
     console.error('Error fetching suggestions:', error);
     if (err.status === 429) {

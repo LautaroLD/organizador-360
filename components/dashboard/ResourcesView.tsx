@@ -341,24 +341,35 @@ export const ResourcesView: React.FC = () => {
     setIsAnalyzing(true);
 
     try {
+      const requestId = crypto.randomUUID();
       const response = await fetch('/api/ia/resources/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ resourceId: resource.id }),
+        body: JSON.stringify({ resourceId: resource.id, requestId }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 402) {
+          throw new Error('No tienes créditos suficientes para analizar este archivo.');
+        }
+
+        if (response.status === 403) {
+          throw new Error('Esta función está disponible solo para plan Pro.');
+        }
+
         throw new Error(data.error || 'Error analyzing file');
       }
 
       setAnalysisSummary(data.summary);
     } catch (error) {
       console.error(error);
-      toast.error('Error al analizar el archivo. Asegúrate de que es un formato soportado.');
+      toast.error(error instanceof Error
+        ? error.message
+        : 'Error al analizar el archivo. Asegúrate de que es un formato soportado.');
       setAnalysisSummary('Hubo un error al intentar analizar este archivo.');
     } finally {
       setIsAnalyzing(false);
@@ -387,17 +398,17 @@ export const ResourcesView: React.FC = () => {
     const iconClass = 'h-12 w-12 text-[var(--accent-primary)]';
     switch (activeTab) {
       case 'links':
-        return <Link2 className={iconClass} />;
+        return <Link2 className={ iconClass } />;
       case 'documents':
-        return <FileText className={iconClass} />;
+        return <FileText className={ iconClass } />;
       case 'images':
-        return <ImageIcon className={iconClass} />;
+        return <ImageIcon className={ iconClass } />;
       case 'videos':
-        return <Video className={iconClass} />;
+        return <Video className={ iconClass } />;
       case 'others':
-        return <FileArchive className={iconClass} />;
+        return <FileArchive className={ iconClass } />;
       default:
-        return <FolderOpen className={iconClass} />;
+        return <FolderOpen className={ iconClass } />;
     }
   };
 
@@ -440,32 +451,32 @@ export const ResourcesView: React.FC = () => {
           <div>
             <h2 className='text-xl md:text-2xl font-bold text-[var(--text-primary)]'>Recursos del Proyecto</h2>
             <p className='text-sm md:text-base text-[var(--text-secondary)] mb-2'>
-              {resources?.length || 0} recurso(s) disponible(s)
+              { resources?.length || 0 } recurso(s) disponible(s)
             </p>
             <div>
               <StorageIndicator
-                used={currentProject.storage_used || 0}
-                limit={projectLimits.MAX_STORAGE_BYTES}
+                used={ currentProject.storage_used || 0 }
+                limit={ projectLimits.MAX_STORAGE_BYTES }
               />
             </div>
           </div>
           <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
-            {selectionMode ? (
+            { selectionMode ? (
               <>
                 <Button
-                  onClick={handleBulkDelete}
+                  onClick={ handleBulkDelete }
                   variant='danger'
                   className='w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white'
-                  disabled={selectedResources.size === 0 || bulkDeleteMutation.isPending}
+                  disabled={ selectedResources.size === 0 || bulkDeleteMutation.isPending }
                 >
                   <Trash2 className='h-4 w-4 mr-2' />
-                  Eliminar ({selectedResources.size})
+                  Eliminar ({ selectedResources.size })
                 </Button>
                 <Button
-                  onClick={() => {
+                  onClick={ () => {
                     setSelectionMode(false);
                     setSelectedResources(new Set());
-                  }}
+                  } }
                   variant='secondary'
                   className='w-full sm:w-auto'
                 >
@@ -476,23 +487,23 @@ export const ResourcesView: React.FC = () => {
             ) : (
               <>
                 <Button
-                  onClick={() => setSelectionMode(true)}
+                  onClick={ () => setSelectionMode(true) }
                   variant='secondary'
                   className='w-full sm:w-auto'
-                  disabled={!resources || resources.length === 0}
+                  disabled={ !resources || resources.length === 0 }
                 >
                   <CheckSquare className='h-4 w-4 mr-2' />
                   Seleccionar
                 </Button>
                 <Button
-                  onClick={() => setIsLinkModalOpen(true)}
+                  onClick={ () => setIsLinkModalOpen(true) }
                   className='w-full sm:w-auto'
                 >
                   <Link2 className='h-4 w-4 mr-2' />
                   Agregar Link
                 </Button>
                 <Button
-                  onClick={() => setIsFileModalOpen(true)}
+                  onClick={ () => setIsFileModalOpen(true) }
                   variant='secondary'
                   className='w-full sm:w-auto'
                 >
@@ -500,74 +511,74 @@ export const ResourcesView: React.FC = () => {
                   Subir Archivo
                 </Button>
               </>
-            )}
+            ) }
           </div>
         </div>
 
-        <ResourceTabs activeTab={activeTab} onTabChange={setActiveTab} counts={counts} />
+        <ResourceTabs activeTab={ activeTab } onTabChange={ setActiveTab } counts={ counts } />
 
-        {filteredResources && filteredResources.length > 0 ? (
+        { filteredResources && filteredResources.length > 0 ? (
           <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-6'>
-            {filteredResources.map((resource) => (
+            { filteredResources.map((resource) => (
               <ResourceCard
-                key={resource.id}
-                resource={resource}
-                onDelete={(resource) => deleteResourceMutation.mutate(resource)}
-                onAnalyze={handleAnalyzeResource}
-                isPremium={canUseAI}
-                selectionMode={selectionMode}
-                selected={selectedResources.has(resource.id)}
-                onSelect={toggleSelection}
+                key={ resource.id }
+                resource={ resource }
+                onDelete={ (resource) => deleteResourceMutation.mutate(resource) }
+                onAnalyze={ handleAnalyzeResource }
+                isPremium={ canUseAI }
+                selectionMode={ selectionMode }
+                selected={ selectedResources.has(resource.id) }
+                onSelect={ toggleSelection }
               />
-            ))}
+            )) }
           </div>
         ) : (
           <div className='text-center py-12 md:py-16'>
             <div className='bg-[var(--accent-primary)]/10 w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6'>
-              {getEmptyStateIcon()}
+              { getEmptyStateIcon() }
             </div>
             <h3 className='text-lg md:text-xl font-semibold text-[var(--text-primary)] mb-2'>
-              {getEmptyStateText()}
+              { getEmptyStateText() }
             </h3>
             <p className='text-sm md:text-base text-[var(--text-secondary)] mb-6 max-w-md mx-auto px-4'>
-              {activeTab === 'all'
+              { activeTab === 'all'
                 ? 'Comienza agregando links o subiendo archivos al proyecto'
-                : `${getEmptyStateText()} cargados en tu proyecto.`}
+                : `${getEmptyStateText()} cargados en tu proyecto.` }
             </p>
             <div className='flex flex-col sm:flex-row items-center justify-center gap-2'>
-              <Button onClick={() => setIsLinkModalOpen(true)}>
+              <Button onClick={ () => setIsLinkModalOpen(true) }>
                 <Plus className='h-4 w-4 mr-2' />
                 Agregar Link
               </Button>
-              <Button onClick={() => setIsFileModalOpen(true)} variant='secondary'>
+              <Button onClick={ () => setIsFileModalOpen(true) } variant='secondary'>
                 <Upload className='h-4 w-4 mr-2' />
                 Subir Archivo
               </Button>
             </div>
           </div>
-        )}
+        ) }
       </div>
 
       <AddLinkModal
-        isOpen={isLinkModalOpen}
-        onClose={() => setIsLinkModalOpen(false)}
-        onSubmit={(data) => createLinkMutation.mutate(data)}
-        isLoading={createLinkMutation.isPending}
+        isOpen={ isLinkModalOpen }
+        onClose={ () => setIsLinkModalOpen(false) }
+        onSubmit={ (data) => createLinkMutation.mutate(data) }
+        isLoading={ createLinkMutation.isPending }
       />
 
       <UploadFileModal
-        isOpen={isFileModalOpen}
-        onClose={() => setIsFileModalOpen(false)}
-        onUpload={(file, customName) => uploadFileMutation.mutate({ file, customName })}
-        isLoading={uploadFileMutation.isPending}
+        isOpen={ isFileModalOpen }
+        onClose={ () => setIsFileModalOpen(false) }
+        onUpload={ (file, customName) => uploadFileMutation.mutate({ file, customName }) }
+        isLoading={ uploadFileMutation.isPending }
       />
 
       <AnalyzeResourceModal
-        isOpen={isAnalyzeModalOpen}
-        onClose={() => setIsAnalyzeModalOpen(false)}
-        isLoading={isAnalyzing}
-        summary={analysisSummary}
-        resourceTitle={analyzingResource?.title || ''}
+        isOpen={ isAnalyzeModalOpen }
+        onClose={ () => setIsAnalyzeModalOpen(false) }
+        isLoading={ isAnalyzing }
+        summary={ analysisSummary }
+        resourceTitle={ analyzingResource?.title || '' }
       />
     </div>
   );

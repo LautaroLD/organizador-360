@@ -11,6 +11,7 @@ import { MessageContent } from '@/components/ui/MessageContent';
 import { formatLocalDate, parseDateValue } from '@/lib/utils';
 import { RoadmapPhase } from '@/models';
 import Link from 'next/link';
+import { toast } from 'react-toastify';
 const formatDuration = (ms: number) => {
   if (!ms || ms <= 0) return '0m';
   const minutes = Math.floor(ms / 60000);
@@ -121,11 +122,26 @@ export const AnalyticsView: React.FC = () => {
   const [memberTaskSort, setMemberTaskSort] = useState<'estimated' | 'status' | 'title'>('estimated');
   const [showExplanation, setShowExplanation] = useState(true);
 
-  const projectTier = currentProject?.plan_tier === 'pro' || currentProject?.plan_tier === 'starter'
-    ? currentProject?.plan_tier
-    : (currentProject?.is_premium ? 'pro' : 'free');
-  const canAccessAnalytics = projectTier === 'pro';
-  const canManage = currentProject?.userRole === 'Owner' || currentProject?.userRole === 'Admin';
+  const normalizedRole = currentProject?.userRole?.toLowerCase();
+  const canManage = normalizedRole === 'owner' || normalizedRole === 'admin';
+
+  const { data: canAccessAnalytics = false, isLoading: accessLoading } = useQuery({
+    queryKey: ['analytics-access', currentProject?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('can_use_project_analytics', {
+        p_project_id: currentProject!.id,
+      });
+
+      if (error) {
+        console.error('Error checking analytics access:', error);
+        return false;
+      }
+
+      return Boolean(data);
+    },
+    enabled: !!currentProject?.id && canManage,
+    staleTime: 60000,
+  });
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
     queryKey: ['analytics-tasks', currentProject?.id],
@@ -218,8 +234,20 @@ export const AnalyticsView: React.FC = () => {
         body: JSON.stringify({
           projectId: currentProject?.id,
           phaseSummary,
+          requestId: crypto.randomUUID(),
         }),
       });
+
+      if (res.status === 402) {
+        toast.error('No tienes créditos suficientes para generar insights.');
+        throw new Error('No tienes créditos suficientes para generar insights.');
+      }
+
+      if (res.status === 403) {
+        toast.error('Esta función está disponible solo para plan Pro.');
+        throw new Error('Esta función está disponible solo para plan Pro.');
+      }
+
       if (!res.ok) throw new Error('Error al generar insights');
       return res.json() as Promise<{ summary: string; }>;
     },
@@ -353,12 +381,23 @@ export const AnalyticsView: React.FC = () => {
 
   if (!currentProject) return null;
 
+  if (canManage && accessLoading) {
+    return (
+      <div className='flex items-center justify-center h-full p-12'>
+        <div className='text-center'>
+          <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent-primary)] mx-auto mb-4'></div>
+          <p className='text-[var(--text-secondary)]'>Validando acceso a analíticas...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!canAccessAnalytics && canManage) {
     return (
       <main className="flex grow flex-col max-h-full overflow-y-auto">
         <div className="flex-1 flex flex-col justify-center items-center p-6">
           <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-4">Analíticas disponibles solo en Pro</h2>
-          <Lock size={48} className=" text-[var(--text-secondary)] mb-4" />
+          <Lock size={ 48 } className=" text-[var(--text-secondary)] mb-4" />
           <p className="text-[var(--text-secondary)] mb-6 text-center">Actualiza el plan para acceder a métricas avanzadas del proyecto.</p>
           <Link className='bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] px-2 py-1 rounded-lg font-semibold' href="/settings/subscription">
             Ver planes
@@ -373,7 +412,7 @@ export const AnalyticsView: React.FC = () => {
       <main className="flex grow flex-col max-h-full overflow-y-auto">
         <div className="flex-1 gap-4 flex flex-col justify-center items-center p-6">
           <h2 className="text-xl font-bold text-[var(--text-primary)] ">Acceso restringido</h2>
-          <Lock size={48} className=" text-[var(--text-secondary)] " />
+          <Lock size={ 48 } className=" text-[var(--text-secondary)] " />
           <p className="text-[var(--text-secondary)] text-center">Solo Owner o Admin pueden ver analíticas del proyecto.</p>
         </div>
       </main>
@@ -410,18 +449,18 @@ export const AnalyticsView: React.FC = () => {
         <Card>
           <CardHeader
             className="cursor-pointer hover:bg-[var(--bg-secondary)]/50 transition-colors"
-            onClick={() => setShowExplanation(!showExplanation)}
+            onClick={ () => setShowExplanation(!showExplanation) }
           >
             <CardTitle className="text-base flex items-center justify-between">
               <span>📊 ¿Cómo funcionan las analíticas?</span>
-              {showExplanation ? (
+              { showExplanation ? (
                 <ChevronUp className="h-4 w-4 text-[var(--text-secondary)]" />
               ) : (
                 <ChevronDown className="h-4 w-4 text-[var(--text-secondary)]" />
-              )}
+              ) }
             </CardTitle>
           </CardHeader>
-          {showExplanation && (
+          { showExplanation && (
             <CardContent className="text-sm text-[var(--text-secondary)] space-y-3">
               <p>
                 Las analíticas te permiten obtener una visión completa del estado y rendimiento de tu proyecto mediante métricas clave:
@@ -439,7 +478,7 @@ export const AnalyticsView: React.FC = () => {
                 💡 Tip: Usa estas métricas para identificar cuellos de botella, redistribuir trabajo y mejorar la planificación de tu equipo.
               </p>
             </CardContent>
-          )}
+          ) }
         </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -449,10 +488,10 @@ export const AnalyticsView: React.FC = () => {
               <CardDescription>Progreso general del proyecto</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold text-[var(--text-primary)]">{analytics.progress}%</p>
-              <p className="text-xs text-[var(--text-secondary)]">{analytics.done} completadas / {analytics.total} tareas</p>
+              <p className="text-3xl font-bold text-[var(--text-primary)]">{ analytics.progress }%</p>
+              <p className="text-xs text-[var(--text-secondary)]">{ analytics.done } completadas / { analytics.total } tareas</p>
               <div className="mt-3 h-2 rounded-full bg-[var(--bg-primary)] overflow-hidden">
-                <div className="h-full bg-[var(--accent-primary)] transition-all" style={{ width: `${analytics.progress}%` }} />
+                <div className="h-full bg-[var(--accent-primary)] transition-all" style={ { width: `${analytics.progress}%` } } />
               </div>
             </CardContent>
           </Card>
@@ -464,24 +503,24 @@ export const AnalyticsView: React.FC = () => {
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold text-[var(--text-primary)]">
-                {analytics.onTimeRate === null ? 'Sin datos' : `${analytics.onTimeRate}%`}
+                { analytics.onTimeRate === null ? 'Sin datos' : `${analytics.onTimeRate}%` }
               </p>
               <p className="text-xs text-[var(--text-secondary)] mb-3">
-                {analytics.estimatedDoneCount
+                { analytics.estimatedDoneCount
                   ? `${analytics.onTimeCount} en plazo / ${analytics.lateCount} con retraso`
-                  : 'No hay tareas cerradas con fecha estimada'}
+                  : 'No hay tareas cerradas con fecha estimada' }
               </p>
               <span
                 className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold border"
-                style={getToneStyles(onTimeTone)}
+                style={ getToneStyles(onTimeTone) }
               >
-                {analytics.onTimeRate === null
+                { analytics.onTimeRate === null
                   ? 'Sin referencia'
                   : analytics.onTimeRate >= 80
                     ? 'Saludable'
                     : analytics.onTimeRate >= 60
                       ? 'A vigilar'
-                      : 'Riesgo alto'}
+                      : 'Riesgo alto' }
               </span>
             </CardContent>
           </Card>
@@ -493,16 +532,16 @@ export const AnalyticsView: React.FC = () => {
             </CardHeader>
             <CardContent>
               <p className="text-xl font-semibold text-[var(--text-primary)]">
-                Promedio: {analytics.avgDurationMs === null ? 'Sin datos' : formatDuration(analytics.avgDurationMs)}
+                Promedio: { analytics.avgDurationMs === null ? 'Sin datos' : formatDuration(analytics.avgDurationMs) }
               </p>
               <p className="text-xs text-[var(--text-secondary)]">
-                Mediana: {analytics.medianDurationMs === null ? 'Sin datos' : formatDuration(analytics.medianDurationMs)}
+                Mediana: { analytics.medianDurationMs === null ? 'Sin datos' : formatDuration(analytics.medianDurationMs) }
               </p>
               <p className="text-xs text-[var(--text-secondary)]">
-                Desvio estimado: {analytics.avgEstimateDeltaMs === null ? 'Sin datos' : formatDelta(analytics.avgEstimateDeltaMs)}
+                Desvio estimado: { analytics.avgEstimateDeltaMs === null ? 'Sin datos' : formatDelta(analytics.avgEstimateDeltaMs) }
               </p>
               <p className="text-xs text-[var(--text-secondary)]">
-                En plazo: {analytics.estimatedDoneCount ? `${analytics.onTimeCount}/${analytics.estimatedDoneCount}` : 'Sin datos'}
+                En plazo: { analytics.estimatedDoneCount ? `${analytics.onTimeCount}/${analytics.estimatedDoneCount}` : 'Sin datos' }
               </p>
             </CardContent>
           </Card>
@@ -515,20 +554,20 @@ export const AnalyticsView: React.FC = () => {
             <CardContent className="text-sm text-[var(--text-secondary)] space-y-1">
               <div className="h-2 rounded-full bg-[var(--bg-primary)] overflow-hidden mb-3">
                 <div className="h-full flex">
-                  <div className="bg-[var(--accent-primary)]" style={{ width: `${todoPct}%` }} />
-                  <div className="bg-[var(--accent-warning)]" style={{ width: `${inProgressPct}%` }} />
-                  <div className="bg-[var(--accent-success)]" style={{ width: `${donePct}%` }} />
+                  <div className="bg-[var(--accent-primary)]" style={ { width: `${todoPct}%` } } />
+                  <div className="bg-[var(--accent-warning)]" style={ { width: `${inProgressPct}%` } } />
+                  <div className="bg-[var(--accent-success)]" style={ { width: `${donePct}%` } } />
                 </div>
               </div>
-              <div>Por hacer: <span className="text-[var(--text-primary)] font-medium">{analytics.todo}</span></div>
-              <div>En progreso: <span className="text-[var(--text-primary)] font-medium">{analytics.inProgress}</span></div>
-              <div>Completadas: <span className="text-[var(--text-primary)] font-medium">{analytics.done}</span></div>
-              <div>Sin asignar: <span className="text-[var(--text-primary)] font-medium">{analytics.unassigned}</span></div>
+              <div>Por hacer: <span className="text-[var(--text-primary)] font-medium">{ analytics.todo }</span></div>
+              <div>En progreso: <span className="text-[var(--text-primary)] font-medium">{ analytics.inProgress }</span></div>
+              <div>Completadas: <span className="text-[var(--text-primary)] font-medium">{ analytics.done }</span></div>
+              <div>Sin asignar: <span className="text-[var(--text-primary)] font-medium">{ analytics.unassigned }</span></div>
             </CardContent>
           </Card>
         </div>
 
-        {analytics.phaseBreakdown.length > 0 && (
+        { analytics.phaseBreakdown.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Estado por fase</CardTitle>
@@ -536,34 +575,34 @@ export const AnalyticsView: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {analytics.phaseBreakdown.map((phase) => (
-                  <div key={phase.id} className="bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
+                { analytics.phaseBreakdown.map((phase) => (
+                  <div key={ phase.id } className="bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium text-[var(--text-primary)]">{phase.name}</p>
-                      <span className="text-xs text-[var(--text-secondary)]">{phase.progress}%</span>
+                      <p className="text-sm font-medium text-[var(--text-primary)]">{ phase.name }</p>
+                      <span className="text-xs text-[var(--text-secondary)]">{ phase.progress }%</span>
                     </div>
                     <div className="h-2 rounded-full bg-[var(--bg-primary)] overflow-hidden">
                       <div
                         className="h-full bg-[var(--accent-primary)] transition-all"
-                        style={{ width: `${phase.progress}%` }}
+                        style={ { width: `${phase.progress}%` } }
                       />
                     </div>
                     <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
-                      <span>Hechas: {phase.done}</span>
-                      <span>En progreso: {phase.inProgress}</span>
-                      <span>Pendientes: {phase.todo}</span>
+                      <span>Hechas: { phase.done }</span>
+                      <span>En progreso: { phase.inProgress }</span>
+                      <span>Pendientes: { phase.todo }</span>
                     </div>
                   </div>
-                ))}
+                )) }
               </div>
-              {analytics.phaseUnassigned > 0 && (
+              { analytics.phaseUnassigned > 0 && (
                 <p className="mt-3 text-xs text-[var(--text-secondary)]">
-                  Tareas sin fase: {analytics.phaseUnassigned}
+                  Tareas sin fase: { analytics.phaseUnassigned }
                 </p>
-              )}
+              ) }
             </CardContent>
           </Card>
-        )}
+        ) }
 
         <Card>
           <CardHeader>
@@ -571,11 +610,11 @@ export const AnalyticsView: React.FC = () => {
             <CardDescription>Comparacion para tareas completadas</CardDescription>
           </CardHeader>
           <CardContent>
-            {analytics.estimateComparisons.length === 0 ? (
+            { analytics.estimateComparisons.length === 0 ? (
               <p className="text-sm text-[var(--text-secondary)]">Sin datos para comparar.</p>
             ) : (
               <div className="space-y-2">
-                {analytics.estimateComparisons.map((task) => {
+                { analytics.estimateComparisons.map((task) => {
                   const estimatedAt = formatLocalDate(task.done_estimated_at);
                   const doneAt = formatLocalDate(task.done_at);
                   const estimatedAtDate = parseDateValue(task.done_estimated_at);
@@ -585,25 +624,25 @@ export const AnalyticsView: React.FC = () => {
                     : 0;
                   const isLate = deltaMs > 0;
                   return (
-                    <div key={task.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
+                    <div key={ task.id } className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
                       <div>
-                        <p className="text-sm font-medium text-[var(--text-primary)]">{task.title}</p>
-                        <p className="text-xs text-[var(--text-secondary)]">Estimado: {estimatedAt} | Real: {doneAt}</p>
+                        <p className="text-sm font-medium text-[var(--text-primary)]">{ task.title }</p>
+                        <p className="text-xs text-[var(--text-secondary)]">Estimado: { estimatedAt } | Real: { doneAt }</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <span
                           className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
-                          style={getToneStyles(isLate ? 'danger' : 'success')}
+                          style={ getToneStyles(isLate ? 'danger' : 'success') }
                         >
-                          {isLate ? 'Retraso' : 'En plazo'}
+                          { isLate ? 'Retraso' : 'En plazo' }
                         </span>
-                        <span className="text-xs font-semibold text-[var(--accent-primary)]">Delta: {formatDelta(deltaMs)}</span>
+                        <span className="text-xs font-semibold text-[var(--accent-primary)]">Delta: { formatDelta(deltaMs) }</span>
                       </div>
                     </div>
                   );
-                })}
+                }) }
               </div>
-            )}
+            ) }
           </CardContent>
         </Card>
 
@@ -618,8 +657,8 @@ export const AnalyticsView: React.FC = () => {
                 <label className="text-xs text-[var(--text-secondary)]">Filtro</label>
                 <select
                   className="text-xs bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-md px-2 py-1 text-[var(--text-primary)]"
-                  value={memberTaskFilter}
-                  onChange={(event) => setMemberTaskFilter(event.target.value as typeof memberTaskFilter)}
+                  value={ memberTaskFilter }
+                  onChange={ (event) => setMemberTaskFilter(event.target.value as typeof memberTaskFilter) }
                 >
                   <option value="all">Todas</option>
                   <option value="todo">Por hacer</option>
@@ -632,8 +671,8 @@ export const AnalyticsView: React.FC = () => {
                 <label className="text-xs text-[var(--text-secondary)]">Orden</label>
                 <select
                   className="text-xs bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-md px-2 py-1 text-[var(--text-primary)]"
-                  value={memberTaskSort}
-                  onChange={(event) => setMemberTaskSort(event.target.value as typeof memberTaskSort)}
+                  value={ memberTaskSort }
+                  onChange={ (event) => setMemberTaskSort(event.target.value as typeof memberTaskSort) }
                 >
                   <option value="estimated">Fecha estimada</option>
                   <option value="status">Estado</option>
@@ -642,7 +681,7 @@ export const AnalyticsView: React.FC = () => {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {members.map((m) => {
+              { members.map((m) => {
                 const memberUser = m.user;
                 const name = memberUser?.name || memberUser?.email || 'Sin nombre';
                 const count = analytics.tasksByMember[m.user_id] || 0;
@@ -661,16 +700,16 @@ export const AnalyticsView: React.FC = () => {
                   return getSortDateValue(a) - getSortDateValue(b);
                 });
                 return (
-                  <div key={m.user_id} className="bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
+                  <div key={ m.user_id } className="bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-[var(--text-primary)]">{name}</p>
-                        <p className="text-xs text-[var(--text-secondary)]">{m.role}</p>
+                        <p className="text-sm font-medium text-[var(--text-primary)]">{ name }</p>
+                        <p className="text-xs text-[var(--text-secondary)]">{ m.role }</p>
                       </div>
-                      <span className="text-sm font-semibold text-[var(--accent-primary)]">{count}</span>
+                      <span className="text-sm font-semibold text-[var(--accent-primary)]">{ count }</span>
                     </div>
                     <div className="mt-2 space-y-2">
-                      {sortedTasks.length === 0 ? (
+                      { sortedTasks.length === 0 ? (
                         <p className="text-xs text-[var(--text-secondary)]">Sin tareas asignadas.</p>
                       ) : (
                         sortedTasks.map((task) => {
@@ -682,30 +721,30 @@ export const AnalyticsView: React.FC = () => {
                             : 'Sin fecha';
                           const overdue = isOverdue(task);
                           return (
-                            <div key={task.id} className="text-xs text-[var(--text-secondary)] border-t border-[var(--text-secondary)]/10 pt-2">
-                              <p className="text-sm text-[var(--text-primary)]">{task.title}</p>
+                            <div key={ task.id } className="text-xs text-[var(--text-secondary)] border-t border-[var(--text-secondary)]/10 pt-2">
+                              <p className="text-sm text-[var(--text-primary)]">{ task.title }</p>
                               <p>
-                                Estado: {task.status}
-                                {overdue && (
+                                Estado: { task.status }
+                                { overdue && (
                                   <span
                                     className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full border"
-                                    style={getToneStyles('danger')}
+                                    style={ getToneStyles('danger') }
                                   >
                                     Vencida
                                   </span>
-                                )}
+                                ) }
                               </p>
-                              {task.status === 'done'
-                                ? <p>Cerrado: {doneText}</p>
-                                : <p>Cierre estimado: {estimatedText}</p>}
+                              { task.status === 'done'
+                                ? <p>Cerrado: { doneText }</p>
+                                : <p>Cierre estimado: { estimatedText }</p> }
                             </div>
                           );
                         })
-                      )}
+                      ) }
                     </div>
                   </div>
                 );
-              })}
+              }) }
             </div>
           </CardContent>
         </Card>
@@ -717,18 +756,18 @@ export const AnalyticsView: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2 mb-3">
-              <Button variant="secondary" onClick={() => refetchInsights()} disabled={aiLoading}>
-                {aiLoading
+              <Button variant="secondary" onClick={ () => refetchInsights() } disabled={ aiLoading }>
+                { aiLoading
                   ? 'Generando...'
-                  : (aiInsights?.summary ? 'Actualizar insights' : 'Generar insights')}
+                  : (aiInsights?.summary ? 'Actualizar insights' : 'Generar insights') }
               </Button>
             </div>
             <div className="text-sm text-[var(--text-secondary)]">
-              {aiInsights?.summary ? (
-                <MessageContent content={aiInsights.summary} />
+              { aiInsights?.summary ? (
+                <MessageContent content={ aiInsights.summary } />
               ) : (
                 'Genera un resumen para ver recomendaciones.'
-              )}
+              ) }
             </div>
           </CardContent>
         </Card>

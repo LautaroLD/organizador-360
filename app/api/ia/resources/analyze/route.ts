@@ -2,10 +2,11 @@ import { ai } from '@/lib/gemini';
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
+import { AICreditError, consumeAICredits } from '@/lib/aiCredits';
 
 export async function POST(req: NextRequest) {
   try {
-    const { resourceId } = await req.json();
+    const { resourceId, requestId } = await req.json();
 
     if (!resourceId) {
       return NextResponse.json(
@@ -54,6 +55,21 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+
+    // Nivel 2: análisis de documento/recurso
+    await consumeAICredits(supabase, {
+      userId: user.id,
+      action: 'resource_analyze',
+      projectId: resource.project_id ?? null,
+      idempotencyKey:
+        typeof requestId === 'string' && requestId
+          ? requestId
+          : crypto.randomUUID(),
+      metadata: {
+        endpoint: '/api/ia/resources/analyze',
+        resourceId,
+      },
+    });
 
     // 2. Descargar el archivo
     // Asumimos que la URL es accesible (publicUrl). Si no, usaríamos supabase.storage.download
@@ -107,6 +123,23 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ summary });
   } catch (error) {
+    if (error instanceof AICreditError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          creditStatus: error.details
+            ? {
+                remaining: error.details.remaining,
+                required: error.details.cost,
+                quota: error.details.quota,
+              }
+            : undefined,
+        },
+        { status: error.status },
+      );
+    }
+
     console.error('Error analyzing resource:', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

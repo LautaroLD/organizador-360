@@ -62,6 +62,16 @@ interface PlanContextResponse {
   expires_at?: string | null;
 }
 
+interface AICreditStatusResponse {
+  can_use_ai: boolean;
+  plan_tier: string;
+  quota: number;
+  used: number;
+  remaining: number;
+  cycle_start: string | null;
+  cycle_end: string | null;
+}
+
 export const SubscriptionView: React.FC = () => {
   const supabase = createClient();
   const { user } = useAuthStore();
@@ -123,6 +133,23 @@ export const SubscriptionView: React.FC = () => {
     },
     enabled: !!user?.id && !!subscription?.mercadopago_subscription_id,
     staleTime: 60000, // Cache for 1 minute
+  });
+
+  const { data: aiCredits, isLoading: aiCreditsLoading } = useQuery({
+    queryKey: ['ai-credits', user?.id],
+    queryFn: async () => {
+      const response = await fetch('/api/ia/credits', {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return (await response.json()) as AICreditStatusResponse;
+    },
+    enabled: !!user?.id,
+    staleTime: 30000,
   });
 
   const mpDetails = mpData?.details;
@@ -392,6 +419,69 @@ export const SubscriptionView: React.FC = () => {
                 ) }
               </div>
             </div>
+          </CardContent>
+        </Card>
+      ) }
+
+      {/* Estado de créditos IA */ }
+      { (currentPlanTier === 'pro' || currentPlanTier === 'enterprise') && (
+        <Card className='mb-8 border-[var(--accent-primary)]/30'>
+          <CardHeader>
+            <CardTitle className='flex items-center gap-2'>
+              <Star className='h-5 w-5 text-[var(--accent-primary)]' />
+              Créditos IA
+            </CardTitle>
+            <CardDescription>
+              Tu cupo mensual se renueva con la renovación de tu suscripción. Los créditos no usados no se acumulan.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            { aiCreditsLoading ? (
+              <p className='text-sm text-[var(--text-secondary)]'>Cargando créditos IA...</p>
+            ) : aiCredits?.can_use_ai ? (
+              <div className='space-y-3'>
+                <div className='grid grid-cols-1 md:grid-cols-3 gap-4 text-sm'>
+                  <div className='rounded-lg border border-[var(--border-primary)] p-3 bg-[var(--bg-secondary)]/40'>
+                    <div className='text-[var(--text-secondary)]'>Disponibles</div>
+                    <div className='text-2xl font-bold text-[var(--accent-primary)]'>
+                      { aiCredits.remaining }
+                    </div>
+                  </div>
+                  <div className='rounded-lg border border-[var(--border-primary)] p-3 bg-[var(--bg-secondary)]/40'>
+                    <div className='text-[var(--text-secondary)]'>Usados</div>
+                    <div className='text-2xl font-semibold text-[var(--text-primary)]'>
+                      { aiCredits.used }
+                    </div>
+                  </div>
+                  <div className='rounded-lg border border-[var(--border-primary)] p-3 bg-[var(--bg-secondary)]/40'>
+                    <div className='text-[var(--text-secondary)]'>Cupo mensual</div>
+                    <div className='text-2xl font-semibold text-[var(--text-primary)]'>
+                      { aiCredits.quota }
+                    </div>
+                  </div>
+                </div>
+
+                <div className='w-full h-2 rounded-full bg-[var(--bg-secondary)] overflow-hidden'>
+                  <div
+                    className='h-full bg-[var(--accent-primary)] transition-all'
+                    style={ { width: `${Math.min(100, Math.max(0, aiCredits.quota > 0 ? (aiCredits.used / aiCredits.quota) * 100 : 0))}%` } }
+                  />
+                </div>
+
+                <div className='flex flex-wrap gap-x-6 gap-y-2 text-xs text-[var(--text-secondary)]'>
+                  <span>
+                    Renovación: { aiCredits.cycle_end ? formatDate(aiCredits.cycle_end) : 'N/A' }
+                  </span>
+                  <span>
+                    Inicio ciclo: { aiCredits.cycle_start ? formatDate(aiCredits.cycle_start) : 'N/A' }
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className='text-sm text-[var(--text-secondary)]'>
+                Los créditos IA estarán disponibles cuando tu plan Pro esté activo.
+              </p>
+            ) }
           </CardContent>
         </Card>
       ) }

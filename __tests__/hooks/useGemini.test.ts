@@ -1,6 +1,6 @@
 /**
  * Tests para el hook useGemini
- * 
+ *
  * Verifica la funcionalidad de generación de descripciones y sugerencias de tareas con IA
  */
 
@@ -58,17 +58,18 @@ describe('useGemini', () => {
         });
       });
 
-      expect(global.fetch).toHaveBeenCalledWith('/api/ia/task/description', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          project: mockCurrentProject,
-          title_task: 'Test Task',
-          current_checklist: [],
-        }),
+      expect(global.fetch).toHaveBeenCalled();
+      const [url, options] = (global.fetch as jest.Mock).mock.calls[0];
+      expect(url).toBe('/api/ia/task/description');
+      expect(options.method).toBe('POST');
+      expect(options.headers).toEqual({ 'Content-Type': 'application/json' });
+      const body = JSON.parse(options.body as string);
+      expect(body).toMatchObject({
+        project: mockCurrentProject,
+        title_task: 'Test Task',
+        current_checklist: [],
       });
+      expect(typeof body.requestId).toBe('string');
 
       expect(response).toBe(mockResponse.message);
     });
@@ -99,17 +100,16 @@ describe('useGemini', () => {
         });
       });
 
-      expect(global.fetch).toHaveBeenCalledWith('/api/ia/task/description', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          project: mockCurrentProject,
-          title_task: 'Task with checklist',
-          current_checklist: currentChecklist,
-        }),
+      expect(global.fetch).toHaveBeenCalled();
+      const [url, options] = (global.fetch as jest.Mock).mock.calls[0];
+      expect(url).toBe('/api/ia/task/description');
+      const body = JSON.parse(options.body as string);
+      expect(body).toMatchObject({
+        project: mockCurrentProject,
+        title_task: 'Task with checklist',
+        current_checklist: currentChecklist,
       });
+      expect(typeof body.requestId).toBe('string');
     });
 
     it('debería lanzar error si la API falla', async () => {
@@ -121,7 +121,7 @@ describe('useGemini', () => {
       await expect(
         result.current.generateTaskDescription({
           title_task: 'Test Task',
-        })
+        }),
       ).rejects.toThrow('Network error');
     });
   });
@@ -152,16 +152,16 @@ describe('useGemini', () => {
         });
       });
 
-      expect(global.fetch).toHaveBeenCalledWith('/api/ia/task/suggestions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          project: mockCurrentProject,
-          currentTasks,
-        }),
+      expect(global.fetch).toHaveBeenCalled();
+      const [url, options] = (global.fetch as jest.Mock).mock.calls[0];
+      expect(url).toBe('/api/ia/task/suggestions');
+      expect(options.method).toBe('POST');
+      const body = JSON.parse(options.body as string);
+      expect(body).toMatchObject({
+        project: mockCurrentProject,
+        currentTasks,
       });
+      expect(typeof body.requestId).toBe('string');
 
       expect(response).toBe(mockResponse.suggestions);
     });
@@ -197,7 +197,7 @@ describe('useGemini', () => {
       await expect(
         result.current.generateSuggestedTasks({
           currentTasks: { todo: [], 'in-progress': [], done: [] },
-        })
+        }),
       ).rejects.toThrow('API error');
     });
   });
