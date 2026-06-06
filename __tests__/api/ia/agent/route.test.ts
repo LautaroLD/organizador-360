@@ -47,6 +47,23 @@ describe('API Route: /api/ia/agent', () => {
       order: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
       single: jest.fn(),
+      rpc: jest.fn().mockResolvedValue({
+        data: {
+          ok: true,
+          charged: true,
+          idempotent_replay: false,
+          idempotency_key: 'test-request-id',
+          action: 'agent_message',
+          cost: 1,
+          reason: null,
+          remaining: 249,
+          used: 1,
+          quota: 250,
+          cycle_start: null,
+          cycle_end: null,
+        },
+        error: null,
+      }),
     };
 
     (createClient as jest.Mock).mockResolvedValue(mockSupabase);

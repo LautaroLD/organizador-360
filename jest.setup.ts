@@ -7,10 +7,25 @@ if (!global.fetch) {
 import '@testing-library/jest-dom';
 import React from 'react';
 import { TextEncoder, TextDecoder } from 'util';
+import { randomUUID } from 'crypto';
 
 global.TextEncoder = TextEncoder;
 // @ts-expect-error Global type mismatch for TextDecoder
 global.TextDecoder = TextDecoder;
+
+if (!global.crypto) {
+  Object.defineProperty(global, 'crypto', {
+    value: {},
+    writable: true,
+  });
+}
+
+if (!global.crypto.randomUUID) {
+  Object.defineProperty(global.crypto, 'randomUUID', {
+    value: randomUUID,
+    configurable: true,
+  });
+}
 
 // Polyfill Request/Response para tests de API y Next.js
 if (typeof Request === 'undefined') {

@@ -51,14 +51,19 @@ describe('useAgent Hook', () => {
     expect(result.current.loading).toBe(false);
     expect(result.current.response).toBe('Respuesta del agente');
     expect(answer).toBe('Respuesta del agente');
-    expect(global.fetch).toHaveBeenCalledWith('/api/ia/agent', expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({
-        message: 'Hola agente',
-        history: undefined,
-        projectId: 'project-123',
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/ia/agent',
+      expect.objectContaining({
+        method: 'POST',
       }),
-    }));
+    );
+
+    const [, fetchOptions] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(JSON.parse(fetchOptions.body)).toEqual({
+      message: 'Hola agente',
+      projectId: 'project-123',
+      requestId: expect.any(String),
+    });
   });
 
   it('debe manejar errores en la consulta', async () => {

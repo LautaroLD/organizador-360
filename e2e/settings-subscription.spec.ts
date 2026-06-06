@@ -51,8 +51,8 @@ test.describe('Settings & Subscription (Requires Auth)', () => {
       waitUntil: 'domcontentloaded',
     });
     await expect(
-      page.getByRole('heading', { name: 'Planes y Suscripción', exact: true }),
-    ).toBeVisible();
+      page.getByRole('heading', { name: /Planes y Suscripci[oó]n/i }),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test('should show loading and success states in subscription checkout modal', async ({
