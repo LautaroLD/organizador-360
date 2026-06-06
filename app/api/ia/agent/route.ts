@@ -2,6 +2,7 @@ import { ai } from '@/lib/gemini';
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
+import { AICreditError, consumeAICredits } from '@/lib/aiCredits';
 
 type AgentHistoryMessage = {
   role: 'assistant' | 'user';
@@ -60,7 +61,7 @@ type ChatMessage = {
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, history, projectId } = await req.json();
+    const { message, history, projectId, requestId } = await req.json();
 
     if (!projectId) {
       return NextResponse.json(
@@ -88,6 +89,20 @@ export async function POST(req: NextRequest) {
         { status: 403 },
       );
     }
+
+    // Nivel 3: 1 crédito por mensaje del asistente general
+    await consumeAICredits(supabase, {
+      userId: user.id,
+      action: 'agent_message',
+      projectId,
+      idempotencyKey:
+        typeof requestId === 'string' && requestId
+          ? requestId
+          : crypto.randomUUID(),
+      metadata: {
+        endpoint: '/api/ia/agent',
+      },
+    });
 
     // 1. Obtener datos básicos del proyecto
     const { data: project } = await supabase
@@ -273,6 +288,23 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof AICreditError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          creditStatus: error.details
+            ? {
+                remaining: error.details.remaining,
+                required: error.details.cost,
+                quota: error.details.quota,
+              }
+            : undefined,
+        },
+        { status: error.status },
+      );
+    }
+
     console.error('Error in AI agent:', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

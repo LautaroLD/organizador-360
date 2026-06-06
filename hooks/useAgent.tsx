@@ -11,13 +11,15 @@ export function useAgent() {
 
     setLoading(true);
     try {
+      const requestId = crypto.randomUUID();
       const res = await fetch('/api/ia/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message,
           history,
-          projectId: currentProject.id
+          projectId: currentProject.id,
+          requestId,
         }),
       });
 

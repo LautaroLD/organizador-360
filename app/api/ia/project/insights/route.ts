@@ -1,10 +1,11 @@
 import { ai } from '@/lib/gemini';
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { AICreditError, consumeAICredits } from '@/lib/aiCredits';
 
 export async function POST(req: NextRequest) {
   try {
-    const { projectId, phaseSummary } = await req.json();
+    const { projectId, phaseSummary, requestId } = await req.json();
 
     if (!projectId) {
       return NextResponse.json(
@@ -36,7 +37,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (member.role !== 'Owner' && member.role !== 'Admin') {
+    const normalizedRole = String(member.role ?? '').toLowerCase();
+    if (normalizedRole !== 'owner' && normalizedRole !== 'admin') {
       return NextResponse.json(
         { error: 'Solo Owner o Admin pueden acceder' },
         { status: 403 },
@@ -85,6 +87,20 @@ export async function POST(req: NextRequest) {
         { status: 403 },
       );
     }
+
+    // Nivel 2/3: análisis profundo del proyecto
+    await consumeAICredits(supabase, {
+      userId: user.id,
+      action: 'project_insights',
+      projectId,
+      idempotencyKey:
+        typeof requestId === 'string' && requestId
+          ? requestId
+          : crypto.randomUUID(),
+      metadata: {
+        endpoint: '/api/ia/project/insights',
+      },
+    });
 
     const [tasksRes, membersRes] = await Promise.all([
       supabase
@@ -290,6 +306,23 @@ Responde en español con:
 
     return NextResponse.json({ summary: response.text });
   } catch (error) {
+    if (error instanceof AICreditError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          creditStatus: error.details
+            ? {
+                remaining: error.details.remaining,
+                required: error.details.cost,
+                quota: error.details.quota,
+              }
+            : undefined,
+        },
+        { status: error.status },
+      );
+    }
+
     console.error('Error generating analytics insights:', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

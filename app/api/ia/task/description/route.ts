@@ -3,6 +3,7 @@ import { Project } from '@/models';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
+import { AICreditError, consumeAICredits } from '@/lib/aiCredits';
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,8 +30,28 @@ export async function POST(req: NextRequest) {
       project,
       title_task,
       current_checklist,
-    }: { project: Project; title_task: string; current_checklist?: unknown } =
-      await req.json();
+      requestId,
+    }: {
+      project: Project;
+      title_task: string;
+      current_checklist?: unknown;
+      requestId?: string;
+    } = await req.json();
+
+    // Nivel 1: acción simple de generación de descripción
+    await consumeAICredits(supabase, {
+      userId: user.id,
+      action: 'task_description',
+      projectId: project?.id ?? null,
+      idempotencyKey:
+        typeof requestId === 'string' && requestId
+          ? requestId
+          : crypto.randomUUID(),
+      metadata: {
+        endpoint: '/api/ia/task/description',
+      },
+    });
+
     const response = await ai.models.generateContent({
       model: 'gemini-3.1-flash-lite',
       contents: [
@@ -58,6 +79,23 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ message: response.text });
   } catch (error) {
+    if (error instanceof AICreditError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          creditStatus: error.details
+            ? {
+                remaining: error.details.remaining,
+                required: error.details.cost,
+                quota: error.details.quota,
+              }
+            : undefined,
+        },
+        { status: error.status },
+      );
+    }
+
     console.error('Error generating task description:', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
