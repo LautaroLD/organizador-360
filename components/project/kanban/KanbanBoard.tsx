@@ -161,8 +161,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
     useSensor(TouchSensor, {
       activationConstraint: {
         // Allow vertical scroll gestures before starting drag on mobile.
-        delay: 180,
-        tolerance: 10,
+        delay: 300,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -477,43 +477,43 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
 
             <div className="flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] text-[var(--text-secondary)]">
-                <ListTodo className="w-3 h-3" /> {boardOverview.visibleTotal} visibles
+                <ListTodo className="w-3 h-3" /> { boardOverview.visibleTotal } visibles
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] text-[var(--text-secondary)]">
-                <CircleCheckBig className="w-3 h-3 text-emerald-600" /> {boardOverview.progress}% completado
+                <CircleCheckBig className="w-3 h-3 text-emerald-600" /> { boardOverview.progress }% completado
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] text-[var(--text-secondary)]">
-                <CircleDashed className="w-3 h-3 text-amber-600" /> {boardOverview.visibleInProgress} en progreso
+                <CircleDashed className="w-3 h-3 text-amber-600" /> { boardOverview.visibleInProgress } en progreso
               </span>
-              {boardOverview.overdue > 0 && (
+              { boardOverview.overdue > 0 && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border border-red-500/30 bg-red-500/10 text-red-700">
-                  <ClockIcon className="w-3 h-3" /> {boardOverview.overdue} vencidas
+                  <ClockIcon className="w-3 h-3" /> { boardOverview.overdue } vencidas
                 </span>
-              )}
+              ) }
             </div>
 
-            {(roadmapPhases.length > 0 || epics.length > 0) && (
+            { (roadmapPhases.length > 0 || epics.length > 0) && (
               <div className="flex items-end gap-2 flex-wrap">
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] font-medium text-[var(--text-secondary)]">Filtrar por fase</label>
                   <select
-                    value={selectedPhaseId}
-                    onChange={(event) => {
+                    value={ selectedPhaseId }
+                    onChange={ (event) => {
                       const value = event.target.value;
                       if (value === 'all' || value === 'none') {
                         setSelectedPhaseId(value);
                         return;
                       }
                       setSelectedPhaseId(Number(value));
-                    }}
+                    } }
                     className="text-xs bg-[var(--bg-primary)] border border-[var(--text-secondary)]/30 rounded-md px-2.5 py-1.5 text-[var(--text-primary)] min-w-[150px]"
                   >
                     <option value="all">Todas</option>
-                    {roadmapPhases.map((phase) => (
-                      <option key={phase.id} value={phase.id}>
-                        {phase.name}
+                    { roadmapPhases.map((phase) => (
+                      <option key={ phase.id } value={ phase.id }>
+                        { phase.name }
                       </option>
-                    ))}
+                    )) }
                     <option value="none">Sin fase</option>
                   </select>
                 </div>
@@ -521,28 +521,28 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] font-medium text-[var(--text-secondary)]">Filtrar por epica</label>
                   <select
-                    value={selectedEpicId}
-                    onChange={(event) => {
+                    value={ selectedEpicId }
+                    onChange={ (event) => {
                       const value = event.target.value;
                       if (value === 'all' || value === 'none') {
                         setSelectedEpicId(value);
                         return;
                       }
                       setSelectedEpicId(value);
-                    }}
+                    } }
                     className="text-xs bg-[var(--bg-primary)] border border-[var(--text-secondary)]/30 rounded-md px-2.5 py-1.5 text-[var(--text-primary)] min-w-[150px]"
                   >
                     <option value="all">Todas</option>
-                    {epics.map((epic) => (
-                      <option key={epic.id} value={epic.id}>
-                        {epic.title}
+                    { epics.map((epic) => (
+                      <option key={ epic.id } value={ epic.id }>
+                        { epic.title }
                       </option>
-                    ))}
+                    )) }
                     <option value="none">Sin epica</option>
                   </select>
                 </div>
               </div>
-            )}
+            ) }
           </div>
 
           <div className='flex gap-2.5 items-center md:self-start'>
@@ -551,123 +551,124 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
                 size='sm'
                 variant='outline'
                 className='text-[var(--accent-primary)] border-[var(--accent-primary)]/30 bg-[var(--bg-primary)]'
-                onClick={() => generateSuggestions.mutate()}
-                disabled={generateSuggestions.isPending || !isPremium}
-                title={!isPremium ? 'Función disponible solo en Plan Pro' : ''}
+                onClick={ () => generateSuggestions.mutate() }
+                disabled={ generateSuggestions.isPending || !isPremium }
+                title={ !isPremium ? 'Función disponible solo en Plan Pro' : '' }
               >
                 <p className='hidden md:flex md:mr-2'>
-                  {generateSuggestions.isPending ? 'Generando...' : 'Sugerir tareas con IA'}
+                  { generateSuggestions.isPending ? 'Generando...' : 'Sugerir tareas con IA' }
                 </p>
-                {<Sparkles size={20} className={generateSuggestions.isPending ? 'animate-pulse' : ''} />}
+                { <Sparkles size={ 20 } className={ generateSuggestions.isPending ? 'animate-pulse' : '' } /> }
               </Button>
-              {!isPremium && (
+              { !isPremium && (
                 <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
                   <p>Función disponible solo en Plan Pro</p>
                 </div>
-              )}
+              ) }
             </div>
-            <Button size='sm' onClick={() => { setEditingTaskId(null); setIsModalOpen(true); }}>
-              <Plus size={20} />
+            <Button size='sm' onClick={ () => { setEditingTaskId(null); setIsModalOpen(true); } }>
+              <Plus size={ 20 } />
               <p className='hidden md:flex md:ml-1'>
                 Nueva Tarea
               </p>
             </Button>
-            <CreateRoadmap projectId={projectId} />
+            <CreateRoadmap projectId={ projectId } />
           </div>
         </div>
       </div>
 
-      {phaseStats.length > 0 && (
+      { phaseStats.length > 0 && (
         <div className="px-4 py-2 bg-[var(--bg-secondary)] border-b border-[var(--text-secondary)]/10">
-          <div hidden={!openPhaseStats} className="flex flex-nowrap overflow-x-auto py-1 gap-3">
-            {phaseStats.map((phase) => (
-              <div key={phase.id} className="min-w-[210px] max-w-[210px] px-2.5 py-2 rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] flex flex-col gap-1.5">
+          <div hidden={ !openPhaseStats } className="flex flex-nowrap overflow-x-auto py-1 gap-3">
+            { phaseStats.map((phase) => (
+              <div key={ phase.id } className="min-w-[210px] max-w-[210px] px-2.5 py-2 rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] flex flex-col gap-1.5">
                 <div className="flex items-center flex-wrap justify-between">
-                  <p className="text-sm font-medium text-[var(--text-primary)] text-ellipsis overflow-hidden whitespace-nowrap">{phase.name}</p>
-                  <span className="text-xs text-[var(--text-secondary)]">{phase.percent}%</span>
+                  <p className="text-sm font-medium text-[var(--text-primary)] text-ellipsis overflow-hidden whitespace-nowrap">{ phase.name }</p>
+                  <span className="text-xs text-[var(--text-secondary)]">{ phase.percent }%</span>
                 </div>
                 <div className="h-2 rounded-full bg-[var(--bg-primary)] overflow-hidden">
                   <div
                     className="h-full bg-[var(--accent-primary)] transition-all"
-                    style={{ width: `${phase.percent}%` }}
+                    style={ { width: `${phase.percent}%` } }
                   />
                 </div>
                 <div className="flex items-center h-auto mt-auto justify-between text-xs text-[var(--text-secondary)]">
-                  <span className='flex gap-1 items-center'><CheckCircleIcon size={13} /> {phase.doneCount}</span>
-                  <span className='flex gap-1 items-center'><ClockIcon size={13} /> {phase.pendingCount}</span>
+                  <span className='flex gap-1 items-center'><CheckCircleIcon size={ 13 } /> { phase.doneCount }</span>
+                  <span className='flex gap-1 items-center'><ClockIcon size={ 13 } /> { phase.pendingCount }</span>
                 </div>
               </div>
-            ))}
+            )) }
           </div>
           <button
-            onClick={() => setOpenPhaseStats(!openPhaseStats)}
+            onClick={ () => setOpenPhaseStats(!openPhaseStats) }
             className="mx-auto flex items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             type="button"
           >
-            {openPhaseStats ? 'Ocultar avance por fase' : 'Ver avance por fase'}
-            {openPhaseStats ? <ChevronUpIcon size={16} /> : <ChevronDownIcon size={16} />}
+            { openPhaseStats ? 'Ocultar avance por fase' : 'Ver avance por fase' }
+            { openPhaseStats ? <ChevronUpIcon size={ 16 } /> : <ChevronDownIcon size={ 16 } /> }
           </button>
         </div>
-      )}
+      ) }
 
       <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragCancel={handleDragCancel}
-        onDragEnd={handleDragEnd}
+        sensors={ sensors }
+        collisionDetection={ closestCorners }
+        onDragStart={ handleDragStart }
+        onDragOver={ handleDragOver }
+        onDragCancel={ handleDragCancel }
+        onDragEnd={ handleDragEnd }
+        autoScroll={ { enabled: true, acceleration: 300 } }
       >
-        <div className="flex-1 flex gap-4 overflow-x-auto overflow-y-hidden p-4 min-h-0 h-full bg-[var(--bg-primary)]">
+        <div className="flex-1 flex gap-4 overflow-x-auto p-4 min-h-0 h-full bg-[var(--bg-primary)]">
           <KanbanColumn
             id="todo"
             title="Por hacer"
-            tasks={columns.todo}
-            phaseLabels={phaseLabels}
-            epicLabels={epicLabels}
-            onEditTask={handleEditTask}
+            tasks={ columns.todo }
+            phaseLabels={ phaseLabels }
+            epicLabels={ epicLabels }
+            onEditTask={ handleEditTask }
           />
           <KanbanColumn
             id="in-progress"
             title="En progreso"
-            tasks={columns['in-progress']}
-            phaseLabels={phaseLabels}
-            epicLabels={epicLabels}
-            onEditTask={handleEditTask}
+            tasks={ columns['in-progress'] }
+            phaseLabels={ phaseLabels }
+            epicLabels={ epicLabels }
+            onEditTask={ handleEditTask }
           />
           <KanbanColumn
             id="done"
             title="Completado"
-            tasks={columns.done}
-            phaseLabels={phaseLabels}
-            epicLabels={epicLabels}
-            onEditTask={handleEditTask}
+            tasks={ columns.done }
+            phaseLabels={ phaseLabels }
+            epicLabels={ epicLabels }
+            onEditTask={ handleEditTask }
           />
         </div>
 
         <DragOverlay>
-          {activeTask ? (
+          { activeTask ? (
             <KanbanTaskCard
-              task={activeTask}
-              phaseLabel={activeTask.phase_roadmap_id ? phaseLabels[activeTask.phase_roadmap_id] : null}
-              epicLabel={activeTask.epic_id ? epicLabels[activeTask.epic_id] : null}
+              task={ activeTask }
+              phaseLabel={ activeTask.phase_roadmap_id ? phaseLabels[activeTask.phase_roadmap_id] : null }
+              epicLabel={ activeTask.epic_id ? epicLabels[activeTask.epic_id] : null }
             />
-          ) : null}
+          ) : null }
         </DragOverlay>
       </DndContext>
-      {suggestions.length > 0 && (
-        <SuggestionsModal addTask={handleCreateTask} suggestions={suggestions} onClose={() => setSuggestions([])} />
-      )}
-      {isModalOpen && (
+      { suggestions.length > 0 && (
+        <SuggestionsModal addTask={ handleCreateTask } suggestions={ suggestions } onClose={ () => setSuggestions([]) } />
+      ) }
+      { isModalOpen && (
         <TaskModal
-          isOpen={isModalOpen}
-          onClose={() => { setIsModalOpen(false); setEditingTaskId(null); }}
-          onSubmit={editingTask ? (data) => handleUpdateTask(editingTask.id, data) : handleCreateTask}
-          onDelete={editingTask ? () => handleDeleteTask(editingTask.id) : undefined}
-          initialData={editingTask}
-          projectId={projectId}
+          isOpen={ isModalOpen }
+          onClose={ () => { setIsModalOpen(false); setEditingTaskId(null); } }
+          onSubmit={ editingTask ? (data) => handleUpdateTask(editingTask.id, data) : handleCreateTask }
+          onDelete={ editingTask ? () => handleDeleteTask(editingTask.id) : undefined }
+          initialData={ editingTask }
+          projectId={ projectId }
         />
-      )}
+      ) }
     </div>
   );
 };
