@@ -30,8 +30,14 @@ const extractGoogleErrorDetails = (error: unknown) => {
   const err = error as GoogleApiError;
   const responseData = err?.response?.data;
 
+  // Extraer información útil de forma más robusta
+  const status =
+    err?.response?.status ||
+    (typeof err?.code === 'number' ? err?.code : null) ||
+    (typeof responseData?.code === 'number' ? responseData?.code : null);
+
   return {
-    status: err?.response?.status || err?.code || responseData?.code || null,
+    status,
     statusText: err?.response?.statusText || null,
     reason:
       responseData?.errors?.[0]?.reason || err?.errors?.[0]?.reason || null,
@@ -47,6 +53,15 @@ export class GoogleCalendarService {
   private oauth2Client: Auth.OAuth2Client;
 
   constructor(tokens: GoogleTokens) {
+    if (
+      !process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+      !process.env.GOOGLE_CLIENT_SECRET
+    ) {
+      throw new Error(
+        'Missing Google OAuth credentials in environment variables',
+      );
+    }
+
     this.oauth2Client = new google.auth.OAuth2(
       process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
@@ -55,14 +70,18 @@ export class GoogleCalendarService {
     this.oauth2Client.setCredentials(tokens);
   }
 
+  private getCalendar() {
+    return google.calendar({
+      version: 'v3',
+      auth: this.oauth2Client,
+    });
+  }
+
   // Crear evento en Google Calendar
   async createEvent(
     event: GoogleCalendarEvent,
   ): Promise<calendar_v3.Schema$Event> {
-    const calendar = google.calendar({
-      version: 'v3',
-      auth: this.oauth2Client,
-    });
+    const calendar = this.getCalendar();
 
     try {
       const response = await calendar.events.insert({
@@ -84,11 +103,7 @@ export class GoogleCalendarService {
     timeMin?: string,
     timeMax?: string,
   ): Promise<calendar_v3.Schema$Event[]> {
-    const calendar = google.calendar({
-      version: 'v3',
-      auth: this.oauth2Client,
-    });
-
+    const calendar = this.getCalendar();
     try {
       const response = await calendar.events.list({
         calendarId: 'primary',
@@ -108,15 +123,36 @@ export class GoogleCalendarService {
     }
   }
 
+  async findEventByPrivateProperty(
+    propertyName: string,
+    propertyValue: string,
+  ): Promise<calendar_v3.Schema$Event | null> {
+    const calendar = this.getCalendar();
+
+    try {
+      const response = await calendar.events.list({
+        calendarId: 'primary',
+        privateExtendedProperty: [`${propertyName}=${propertyValue}`],
+        maxResults: 10,
+        singleEvents: false,
+        showDeleted: false,
+      });
+      return response.data.items?.[0] || null;
+    } catch (error) {
+      console.error('Error al buscar evento de Google Calendar por metadata:', {
+        ...extractGoogleErrorDetails(error),
+        propertyName,
+      });
+      throw error;
+    }
+  }
+
   // Actualizar evento en Google Calendar
   async updateEvent(
     eventId: string,
     event: GoogleCalendarEvent,
   ): Promise<calendar_v3.Schema$Event> {
-    const calendar = google.calendar({
-      version: 'v3',
-      auth: this.oauth2Client,
-    });
+    const calendar = this.getCalendar();
 
     try {
       const response = await calendar.events.update({
@@ -136,10 +172,7 @@ export class GoogleCalendarService {
 
   // Eliminar evento de Google Calendar
   async deleteEvent(eventId: string): Promise<void> {
-    const calendar = google.calendar({
-      version: 'v3',
-      auth: this.oauth2Client,
-    });
+    const calendar = this.getCalendar();
 
     try {
       await calendar.events.delete({
@@ -158,10 +191,7 @@ export class GoogleCalendarService {
   // Verificar si los tokens son válidos
   async verifyTokens(): Promise<boolean> {
     try {
-      const calendar = google.calendar({
-        version: 'v3',
-        auth: this.oauth2Client,
-      });
+      const calendar = this.getCalendar();
       await calendar.calendarList.list({ maxResults: 1 });
       return true;
     } catch (error) {
