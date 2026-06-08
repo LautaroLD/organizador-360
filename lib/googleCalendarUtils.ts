@@ -14,9 +14,16 @@ export interface GoogleCalendarEvent {
     timeZone: string;
   };
   recurrence?: string[];
+  extendedProperties?: {
+    private?: Record<string, string>;
+    shared?: Record<string, string>;
+  };
 }
 
 export interface AppEvent {
+  id?: string;
+  project_id?: string;
+  google_event_id?: string | null;
   title: string;
   description?: string;
   start_date: string;
@@ -29,6 +36,41 @@ export interface AppEvent {
   recurrence_rule?: string;
   selected_days?: string[];
   recurrence_end_date?: string;
+}
+
+export const GOOGLE_EVENT_PRIVATE_PROPERTIES = {
+  appEventId: 'veenzo_event_id',
+  projectId: 'veenzo_project_id',
+} as const;
+
+export function attachGoogleEventLinkMetadata(
+  googleEvent: GoogleCalendarEvent,
+  appEvent: Pick<AppEvent, 'id' | 'project_id'>,
+): GoogleCalendarEvent {
+  const privateProperties = {
+    ...(googleEvent.extendedProperties?.private || {}),
+  };
+
+  if (appEvent.id) {
+    privateProperties[GOOGLE_EVENT_PRIVATE_PROPERTIES.appEventId] = appEvent.id;
+  }
+
+  if (appEvent.project_id) {
+    privateProperties[GOOGLE_EVENT_PRIVATE_PROPERTIES.projectId] =
+      appEvent.project_id;
+  }
+
+  if (Object.keys(privateProperties).length === 0) {
+    return googleEvent;
+  }
+
+  return {
+    ...googleEvent,
+    extendedProperties: {
+      ...googleEvent.extendedProperties,
+      private: privateProperties,
+    },
+  };
 }
 
 // Formatear evento de la app para Google Calendar

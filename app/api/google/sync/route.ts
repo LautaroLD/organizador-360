@@ -1,7 +1,11 @@
 // API Routes para sincronización con Google Calendar
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleCalendarService } from '@/lib/googleCalendar';
-import { formatEventForGoogle } from '@/lib/googleCalendarUtils';
+import {
+  attachGoogleEventLinkMetadata,
+  formatEventForGoogle,
+  GOOGLE_EVENT_PRIVATE_PROPERTIES,
+} from '@/lib/googleCalendarUtils';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -40,9 +44,34 @@ type AuthSessionLike = {
 };
 
 interface SyncEventPayload {
+  id?: string;
+  project_id?: string;
+  google_event_id?: string | null;
   title: string;
   start_date: string;
   [key: string]: unknown;
+}
+
+type LocalEventLink = {
+  id: string;
+  project_id: string;
+  google_event_id: string | null;
+};
+
+type SyncGoogleAction = 'created' | 'updated' | 'linked' | 'skipped';
+
+type SyncGoogleResult = {
+  action: SyncGoogleAction;
+  data?: calendar_v3.Schema$Event;
+};
+
+class HttpError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
 }
 
 const normalizeTitle = (title: string) => title.trim().toLowerCase();
@@ -58,6 +87,48 @@ const getEventStartDate = (event: calendar_v3.Schema$Event): string | null => {
 
 const buildEventSignature = (title: string, startDate: string) => {
   return `${normalizeTitle(title)}|${startDate}`;
+};
+
+const getPayloadStartDate = (event: SyncEventPayload) => {
+  return event.start_date.split('T')[0] || event.start_date;
+};
+
+const findDuplicateGoogleEvent = (
+  existingEvents: calendar_v3.Schema$Event[],
+  event: SyncEventPayload,
+) => {
+  const eventSignature = buildEventSignature(
+    event.title,
+    getPayloadStartDate(event),
+  );
+
+  return (
+    existingEvents.find((googleEvent: calendar_v3.Schema$Event) => {
+      const title = googleEvent.summary;
+      const startDate = getEventStartDate(googleEvent);
+      if (!title || !startDate) return false;
+      return buildEventSignature(title, startDate) === eventSignature;
+    }) || null
+  );
+};
+
+const getGoogleErrorStatus = (error: unknown) => {
+  const err = error as {
+    code?: number;
+    response?: {
+      status?: number;
+      data?: {
+        code?: number;
+      };
+    };
+  };
+
+  return err?.response?.status || err?.response?.data?.code || err?.code || null;
+};
+
+const isGoogleNotFoundError = (error: unknown) => {
+  const status = getGoogleErrorStatus(error);
+  return status === 404 || status === 410;
 };
 
 const toGoogleTokens = (row: GoogleTokenRow): GoogleTokens => ({
@@ -155,12 +226,178 @@ const userHasProjectAccess = async (projectId: string, userId: string) => {
   return project.owner_id === userId || Boolean(membership);
 };
 
-const deleteMatchingEvents = async (
-  tokens: GoogleTokens,
-  eventTitle: string,
-  startDate: string,
+const getLocalEventLink = async (
+  event: SyncEventPayload,
+  userId: string,
+): Promise<LocalEventLink | null> => {
+  if (!event.id) {
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('events')
+    .select('id, project_id, google_event_id')
+    .eq('id', event.id)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) throw new HttpError(404, 'Evento local no encontrado');
+
+  const hasAccess = await userHasProjectAccess(data.project_id, userId);
+  if (!hasAccess) throw new HttpError(403, 'Forbidden');
+
+  return {
+    id: data.id,
+    project_id: data.project_id,
+    google_event_id: data.google_event_id,
+  };
+};
+
+const buildLinkedGoogleEvent = (
+  event: SyncEventPayload,
+  localEvent: LocalEventLink | null,
 ) => {
+  const linkedEvent = {
+    ...event,
+    id: localEvent?.id || event.id,
+    project_id: localEvent?.project_id || event.project_id,
+    google_event_id: localEvent?.google_event_id || event.google_event_id,
+  };
+
+  return attachGoogleEventLinkMetadata(
+    formatEventForGoogle(linkedEvent),
+    linkedEvent,
+  );
+};
+
+const persistGoogleEventId = async (
+  localEvent: LocalEventLink | null,
+  googleEventId?: string | null,
+) => {
+  if (!localEvent?.id || !googleEventId) return;
+  if (localEvent.google_event_id === googleEventId) return;
+
+  const { error } = await supabaseAdmin
+    .from('events')
+    .update({ google_event_id: googleEventId })
+    .eq('id', localEvent.id);
+
+  if (error) throw error;
+  localEvent.google_event_id = googleEventId;
+};
+
+const syncEventWithGoogle = async ({
+  calendarService,
+  event,
+  userId,
+  checkDuplicate,
+  existingEvents,
+}: {
+  calendarService: GoogleCalendarService;
+  event: SyncEventPayload;
+  userId: string;
+  checkDuplicate: boolean;
+  existingEvents?: calendar_v3.Schema$Event[];
+}): Promise<SyncGoogleResult> => {
+  const localEvent = await getLocalEventLink(event, userId);
+  const googleEvent = buildLinkedGoogleEvent(event, localEvent);
+  const linkedLocalEventId = localEvent?.id || event.id;
+  const knownGoogleEventId =
+    localEvent?.google_event_id || event.google_event_id || null;
+
+  if (knownGoogleEventId) {
+    try {
+      const updated = await calendarService.updateEvent(
+        knownGoogleEventId,
+        googleEvent,
+      );
+      await persistGoogleEventId(localEvent, updated.id || knownGoogleEventId);
+      return { action: 'updated', data: updated };
+    } catch (error) {
+      if (!isGoogleNotFoundError(error)) throw error;
+    }
+  }
+
+  if (linkedLocalEventId) {
+    const linkedGoogleEvent = await calendarService.findEventByPrivateProperty(
+      GOOGLE_EVENT_PRIVATE_PROPERTIES.appEventId,
+      linkedLocalEventId,
+    );
+
+    if (linkedGoogleEvent?.id) {
+      const updated = await calendarService.updateEvent(
+        linkedGoogleEvent.id,
+        googleEvent,
+      );
+      await persistGoogleEventId(localEvent, updated.id || linkedGoogleEvent.id);
+      return { action: 'updated', data: updated };
+    }
+  }
+
+  if (checkDuplicate) {
+    const candidateEvents =
+      existingEvents || (await calendarService.getEvents());
+    const duplicate = findDuplicateGoogleEvent(candidateEvents, event);
+
+    if (duplicate?.id) {
+      if (linkedLocalEventId) {
+        const updated = await calendarService.updateEvent(
+          duplicate.id,
+          googleEvent,
+        );
+        await persistGoogleEventId(localEvent, updated.id || duplicate.id);
+        return { action: 'linked', data: updated };
+      }
+
+      return { action: 'skipped', data: duplicate };
+    }
+  }
+
+  const created = await calendarService.createEvent(googleEvent);
+  await persistGoogleEventId(localEvent, created.id);
+  return { action: 'created', data: created };
+};
+
+const deleteGoogleEventForSource = async ({
+  tokens,
+  googleEventId,
+  eventId,
+  eventTitle,
+  startDate,
+}: {
+  tokens: GoogleTokens;
+  googleEventId?: string | null;
+  eventId?: string | null;
+  eventTitle?: string;
+  startDate?: string;
+}) => {
   const calendarService = new GoogleCalendarService(tokens);
+
+  if (googleEventId) {
+    try {
+      await calendarService.deleteEvent(googleEventId);
+      return 1;
+    } catch (error) {
+      if (!isGoogleNotFoundError(error)) throw error;
+    }
+  }
+
+  if (eventId) {
+    const linkedGoogleEvent = await calendarService.findEventByPrivateProperty(
+      GOOGLE_EVENT_PRIVATE_PROPERTIES.appEventId,
+      eventId,
+    );
+
+    if (linkedGoogleEvent?.id) {
+      await calendarService.deleteEvent(linkedGoogleEvent.id);
+      return 1;
+    }
+  }
+
+  if (!eventTitle || !startDate) {
+    return 0;
+  }
+
   const events = await calendarService.getEvents();
   const matchingEvents = events.filter(
     (event: calendar_v3.Schema$Event) =>
@@ -253,44 +490,40 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           created: 0,
+          updated: 0,
+          linked: 0,
           skipped: 0,
           errors: 0,
         });
       }
 
-      const existingSignatures = new Set<string>();
-      if (checkDuplicate) {
-        const existingEvents = await calendarService.getEvents();
-        existingEvents.forEach((googleEvent: calendar_v3.Schema$Event) => {
-          const title = googleEvent.summary;
-          const startDate = getEventStartDate(googleEvent);
-          if (!title || !startDate) return;
-          existingSignatures.add(buildEventSignature(title, startDate));
-        });
-      }
+      const existingEvents = checkDuplicate
+        ? await calendarService.getEvents()
+        : undefined;
 
       let created = 0;
+      let updated = 0;
+      let linked = 0;
       let skipped = 0;
       let errors = 0;
 
       for (const currentEvent of events) {
         try {
-          const signature = buildEventSignature(
-            currentEvent.title,
-            currentEvent.start_date,
-          );
+          const result = await syncEventWithGoogle({
+            calendarService,
+            event: currentEvent,
+            userId: user.id,
+            checkDuplicate,
+            existingEvents,
+          });
 
-          if (checkDuplicate && existingSignatures.has(signature)) {
-            skipped += 1;
-            continue;
-          }
+          if (result.action === 'created') created += 1;
+          if (result.action === 'updated') updated += 1;
+          if (result.action === 'linked') linked += 1;
+          if (result.action === 'skipped') skipped += 1;
 
-          const googleEvent = formatEventForGoogle(currentEvent);
-          await calendarService.createEvent(googleEvent);
-          created += 1;
-
-          if (checkDuplicate) {
-            existingSignatures.add(signature);
+          if (existingEvents && result.data) {
+            existingEvents.push(result.data);
           }
         } catch (batchError) {
           errors += 1;
@@ -302,6 +535,8 @@ export async function POST(request: NextRequest) {
         success: errors === 0,
         partial: errors > 0,
         created,
+        updated,
+        linked,
         skipped,
         errors,
       });
@@ -314,38 +549,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Sincronizacion individual
-    if (checkDuplicate) {
-      const existingEvents = await calendarService.getEvents();
-      const eventSignature = buildEventSignature(event.title, event.start_date);
+    const result = await syncEventWithGoogle({
+      calendarService,
+      event,
+      userId: user.id,
+      checkDuplicate,
+    });
 
-      const isDuplicate = existingEvents.some(
-        (googleEvent: calendar_v3.Schema$Event) => {
-          const title = googleEvent.summary;
-          const startDate = getEventStartDate(googleEvent);
-          if (!title || !startDate) return false;
-          return buildEventSignature(title, startDate) === eventSignature;
-        },
-      );
-
-      if (isDuplicate) {
-        return NextResponse.json({
-          success: true,
-          skipped: true,
-          message: 'Event already exists',
-        });
-      }
-    }
-
-    const googleEvent = formatEventForGoogle(event);
-    const result = await calendarService.createEvent(googleEvent);
-
-    return NextResponse.json({ success: true, data: result });
+    return NextResponse.json({
+      success: true,
+      skipped: result.action === 'skipped',
+      action: result.action,
+      google_event_id: result.data?.id || null,
+      data: result.data,
+    });
   } catch (error: unknown) {
     console.error('Error al sincronizar evento:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Error al sincronizar evento';
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    const status = error instanceof HttpError ? error.status : 500;
+    return NextResponse.json({ error: errorMessage }, { status });
   }
 }
 
@@ -393,15 +616,18 @@ export async function DELETE(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { eventTitle, startDate, projectId } = body as {
+    const { eventTitle, startDate, projectId, googleEventId, eventId } =
+      body as {
       eventTitle?: string;
       startDate?: string;
       projectId?: string;
+      googleEventId?: string | null;
+      eventId?: string | null;
     };
 
-    if (!eventTitle || !startDate) {
+    if (!googleEventId && !eventId && (!eventTitle || !startDate)) {
       return NextResponse.json(
-        { error: 'Missing eventTitle or startDate' },
+        { error: 'Missing googleEventId, eventId, or eventTitle/startDate' },
         { status: 400 },
       );
     }
@@ -449,11 +675,13 @@ export async function DELETE(request: NextRequest) {
     let totalDeleted = 0;
     for (const sourceTokens of tokenSources) {
       try {
-        totalDeleted += await deleteMatchingEvents(
-          sourceTokens,
+        totalDeleted += await deleteGoogleEventForSource({
+          tokens: sourceTokens,
+          googleEventId,
+          eventId,
           eventTitle,
           startDate,
-        );
+        });
       } catch (err) {
         // Continuar con los siguientes tokens aunque uno falle
         console.error('Error eliminando en una cuenta de Google:', err);

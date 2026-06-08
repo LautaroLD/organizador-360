@@ -6,12 +6,13 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuthStore } from '@/store/authStore';
 import { createClient } from '@/lib/supabase/client';
 import { clearLocalPushSubscription, deletePushSubscription } from '@/lib/webpush';
-import { Settings, LogOut, ChevronDown, Home } from 'lucide-react';
+import { Settings, LogOut, ChevronDown, Home, MessageSquare } from 'lucide-react';
 import { toast } from 'react-toastify';
 import Link from 'next/link';
 import clsx from 'clsx';
 import Image from 'next/image';
 import Logo from './Logo';
+import FeedbackModal from './FeedbackModal';
 
 interface HeaderProps {
   title?: string;
@@ -147,6 +148,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
                     <Settings className="h-4 w-4 text-[var(--text-secondary)]" />
                     <span>Configuración</span>
                   </Link>
+                  <FeedbackModal />
 
                 </div>
 

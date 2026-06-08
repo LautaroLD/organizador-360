@@ -29,6 +29,7 @@ interface EventFormData {
 
 interface Event {
   id: string;
+  google_event_id: string | null;
   title: string;
   description: string;
   start_date: string;
@@ -36,14 +37,19 @@ interface Event {
   project_id: string;
   created_by: string;
   recurrence_rule: string | null;
+  recurrence_days: string[] | null;
+  recurrence_end_date: string | null;
   is_recurring: boolean;
-  creator: {
+  creator?: {
     name: string;
     email: string;
   };
 }
 
 interface SyncPayloadEvent {
+  id?: string;
+  project_id?: string;
+  google_event_id?: string | null;
   title: string;
   description: string;
   start_date: string;
@@ -59,6 +65,8 @@ interface SyncPayloadEvent {
 
 interface SyncSummary {
   created: number;
+  updated: number;
+  linked: number;
   skipped: number;
   errors: number;
   at: string;
@@ -88,8 +96,14 @@ const toSyncPayloadEvent = (event: Event, userTimeZone: string): SyncPayloadEven
   const endParts = event.end_date.includes('T')
     ? event.end_date.split('T')
     : [event.end_date, '23:59:00'];
+  const recurrenceDays = Array.isArray(event.recurrence_days)
+    ? event.recurrence_days.filter((day): day is string => typeof day === 'string')
+    : [];
 
   return {
+    id: event.id,
+    project_id: event.project_id,
+    google_event_id: event.google_event_id,
     title: event.title,
     description: event.description || '',
     start_date: startParts[0],
@@ -98,6 +112,8 @@ const toSyncPayloadEvent = (event: Event, userTimeZone: string): SyncPayloadEven
     end_time: endParts[1].slice(0, 5),
     is_recurring: event.is_recurring || false,
     recurrence_rule: event.recurrence_rule,
+    selected_days: recurrenceDays,
+    recurrence_end_date: event.recurrence_end_date || undefined,
     timeZone: userTimeZone,
   };
 };
@@ -241,16 +257,28 @@ export const CalendarView: React.FC = () => {
       }
 
       const data = await response.json();
-      return { success: true, skipped: data.skipped || false };
+
+      return {
+        success: true,
+        skipped: data.skipped || false,
+        action: data.action,
+        googleEventId: data.google_event_id || data.data?.id || null,
+      };
     } catch (error) {
       console.error('Error al sincronizar con Google:', error);
-      return { success: false, skipped: false };
+      return { success: false, skipped: false, googleEventId: null };
     }
   };
 
   const syncEventsBatchToGoogle = async (eventsBatch: SyncPayloadEvent[], checkDuplicate = false) => {
     if (!activeTokens) {
-      return { created: 0, skipped: 0, errors: eventsBatch.length };
+      return {
+        created: 0,
+        updated: 0,
+        linked: 0,
+        skipped: 0,
+        errors: eventsBatch.length,
+      };
     }
 
     try {
@@ -273,12 +301,20 @@ export const CalendarView: React.FC = () => {
       const data = await response.json();
       return {
         created: data.created || 0,
+        updated: data.updated || 0,
+        linked: data.linked || 0,
         skipped: data.skipped || 0,
         errors: data.errors || 0,
       };
     } catch (error) {
       console.error('Error al sincronizar lote con Google:', error);
-      return { created: 0, skipped: 0, errors: eventsBatch.length };
+      return {
+        created: 0,
+        updated: 0,
+        linked: 0,
+        skipped: 0,
+        errors: eventsBatch.length,
+      };
     }
   };
 
@@ -303,6 +339,8 @@ export const CalendarView: React.FC = () => {
         body: JSON.stringify({
           tokens: activeTokens,
           projectId,
+          eventId: event.id,
+          googleEventId: event.google_event_id,
           eventTitle: event.title,
           startDate: startDate || event.start_date,
         }),
@@ -327,6 +365,8 @@ export const CalendarView: React.FC = () => {
     setSyncProgress({ current: 0, total: events.length });
     const loadingToast = toast.loading(`Sincronizando ${events.length} evento(s)...`);
     let createdCount = 0;
+    let updatedCount = 0;
+    let linkedCount = 0;
     let skippedCount = 0;
     let errorCount = 0;
 
@@ -337,6 +377,8 @@ export const CalendarView: React.FC = () => {
         const batch = payloadEvents.slice(index, index + SYNC_BATCH_SIZE);
         const result = await syncEventsBatchToGoogle(batch, true);
         createdCount += result.created;
+        updatedCount += result.updated;
+        linkedCount += result.linked;
         skippedCount += result.skipped;
         errorCount += result.errors;
 
@@ -346,13 +388,18 @@ export const CalendarView: React.FC = () => {
       toast.dismiss(loadingToast);
       setLastSyncSummary({
         created: createdCount,
+        updated: updatedCount,
+        linked: linkedCount,
         skipped: skippedCount,
         errors: errorCount,
         at: new Date().toISOString(),
       });
 
+      const syncedCount = createdCount + updatedCount + linkedCount;
+      createdCount = syncedCount;
+
       if (errorCount === 0 && skippedCount === 0) {
-        toast.success(`${createdCount} evento(s) sincronizado(s) exitosamente`);
+        toast.success(`${syncedCount} evento(s) sincronizado(s) exitosamente`);
       } else if (errorCount === 0) {
         toast.success(`${createdCount} sincronizados, ${skippedCount} ya existían`);
       } else {
@@ -392,10 +439,11 @@ export const CalendarView: React.FC = () => {
       }
 
       const events = generateRecurringEvents(data);
+      const createdEvents: Event[] = [];
 
       // Crear múltiples eventos si es recurrente
       for (const event of events) {
-        const { error } = await supabase
+        const { data: createdEvent, error } = await supabase
           .from('events')
           .insert({
             project_id: currentProject!.id,
@@ -408,12 +456,17 @@ export const CalendarView: React.FC = () => {
             recurrence_days: data.selected_days,
             recurrence_end_date: data.recurrence_end_date,
             created_by: user!.id,
-          });
+          })
+          .select('*')
+          .single();
 
         if (error) throw error;
+        if (createdEvent) createdEvents.push(createdEvent as Event);
       }
+
+      return createdEvents;
     },
-    onSuccess: async (_, variables) => {
+    onSuccess: async (createdEvents, variables) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       toast.success('Evento(s) creado(s) exitosamente');
 
@@ -425,11 +478,15 @@ export const CalendarView: React.FC = () => {
         if (variables.recurrence_type !== 'none' && generatedEvents.length > 0) {
           // Si es recurrente, solo sincronizamos el primer evento como una serie recurrente
           const event = generatedEvents[0];
+          const localEvent = createdEvents[0];
           const [startDate, startTime] = event.start.split('T');
           const [endDate, endTimeStr] = event.end.split('T');
           const endTime = endTimeStr.split(':').slice(0, 2).join(':'); // HH:MM
 
           const result = await syncEventToGoogle({
+            id: localEvent?.id,
+            project_id: localEvent?.project_id,
+            google_event_id: localEvent?.google_event_id,
             title: variables.title,
             description: variables.description,
             start_date: startDate,
@@ -448,13 +505,17 @@ export const CalendarView: React.FC = () => {
           }
         } else {
           // Si no es recurrente, sincronizamos individualmente
-          for (const event of generatedEvents) {
+          for (const [index, event] of generatedEvents.entries()) {
+            const localEvent = createdEvents[index];
             // Separar fecha y hora de los strings completos
             const [startDate, startTime] = event.start.split('T');
             const [endDate, endTimeStr] = event.end.split('T');
             const endTime = endTimeStr.split(':').slice(0, 2).join(':'); // HH:MM
 
             const result = await syncEventToGoogle({
+              id: localEvent?.id,
+              project_id: localEvent?.project_id,
+              google_event_id: localEvent?.google_event_id,
               title: variables.title,
               description: variables.description,
               start_date: startDate,
@@ -466,7 +527,6 @@ export const CalendarView: React.FC = () => {
               selected_days: [],
               timeZone: userTimeZone,
             });
-
             if (!result.success) {
               syncFailures += 1;
             }
@@ -476,6 +536,8 @@ export const CalendarView: React.FC = () => {
         if (syncFailures > 0) {
           toast.warning(`El evento se guardo en Veenzo, pero ${syncFailures} sincronizacion(es) con Google fallaron.`);
         }
+
+        queryClient.invalidateQueries({ queryKey: ['events'] });
       }
 
       setIsModalOpen(false);
@@ -745,7 +807,7 @@ export const CalendarView: React.FC = () => {
 
                   { lastSyncSummary && !isSyncing && (
                     <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
-                      Ultima sincronizacion: { lastSyncSummary.created } creados, { lastSyncSummary.skipped } omitidos, { lastSyncSummary.errors } errores.
+                      Ultima sincronizacion: { lastSyncSummary.created } creados, { lastSyncSummary.updated } actualizados, { lastSyncSummary.linked } vinculados, { lastSyncSummary.skipped } omitidos, { lastSyncSummary.errors } errores.
                     </p>
                   ) }
                 </div>
