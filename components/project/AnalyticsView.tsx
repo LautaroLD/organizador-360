@@ -120,7 +120,7 @@ export const AnalyticsView: React.FC = () => {
   const { currentProject } = useProjectStore();
   const [memberTaskFilter, setMemberTaskFilter] = useState<'all' | 'todo' | 'in-progress' | 'done' | 'overdue'>('all');
   const [memberTaskSort, setMemberTaskSort] = useState<'estimated' | 'status' | 'title'>('estimated');
-  const [showExplanation, setShowExplanation] = useState(true);
+  const [showExplanation, setShowExplanation] = useState(false);
 
   const normalizedRole = currentProject?.userRole?.toLowerCase();
   const canManage = normalizedRole === 'owner' || normalizedRole === 'admin';
