@@ -469,7 +469,7 @@ export const PlanningView: React.FC = () => {
               Verifica que la migracion de OKR y epicas este aplicada en Supabase.
             </p>
             <p className='text-xs text-red-500 mt-2 break-all'>
-              Detalle: {message}
+              Detalle: { message }
             </p>
           </CardContent>
         </Card>
@@ -504,28 +504,30 @@ export const PlanningView: React.FC = () => {
             Estructura sugerida: Objetivo - Resultado Clave - Epica - Tarea.
           </p>
         </div>
-        {canManage && (
-          <Button size='sm' onClick={openCreateObjective}>
-            <Plus size={14} className='mr-1' />
-            Nuevo objetivo
+        { canManage && (
+          <Button size='sm' onClick={ openCreateObjective }>
+            <Plus size={ 20 } />
+            <span className='hidden sm:inline ml-1'>
+              Nuevo objetivo
+            </span>
           </Button>
-        )}
+        ) }
       </div>
 
-      {objectives.length === 0 ? (
+      { objectives.length === 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>Sin objetivos aun</CardTitle>
           </CardHeader>
           <CardContent>
-            {canManage && (
+            { canManage && (
               <div className='mt-3'>
-                <Button size='sm' onClick={openCreateObjective}>
-                  <Plus size={14} className='mr-1' />
+                <Button size='sm' onClick={ openCreateObjective }>
+                  <Plus size={ 20 } className='mr-1' />
                   Crear primer objetivo
                 </Button>
               </div>
-            )}
+            ) }
           </CardContent>
         </Card>
       ) : (
@@ -543,183 +545,183 @@ export const PlanningView: React.FC = () => {
             : 'Sin fechas';
 
           return (
-            <Card key={objective.id}>
+            <Card key={ objective.id }>
               <CardHeader>
                 <div className='flex justify-between gap-2 items-start'>
-                  <CardTitle>{objective.title}</CardTitle>
-                  {canManage && (
+                  <CardTitle>{ objective.title }</CardTitle>
+                  { canManage && (
                     <div className='flex gap-2'>
-                      <Button size='sm' variant='ghost' onClick={() => openEditObjective(objective)}>
-                        <Pencil size={14} />
+                      <Button size='sm' variant='ghost' onClick={ () => openEditObjective(objective) }>
+                        <Pencil size={ 14 } />
                       </Button>
                       <Button
                         size='sm'
                         variant='danger'
-                        onClick={() => {
+                        onClick={ () => {
                           if (confirm('Se eliminara el objetivo junto con sus KR y epicas. Continuar?')) {
                             deleteObjective.mutate(objective.id);
                           }
-                        }}
+                        } }
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={ 14 } />
                       </Button>
                     </div>
-                  )}
+                  ) }
                 </div>
                 <p className='text-xs text-[var(--text-secondary)] uppercase'>
-                  Estado: {objectiveStatusLabels[objective.status]} | Ciclo: {objectiveCycleLabels[objective.cycle]}
+                  Estado: { objectiveStatusLabels[objective.status] } | Ciclo: { objectiveCycleLabels[objective.cycle] }
                 </p>
                 <div className='flex items-center gap-2 flex-wrap'>
                   <p className='text-xs text-[var(--text-secondary)] uppercase'>
-                    Fechas: {cycleDateText}
+                    Fechas: { cycleDateText }
                   </p>
-                  {isCycleOverdue && (
+                  { isCycleOverdue && (
                     <span className='text-[10px] px-2 py-0.5 rounded-full bg-red-500/15 text-red-500'>
                       Ciclo vencido
                     </span>
-                  )}
+                  ) }
                 </div>
-                {objective.description && (
-                  <p className='text-sm text-[var(--text-secondary)]'>{objective.description}</p>
-                )}
+                { objective.description && (
+                  <p className='text-sm text-[var(--text-secondary)]'>{ objective.description }</p>
+                ) }
               </CardHeader>
               <CardContent className='space-y-4'>
                 <div>
                   <div className='flex items-center justify-between mb-2'>
                     <h3 className='text-sm font-semibold text-[var(--text-primary)]'>Resultados Clave</h3>
-                    {canManage && (
-                      <Button size='sm' variant='secondary' onClick={() => openCreateKr(objective.id)}>
-                        <Plus size={14} className='mr-1' /> KR
+                    { canManage && (
+                      <Button size='sm' variant='secondary' onClick={ () => openCreateKr(objective.id) }>
+                        <Plus size={ 14 } className='mr-1' /> KR
                       </Button>
-                    )}
+                    ) }
                   </div>
-                  {objectiveKeyResults.length === 0 ? (
+                  { objectiveKeyResults.length === 0 ? (
                     <p className='text-sm text-[var(--text-secondary)]'>Sin resultados clave.</p>
                   ) : (
                     <div className='space-y-2'>
-                      {objectiveKeyResults.map((kr) => {
+                      { objectiveKeyResults.map((kr) => {
                         const progress = kr.target_value > 0
                           ? Math.min(100, Math.round((kr.current_value / kr.target_value) * 100))
                           : 0;
 
                         return (
-                          <div key={kr.id} className='rounded-md border border-[var(--text-secondary)]/20 p-3'>
+                          <div key={ kr.id } className='rounded-md border border-[var(--text-secondary)]/20 p-3'>
                             <div className='flex justify-between gap-2'>
-                              <p className='text-sm font-medium text-[var(--text-primary)]'>{kr.title}</p>
-                              {canManage && (
+                              <p className='text-sm font-medium text-[var(--text-primary)]'>{ kr.title }</p>
+                              { canManage && (
                                 <div className='flex gap-2'>
-                                  <Button size='sm' variant='ghost' onClick={() => openEditKr(kr)}>
-                                    <Pencil size={14} />
+                                  <Button size='sm' variant='ghost' onClick={ () => openEditKr(kr) }>
+                                    <Pencil size={ 14 } />
                                   </Button>
                                   <Button
                                     size='sm'
                                     variant='danger'
-                                    onClick={() => {
+                                    onClick={ () => {
                                       if (confirm('Eliminar este resultado clave?')) {
                                         deleteKr.mutate(kr.id);
                                       }
-                                    }}
+                                    } }
                                   >
-                                    <Trash2 size={14} />
+                                    <Trash2 size={ 14 } />
                                   </Button>
                                 </div>
-                              )}
+                              ) }
                             </div>
                             <p className='text-xs text-[var(--text-secondary)]'>
-                              {kr.current_value}/{kr.target_value} {kr.unit || ''} ({progress}%)
+                              { kr.current_value }/{ kr.target_value } { kr.unit || '' } ({ progress }%)
                             </p>
                             <p className='text-xs text-[var(--text-secondary)]'>
-                              Seguimiento: {krTrackingModeLabels[kr.tracking_mode]}
+                              Seguimiento: { krTrackingModeLabels[kr.tracking_mode] }
                             </p>
                             <div className='h-2 rounded-full bg-[var(--bg-primary)] overflow-hidden mt-2'>
-                              <div className='h-full bg-[var(--accent-primary)]' style={{ width: `${progress}%` }} />
+                              <div className='h-full bg-[var(--accent-primary)]' style={ { width: `${progress}%` } } />
                             </div>
                           </div>
                         );
-                      })}
+                      }) }
                     </div>
-                  )}
+                  ) }
                 </div>
 
                 <div>
                   <div className='flex items-center justify-between mb-2'>
                     <h3 className='text-sm font-semibold text-[var(--text-primary)]'>Epicas</h3>
-                    {canManage && (
-                      <Button size='sm' variant='secondary' onClick={() => openCreateEpic(objective.id)}>
-                        <Plus size={14} className='mr-1' /> Epica
+                    { canManage && (
+                      <Button size='sm' variant='secondary' onClick={ () => openCreateEpic(objective.id) }>
+                        <Plus size={ 14 } className='mr-1' /> Epica
                       </Button>
-                    )}
+                    ) }
                   </div>
-                  {objectiveEpics.length === 0 ? (
+                  { objectiveEpics.length === 0 ? (
                     <p className='text-sm text-[var(--text-secondary)]'>Sin epicas.</p>
                   ) : (
                     <div className='grid gap-2 md:grid-cols-2'>
-                      {objectiveEpics.map((epic) => {
+                      { objectiveEpics.map((epic) => {
                         const epicProgress = getEpicProgress(epic.id);
                         const linkedKr = keyResults.find((kr) => kr.id === epic.key_result_id);
                         return (
-                          <div key={epic.id} className='rounded-md border border-[var(--text-secondary)]/20 p-3'>
+                          <div key={ epic.id } className='rounded-md border border-[var(--text-secondary)]/20 p-3'>
                             <div className='flex justify-between gap-2'>
-                              <p className='text-sm font-medium text-[var(--text-primary)]'>{epic.title}</p>
-                              {canManage && (
+                              <p className='text-sm font-medium text-[var(--text-primary)]'>{ epic.title }</p>
+                              { canManage && (
                                 <div className='flex gap-2'>
-                                  <Button size='sm' variant='ghost' onClick={() => openEditEpic(epic)}>
-                                    <Pencil size={14} />
+                                  <Button size='sm' variant='ghost' onClick={ () => openEditEpic(epic) }>
+                                    <Pencil size={ 14 } />
                                   </Button>
                                   <Button
                                     size='sm'
                                     variant='danger'
-                                    onClick={() => {
+                                    onClick={ () => {
                                       if (confirm('Eliminar esta epica? Las tareas quedaran sin epica.')) {
                                         deleteEpic.mutate(epic.id);
                                       }
-                                    }}
+                                    } }
                                   >
-                                    <Trash2 size={14} />
+                                    <Trash2 size={ 14 } />
                                   </Button>
                                 </div>
-                              )}
+                              ) }
                             </div>
                             <div className='flex items-center gap-2 flex-wrap'>
-                              <p className='text-xs text-[var(--text-secondary)]'>Estado: {epicStatusLabels[epic.status]}</p>
-                              {epicProgress.total > 0 && (
+                              <p className='text-xs text-[var(--text-secondary)]'>Estado: { epicStatusLabels[epic.status] }</p>
+                              { epicProgress.total > 0 && (
                                 <span className='text-[10px] px-2 py-0.5 rounded-full bg-[var(--accent-primary)]/15 text-[var(--accent-primary)]'>
                                   Auto por tareas
                                 </span>
-                              )}
+                              ) }
                             </div>
                             <p className='text-xs text-[var(--text-secondary)]'>
-                              KR: {linkedKr?.title || 'Sin KR'}
+                              KR: { linkedKr?.title || 'Sin KR' }
                             </p>
                             <p className='text-xs text-[var(--text-secondary)]'>
-                              Tareas completadas: {epicProgress.done}/{epicProgress.total}
+                              Tareas completadas: { epicProgress.done }/{ epicProgress.total }
                             </p>
                             <div className='h-2 rounded-full bg-[var(--bg-primary)] overflow-hidden mt-2'>
                               <div
                                 className='h-full'
-                                style={{ width: `${epicProgress.percent}%`, backgroundColor: epic.color || 'var(--accent-primary)' }}
+                                style={ { width: `${epicProgress.percent}%`, backgroundColor: epic.color || 'var(--accent-primary)' } }
                               />
                             </div>
                           </div>
                         );
-                      })}
+                      }) }
                     </div>
-                  )}
+                  ) }
                 </div>
               </CardContent>
             </Card>
           );
         })
-      )}
+      ) }
 
       <Modal
-        isOpen={objectiveModalOpen}
-        onClose={resetObjectiveModal}
-        title={editingObjective ? 'Editar objetivo' : 'Nuevo objetivo'}
+        isOpen={ objectiveModalOpen }
+        onClose={ resetObjectiveModal }
+        title={ editingObjective ? 'Editar objetivo' : 'Nuevo objetivo' }
       >
         <form
           className='space-y-3'
-          onSubmit={(event) => {
+          onSubmit={ (event) => {
             event.preventDefault();
             if (!objectiveForm.title.trim()) {
               toast.error('El titulo del objetivo es obligatorio');
@@ -737,21 +739,21 @@ export const PlanningView: React.FC = () => {
             }
 
             createObjective.mutate(objectiveForm);
-          }}
+          } }
         >
           <Input
             label='Titulo'
-            value={objectiveForm.title}
-            onChange={(event) => setObjectiveForm((prev) => ({ ...prev, title: event.target.value }))}
+            value={ objectiveForm.title }
+            onChange={ (event) => setObjectiveForm((prev) => ({ ...prev, title: event.target.value })) }
             placeholder='Ej: Mejorar adopcion del producto'
           />
           <div>
             <label className='text-sm text-[var(--text-secondary)] mb-1 block'>Descripcion</label>
             <textarea
               className='w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)]'
-              value={objectiveForm.description}
-              onChange={(event) => setObjectiveForm((prev) => ({ ...prev, description: event.target.value }))}
-              rows={3}
+              value={ objectiveForm.description }
+              onChange={ (event) => setObjectiveForm((prev) => ({ ...prev, description: event.target.value })) }
+              rows={ 3 }
             />
           </div>
           <div className='grid grid-cols-2 gap-3'>
@@ -759,21 +761,21 @@ export const PlanningView: React.FC = () => {
               <label className='text-sm text-[var(--text-secondary)] mb-1 block'>Estado</label>
               <select
                 className='w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)]'
-                value={objectiveForm.status}
-                onChange={(event) => setObjectiveForm((prev) => ({ ...prev, status: event.target.value as ObjectiveFormState['status'] }))}
+                value={ objectiveForm.status }
+                onChange={ (event) => setObjectiveForm((prev) => ({ ...prev, status: event.target.value as ObjectiveFormState['status'] })) }
               >
-                <option value='draft'>{objectiveStatusLabels.draft}</option>
-                <option value='active'>{objectiveStatusLabels.active}</option>
-                <option value='completed'>{objectiveStatusLabels.completed}</option>
-                <option value='archived'>{objectiveStatusLabels.archived}</option>
+                <option value='draft'>{ objectiveStatusLabels.draft }</option>
+                <option value='active'>{ objectiveStatusLabels.active }</option>
+                <option value='completed'>{ objectiveStatusLabels.completed }</option>
+                <option value='archived'>{ objectiveStatusLabels.archived }</option>
               </select>
             </div>
             <div>
               <label className='text-sm text-[var(--text-secondary)] mb-1 block'>Ciclo</label>
               <select
                 className='w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)]'
-                value={objectiveForm.cycle}
-                onChange={(event) => {
+                value={ objectiveForm.cycle }
+                onChange={ (event) => {
                   const nextCycle = event.target.value as ObjectiveFormState['cycle'];
                   setObjectiveForm((prev) => {
                     const suggestion = getCycleDateSuggestion(nextCycle);
@@ -791,12 +793,12 @@ export const PlanningView: React.FC = () => {
                       end_date: shouldAutofill ? suggestion.end : prev.end_date,
                     };
                   });
-                }}
+                } }
               >
-                <option value='quarterly'>{objectiveCycleLabels.quarterly}</option>
-                <option value='half-year'>{objectiveCycleLabels['half-year']}</option>
-                <option value='yearly'>{objectiveCycleLabels.yearly}</option>
-                <option value='custom'>{objectiveCycleLabels.custom}</option>
+                <option value='quarterly'>{ objectiveCycleLabels.quarterly }</option>
+                <option value='half-year'>{ objectiveCycleLabels['half-year'] }</option>
+                <option value='yearly'>{ objectiveCycleLabels.yearly }</option>
+                <option value='custom'>{ objectiveCycleLabels.custom }</option>
               </select>
               <p className='text-xs text-[var(--text-secondary)] mt-1'>
                 Al elegir ciclo trimestral/semestral/anual, se sugieren fechas si aun no definiste el rango.
@@ -804,10 +806,10 @@ export const PlanningView: React.FC = () => {
             </div>
           </div>
           <DateRangePicker
-            startValue={parseDateValue(objectiveForm.start_date) ?? undefined}
-            endValue={parseDateValue(objectiveForm.end_date) ?? undefined}
-            onStartChange={(date) => setObjectiveForm((prev) => ({ ...prev, start_date: date ? toIsoDate(date) : '' }))}
-            onEndChange={(date) => setObjectiveForm((prev) => ({ ...prev, end_date: date ? toIsoDate(date) : '' }))}
+            startValue={ parseDateValue(objectiveForm.start_date) ?? undefined }
+            endValue={ parseDateValue(objectiveForm.end_date) ?? undefined }
+            onStartChange={ (date) => setObjectiveForm((prev) => ({ ...prev, start_date: date ? toIsoDate(date) : '' })) }
+            onEndChange={ (date) => setObjectiveForm((prev) => ({ ...prev, end_date: date ? toIsoDate(date) : '' })) }
             startLabel='Inicio del ciclo'
             endLabel='Fin del ciclo'
             startPlaceholder='Seleccionar fecha'
@@ -815,20 +817,20 @@ export const PlanningView: React.FC = () => {
             className='grid grid-cols-2 gap-3'
           />
           <div className='flex justify-end gap-2 pt-2'>
-            <Button type='button' variant='ghost' onClick={resetObjectiveModal}>Cancelar</Button>
-            <Button type='submit'>{editingObjective ? 'Guardar' : 'Crear objetivo'}</Button>
+            <Button type='button' variant='ghost' onClick={ resetObjectiveModal }>Cancelar</Button>
+            <Button type='submit'>{ editingObjective ? 'Guardar' : 'Crear objetivo' }</Button>
           </div>
         </form>
       </Modal>
 
       <Modal
-        isOpen={krModalOpen}
-        onClose={resetKrModal}
-        title={editingKr ? 'Editar resultado clave' : 'Nuevo resultado clave'}
+        isOpen={ krModalOpen }
+        onClose={ resetKrModal }
+        title={ editingKr ? 'Editar resultado clave' : 'Nuevo resultado clave' }
       >
         <form
           className='space-y-3'
-          onSubmit={(event) => {
+          onSubmit={ (event) => {
             event.preventDefault();
             if (!krForm.objective_id || !krForm.title.trim()) {
               toast.error('Objetivo y titulo son obligatorios');
@@ -841,25 +843,25 @@ export const PlanningView: React.FC = () => {
             }
 
             createKr.mutate(krForm);
-          }}
+          } }
         >
           <div>
             <label className='text-sm text-[var(--text-secondary)] mb-1 block'>Objetivo</label>
             <select
               className='w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)]'
-              value={krForm.objective_id}
-              onChange={(event) => setKrForm((prev) => ({ ...prev, objective_id: event.target.value }))}
+              value={ krForm.objective_id }
+              onChange={ (event) => setKrForm((prev) => ({ ...prev, objective_id: event.target.value })) }
             >
               <option value=''>Seleccionar objetivo</option>
-              {objectiveOptions.map((objective) => (
-                <option key={objective.id} value={objective.id}>{objective.title}</option>
-              ))}
+              { objectiveOptions.map((objective) => (
+                <option key={ objective.id } value={ objective.id }>{ objective.title }</option>
+              )) }
             </select>
           </div>
           <Input
             label='Titulo'
-            value={krForm.title}
-            onChange={(event) => setKrForm((prev) => ({ ...prev, title: event.target.value }))}
+            value={ krForm.title }
+            onChange={ (event) => setKrForm((prev) => ({ ...prev, title: event.target.value })) }
             placeholder='Ej: Aumentar WAU'
           />
           <div className='grid grid-cols-3 gap-3'>
@@ -867,21 +869,21 @@ export const PlanningView: React.FC = () => {
               label='Target'
               type='number'
               min='0'
-              value={krForm.target_value}
-              onChange={(event) => setKrForm((prev) => ({ ...prev, target_value: event.target.value }))}
+              value={ krForm.target_value }
+              onChange={ (event) => setKrForm((prev) => ({ ...prev, target_value: event.target.value })) }
             />
             <Input
               label='Actual'
               type='number'
               min='0'
-              value={krForm.current_value}
-              onChange={(event) => setKrForm((prev) => ({ ...prev, current_value: event.target.value }))}
-              disabled={krForm.tracking_mode !== 'manual'}
+              value={ krForm.current_value }
+              onChange={ (event) => setKrForm((prev) => ({ ...prev, current_value: event.target.value })) }
+              disabled={ krForm.tracking_mode !== 'manual' }
             />
             <Input
               label='Unidad'
-              value={krForm.unit}
-              onChange={(event) => setKrForm((prev) => ({ ...prev, unit: event.target.value }))}
+              value={ krForm.unit }
+              onChange={ (event) => setKrForm((prev) => ({ ...prev, unit: event.target.value })) }
               placeholder='usuarios'
             />
           </div>
@@ -889,39 +891,39 @@ export const PlanningView: React.FC = () => {
             <label className='text-sm text-[var(--text-secondary)] mb-1 block'>Seguimiento</label>
             <select
               className='w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)]'
-              value={krForm.tracking_mode}
-              onChange={(event) => {
+              value={ krForm.tracking_mode }
+              onChange={ (event) => {
                 const nextMode = event.target.value as OkrKeyResultTrackingMode;
                 setKrForm((prev) => ({
                   ...prev,
                   tracking_mode: nextMode,
                   current_value: nextMode === 'manual' ? prev.current_value : '0',
                 }));
-              }}
+              } }
             >
-              <option value='manual'>{krTrackingModeLabels.manual}</option>
-              <option value='auto_from_epics'>{krTrackingModeLabels.auto_from_epics}</option>
-              <option value='auto_from_tasks'>{krTrackingModeLabels.auto_from_tasks}</option>
+              <option value='manual'>{ krTrackingModeLabels.manual }</option>
+              <option value='auto_from_epics'>{ krTrackingModeLabels.auto_from_epics }</option>
+              <option value='auto_from_tasks'>{ krTrackingModeLabels.auto_from_tasks }</option>
             </select>
             <p className='text-xs text-[var(--text-secondary)] mt-1'>
               En modos automaticos, el valor actual se recalcula solo segun epicas/tareas completadas.
             </p>
           </div>
           <div className='flex justify-end gap-2 pt-2'>
-            <Button type='button' variant='ghost' onClick={resetKrModal}>Cancelar</Button>
-            <Button type='submit'>{editingKr ? 'Guardar' : 'Crear KR'}</Button>
+            <Button type='button' variant='ghost' onClick={ resetKrModal }>Cancelar</Button>
+            <Button type='submit'>{ editingKr ? 'Guardar' : 'Crear KR' }</Button>
           </div>
         </form>
       </Modal>
 
       <Modal
-        isOpen={epicModalOpen}
-        onClose={resetEpicModal}
-        title={editingEpic ? 'Editar epica' : 'Nueva epica'}
+        isOpen={ epicModalOpen }
+        onClose={ resetEpicModal }
+        title={ editingEpic ? 'Editar epica' : 'Nueva epica' }
       >
         <form
           className='space-y-3'
-          onSubmit={(event) => {
+          onSubmit={ (event) => {
             event.preventDefault();
             if (!epicForm.objective_id || !epicForm.title.trim()) {
               toast.error('Objetivo y titulo son obligatorios');
@@ -934,38 +936,38 @@ export const PlanningView: React.FC = () => {
             }
 
             createEpic.mutate(epicForm);
-          }}
+          } }
         >
           <div>
             <label className='text-sm text-[var(--text-secondary)] mb-1 block'>Objetivo</label>
             <select
               className='w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)]'
-              value={epicForm.objective_id}
-              onChange={(event) => setEpicForm((prev) => ({ ...prev, objective_id: event.target.value, key_result_id: '' }))}
+              value={ epicForm.objective_id }
+              onChange={ (event) => setEpicForm((prev) => ({ ...prev, objective_id: event.target.value, key_result_id: '' })) }
             >
               <option value=''>Seleccionar objetivo</option>
-              {objectiveOptions.map((objective) => (
-                <option key={objective.id} value={objective.id}>{objective.title}</option>
-              ))}
+              { objectiveOptions.map((objective) => (
+                <option key={ objective.id } value={ objective.id }>{ objective.title }</option>
+              )) }
             </select>
           </div>
           <div>
             <label className='text-sm text-[var(--text-secondary)] mb-1 block'>KR (opcional)</label>
             <select
               className='w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)]'
-              value={epicForm.key_result_id}
-              onChange={(event) => setEpicForm((prev) => ({ ...prev, key_result_id: event.target.value }))}
+              value={ epicForm.key_result_id }
+              onChange={ (event) => setEpicForm((prev) => ({ ...prev, key_result_id: event.target.value })) }
             >
               <option value=''>Sin KR</option>
-              {keyResultOptionsForEpic.map((kr) => (
-                <option key={kr.id} value={kr.id}>{kr.title}</option>
-              ))}
+              { keyResultOptionsForEpic.map((kr) => (
+                <option key={ kr.id } value={ kr.id }>{ kr.title }</option>
+              )) }
             </select>
           </div>
           <Input
             label='Titulo'
-            value={epicForm.title}
-            onChange={(event) => setEpicForm((prev) => ({ ...prev, title: event.target.value }))}
+            value={ epicForm.title }
+            onChange={ (event) => setEpicForm((prev) => ({ ...prev, title: event.target.value })) }
             placeholder='Ej: Onboarding guiado v2'
           />
           <div className='grid grid-cols-2 gap-3'>
@@ -973,31 +975,31 @@ export const PlanningView: React.FC = () => {
               <label className='text-sm text-[var(--text-secondary)] mb-1 block'>Estado</label>
               <select
                 className='w-full p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--text-secondary)] text-[var(--text-primary)]'
-                value={epicForm.status}
-                onChange={(event) => setEpicForm((prev) => ({ ...prev, status: event.target.value as EpicFormState['status'] }))}
-                disabled={editingEpicTaskCount > 0}
+                value={ epicForm.status }
+                onChange={ (event) => setEpicForm((prev) => ({ ...prev, status: event.target.value as EpicFormState['status'] })) }
+                disabled={ editingEpicTaskCount > 0 }
               >
-                <option value='todo'>{epicStatusLabels.todo}</option>
-                <option value='in-progress'>{epicStatusLabels['in-progress']}</option>
-                <option value='done'>{epicStatusLabels.done}</option>
+                <option value='todo'>{ epicStatusLabels.todo }</option>
+                <option value='in-progress'>{ epicStatusLabels['in-progress'] }</option>
+                <option value='done'>{ epicStatusLabels.done }</option>
               </select>
-              {editingEpicTaskCount > 0 && (
+              { editingEpicTaskCount > 0 && (
                 <p className='text-xs text-[var(--text-secondary)] mt-1'>
                   Esta epica tiene tareas vinculadas. El estado se actualiza automaticamente segun esas tareas.
                 </p>
-              )}
+              ) }
             </div>
             <Input
               label='Color'
               type='color'
-              value={epicForm.color}
-              onChange={(event) => setEpicForm((prev) => ({ ...prev, color: event.target.value }))}
+              value={ epicForm.color }
+              onChange={ (event) => setEpicForm((prev) => ({ ...prev, color: event.target.value })) }
               className='h-10 p-1'
             />
           </div>
           <div className='flex justify-end gap-2 pt-2'>
-            <Button type='button' variant='ghost' onClick={resetEpicModal}>Cancelar</Button>
-            <Button type='submit'>{editingEpic ? 'Guardar' : 'Crear epica'}</Button>
+            <Button type='button' variant='ghost' onClick={ resetEpicModal }>Cancelar</Button>
+            <Button type='submit'>{ editingEpic ? 'Guardar' : 'Crear epica' }</Button>
           </div>
         </form>
       </Modal>
