@@ -58,6 +58,11 @@ export const ProjectsView: React.FC = () => {
   const { data: projects, isLoading } = useQuery({
     queryKey: ['projects', user?.id],
     queryFn: async () => {
+      if (user?.id) {
+        await supabase.rpc('cleanup_expired_subscriptions');
+        await supabase.rpc('disable_excess_projects', { p_user_id: user.id });
+      }
+
       const { data: memberData } = await supabase
         .from('project_members')
         .select('project_id, role')

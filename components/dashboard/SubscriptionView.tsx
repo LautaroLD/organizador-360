@@ -1,7 +1,12 @@
 'use client';
+
 import React from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Calendar, HardDrive, Lock, Star, Users } from 'lucide-react';
+import { toast } from 'react-toastify';
 import { createClient } from '@/lib/supabase/client';
+import { hasPaidAccess } from '@/lib/subscriptionUtils';
+import { formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/Button';
 import {
@@ -11,53 +16,33 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/Card';
-import { toast } from 'react-toastify';
-import {
-  Star,
-  Users,
-  HardDrive,
-  Calendar,
-  Lock,
-} from 'lucide-react';
-import { formatDate } from '@/lib/utils';
-import {
-  hasPaidAccess,
-} from '@/lib/subscriptionUtils';
-import PlanCard from '../ui/PlanCard';
+import PlanCard from '@/components/ui/PlanCard';
+import type { PlanTier } from '@/types/planTypes';
 
+interface ProviderPlan {
+  provider: 'lemon_squeezy';
+  external_id: string;
+  plan_code?: 'starter' | 'pro';
+}
 
-interface MercadoPagoDetails {
-  id: string;
-  status: string;
-  statusLabel: string;
-  statusColor: string;
-  reason: string;
-  dateCreated: string;
-  nextPaymentDate: string | null;
-  startDate: string | null;
-  endDate: string | null;
-  amount: number;
-  currency: string;
-  frequency: number;
-  frequencyType: string;
-  hasFreeTrial: boolean;
-  freeTrialDays: number;
-  chargedQuantity: number;
-  pendingChargeQuantity: number;
-  totalChargedAmount: number;
-  lastChargedDate: string | null;
-  paymentMethodId: string | null;
-  daysUntilNextPayment: number | null;
-  daysUntilEnd: number | null;
-  isExpired: boolean;
-  isActive: boolean;
-  isCancelled: boolean;
-  isPaused: boolean;
-  isPending: boolean;
+interface PlansByProvidersResponse {
+  lemon_squeezy?: ProviderPlan[];
+  [key: string]: ProviderPlan[] | undefined;
+}
+
+interface SubscriptionRow {
+  status: string | null;
+  plan_tier: string | null;
+  cancel_at_period_end: boolean | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  canceled_at: string | null;
+  payment_provider: string | null;
+  lemon_squeezy_subscription_id: string | null;
 }
 
 interface PlanContextResponse {
-  plan_tier?: 'free' | 'starter' | 'pro' | 'enterprise';
+  plan_tier?: PlanTier;
   source?: 'manual' | 'subscription' | 'free';
   expires_at?: string | null;
 }
@@ -72,10 +57,40 @@ interface AICreditStatusResponse {
   cycle_end: string | null;
 }
 
+interface LemonSqueezyDetails {
+  id: string;
+  status: string;
+  statusLabel: string;
+  currentPeriodStart?: string | null;
+  currentPeriodEnd?: string | null;
+  trialEndsAt?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  variantName?: string | null;
+  paymentMethod?: string | null;
+}
+
+function normalizeTier(value?: string | null): PlanTier {
+  const normalized = (value ?? '').toLowerCase();
+  if (normalized === 'starter' || normalized === 'pro') {
+    return normalized;
+  }
+  return 'free';
+}
+
+function calculateDaysRemaining(dateValue?: string | null): number | null {
+  if (!dateValue) return null;
+  const end = new Date(dateValue);
+  if (Number.isNaN(end.getTime())) return null;
+  const now = new Date();
+  if (end <= now) return null;
+  return Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 export const SubscriptionView: React.FC = () => {
   const supabase = createClient();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+
   const { data: planContext, isLoading: planContextLoading } = useQuery({
     queryKey: ['plan-context', user?.id],
     queryFn: async () => {
@@ -84,7 +99,7 @@ export const SubscriptionView: React.FC = () => {
           plan_tier: 'free',
           source: 'free',
           expires_at: null,
-        } as PlanContextResponse;
+        } satisfies PlanContextResponse;
       }
 
       const { data } = await supabase.rpc('get_user_plan_context', {
@@ -100,39 +115,52 @@ export const SubscriptionView: React.FC = () => {
     enabled: !!user?.id,
   });
 
-  // Solo mensual
-  // Fetch subscription data from local DB
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({
     queryKey: ['subscription', user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      if (!user?.id) return null;
+
+      const { data, error } = await supabase
         .from('subscriptions')
-        .select('*')
-        .eq('user_id', user?.id)
-        .in('status', ['active', 'authorized', 'trialing', 'canceled', 'cancelled'])
-        .order('created', { ascending: false }) // Priorizar la más reciente si hubiera múltiples
-        .limit(1)
+        .select(
+          'status, plan_tier, cancel_at_period_end, current_period_start, current_period_end, canceled_at, payment_provider, lemon_squeezy_subscription_id'
+        )
+        .eq('user_id', user.id)
         .maybeSingle();
 
-      return data;
+      if (error) {
+        throw new Error(error.message || 'Error obteniendo suscripción');
+      }
+
+      return (data ?? null) as SubscriptionRow | null;
     },
     enabled: !!user?.id,
   });
-  // Fetch detailed subscription info from MercadoPago
-  const { data: mpData, isLoading: mpLoading } = useQuery({
-    queryKey: ['subscription-details', user?.id],
+
+  const { data: plansGroupByProviders, isLoading: plansGroupByProvidersLoading } = useQuery<PlansByProvidersResponse>({
+    queryKey: ['plans'],
     queryFn: async () => {
-      const response = await fetch('/api/mercadopago/subscription-details');
+      const res = await fetch('/api/plans');
+      if (!res.ok) throw new Error('Error cargando configuración de planes');
+      return (await res.json()) as PlansByProvidersResponse;
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+
+  const { data: lemonData } = useQuery({
+    queryKey: ['lemon-subscription-details', user?.id],
+    queryFn: async () => {
+      const response = await fetch('/api/lemon-squeezy/subscription-details');
       if (!response.ok) return null;
       const data = await response.json();
       return {
-        details: data.details as MercadoPagoDetails,
-        isPro: data.isPro as boolean,
-        internalPlanId: data.internalPlanId as string
+        details: (data.details ?? null) as LemonSqueezyDetails | null,
+        source: (data.source ?? null) as string | null,
       };
     },
-    enabled: !!user?.id && !!subscription?.mercadopago_subscription_id,
-    staleTime: 60000, // Cache for 1 minute
+    enabled: !!user?.id,
+    staleTime: 60_000,
   });
 
   const { data: aiCredits, isLoading: aiCreditsLoading } = useQuery({
@@ -149,59 +177,40 @@ export const SubscriptionView: React.FC = () => {
       return (await response.json()) as AICreditStatusResponse;
     },
     enabled: !!user?.id,
-    staleTime: 30000,
+    staleTime: 30_000,
   });
 
-  const mpDetails = mpData?.details;
-  const contextTier =
-    planContext?.plan_tier === 'starter' ||
-      planContext?.plan_tier === 'pro' ||
-      planContext?.plan_tier === 'enterprise'
-      ? planContext.plan_tier
-      : 'free';
+  const orderByTier = (plans: ProviderPlan[]) => {
+    const rank: Record<'starter' | 'pro', number> = { starter: 0, pro: 1 };
+    return [...plans].sort((a, b) => {
+      const aRank = a.plan_code ? rank[a.plan_code] : Number.MAX_SAFE_INTEGER;
+      const bRank = b.plan_code ? rank[b.plan_code] : Number.MAX_SAFE_INTEGER;
+      return aRank - bRank;
+    });
+  };
+
+  const lsPlans = orderByTier(plansGroupByProviders?.lemon_squeezy ?? []);
+  const lemonDetails = lemonData?.details;
+  const contextTier = normalizeTier(planContext?.plan_tier);
+  const subscriptionTier = normalizeTier(subscription?.plan_tier);
+  const currentPlanTier: PlanTier = contextTier !== 'free' ? contextTier : subscriptionTier;
   const isManualAccess = planContext?.source === 'manual';
 
-  // Mutation para cancelar suscripción
-  const cancelMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch('/api/mercadopago/cancel-subscription', {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        throw new Error('Error al cancelar suscripción');
-      }
-
-      return response.json();
+  const paidAccessFromSubscription = hasPaidAccess(
+    {
+      status: subscription?.status,
+      cancel_at_period_end: subscription?.cancel_at_period_end,
+      current_period_end: subscription?.current_period_end,
     },
-    onSuccess: () => {
-      toast.success('Suscripción cancelada. Tu plan finalizará al fin del período.');
-      queryClient.invalidateQueries({ queryKey: ['subscription', user?.id], exact: false });
-      queryClient.invalidateQueries({ queryKey: ['subscription-details', user?.id], exact: false });
-    },
-    onError: (error) => {
-      toast.error(error.message || 'Error al cancelar');
-    },
-  });
-
-  const currentPlanTier = contextTier;
+    undefined,
+  );
 
   const hasFuturePeriodEnd = Boolean(
     subscription?.current_period_end &&
     new Date(subscription.current_period_end) > new Date()
   );
 
-  const isPaid =
-    currentPlanTier !== 'free' &&
-    (isManualAccess ||
-      hasPaidAccess(
-        {
-          status: subscription?.status,
-          cancel_at_period_end: subscription?.cancel_at_period_end,
-          current_period_end: subscription?.current_period_end,
-        },
-        mpData?.details?.status
-      ));
+  const isPaid = currentPlanTier !== 'free' && (isManualAccess || paidAccessFromSubscription);
 
   const isCanceled = Boolean(
     isPaid &&
@@ -209,92 +218,70 @@ export const SubscriptionView: React.FC = () => {
     hasFuturePeriodEnd &&
     (
       subscription?.cancel_at_period_end ||
-      mpData?.details?.isCancelled ||
+      lemonDetails?.cancelAtPeriodEnd ||
       subscription?.status === 'canceled' ||
       subscription?.status === 'cancelled'
     )
   );
 
-  const handleSubscriptionCreated = async (subscriptionId: string) => {
-    if (subscriptionId) {
-      await fetch(
-        `/api/mercadopago/sync-preapproval?preapproval_id=${encodeURIComponent(subscriptionId)}`,
-        { credentials: 'include' }
-      );
-    }
+  const lemonTrialDaysRemaining = calculateDaysRemaining(lemonDetails?.trialEndsAt);
+  const subscriptionDaysRemaining = calculateDaysRemaining(
+    lemonDetails?.currentPeriodEnd ?? subscription?.current_period_end
+  );
 
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['subscription', user?.id], exact: false }),
-      queryClient.invalidateQueries({ queryKey: ['subscription-details', user?.id], exact: false }),
-    ]);
-  };
+  const cancelMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/lemon-squeezy/cancel-subscription', { method: 'POST' });
+      if (!response.ok) {
+        throw new Error('Error al cancelar suscripción');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('Suscripción cancelada. Tu plan finalizará al fin del período.');
+      queryClient.invalidateQueries({ queryKey: ['subscription'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['lemon-subscription-details'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['plan-context'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['ai-credits'], exact: false });
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Error al cancelar';
+      toast.error(message);
+    },
+  });
 
-  const handleSubscriptionReactivated = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['subscription', user?.id], exact: false }),
-      queryClient.invalidateQueries({ queryKey: ['subscription-details', user?.id], exact: false }),
-    ]);
-  };
-
-  if (subscriptionLoading || mpLoading || planContextLoading) {
+  if (subscriptionLoading || planContextLoading || plansGroupByProvidersLoading) {
     return (
       <div className='flex items-center justify-center h-full p-12'>
         <div className='text-center'>
-          <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent-primary)] mx-auto mb-4'></div>
-          <p className='text-[var(--text-secondary)]'>
-            Cargando datos de suscripción...
-          </p>
+          <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent-primary)] mx-auto mb-4' />
+          <p className='text-[var(--text-secondary)]'>Cargando datos de suscripción...</p>
         </div>
       </div>
     );
   }
-  const pro_mensual_id = process.env.NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID ?? '';
-  const starter_mensual_id = process.env.NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID ?? '';
-  const plans = [
-    {
-      key: 'free',
-      planId: '',
-      planReference: 'FREE',
-      isCurrent: currentPlanTier === 'free',
-    },
-    {
-      key: 'starter',
-      planId: starter_mensual_id,
-      planReference: 'STARTER_MENSUAL',
-      isCurrent: currentPlanTier === 'starter',
-    },
-    {
-      key: 'pro',
-      planId: pro_mensual_id,
-      planReference: 'PRO_MENSUAL',
-      isCurrent: currentPlanTier === 'pro',
-    },
-  ] as const;
 
   return (
-    <div className='p-6  mx-auto'>
-      {/* Encabezado */ }
+    <div className='p-6 mx-auto'>
       <div className='mb-8'>
-        <h1 className='text-3xl font-bold text-[var(--text-primary)] mb-2'>
-          Planes y Suscripción
-        </h1>
+        <h1 className='text-3xl font-bold text-[var(--text-primary)] mb-2'>Planes y Suscripción</h1>
         <p className='text-[var(--text-secondary)]'>
-          Elige el plan que mejor se adapte a tus necesidades. Pagos procesados por Mercado Pago.
+          Elige el plan que mejor se adapte a tus necesidades. Pagos procesados por Lemon Squeezy.
         </p>
       </div>
 
-      {/* Estado actual de suscripción */ }
       { isPaid && (subscription || isManualAccess) && (
         <Card className='mb-8 border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/5'>
           <CardHeader>
-            <div className='flex items-center justify-between'>
-              <div className=' space-y-2'>
+            <div className='flex items-center justify-between gap-4'>
+              <div className='space-y-2'>
                 <CardTitle className='flex items-center gap-2'>
                   <Star className='h-5 w-5 text-[var(--accent-primary)]' />
                   { isManualAccess
                     ? `Plan ${currentPlanTier.toUpperCase()} (Manual)`
-                    : mpDetails?.reason }
+                    : `Plan ${currentPlanTier.toUpperCase()}` }
                 </CardTitle>
+
                 <CardDescription>
                   { isManualAccess ? (
                     <span className='inline-flex items-center gap-2 text-[var(--text-secondary)]'>
@@ -305,94 +292,81 @@ export const SubscriptionView: React.FC = () => {
                         </span>
                       ) }
                     </span>
-                  ) : mpDetails ? (
-                    <span className={ `inline-flex items-center gap-2 ${mpDetails.status === 'authorized' ? 'text-green-600' :
-                      mpDetails.status === 'paused' ? 'text-[var(--text-warning)]' :
-                        mpDetails.status === 'cancelled' ? 'text-[var(--accent-danger)]' :
-                          'text-[var(--text-secondary)]'
-                      }` }>
-                      { mpDetails.statusLabel }
-                      { mpDetails.status !== 'cancelled' && mpDetails.daysUntilNextPayment !== null && mpDetails.daysUntilNextPayment <= 7 && (
-                        <span className='text-xs bg-[var(--accent-danger)]/10 text-[var(--accent-danger)] px-2 py-0.5 rounded'>
-                          { mpDetails.daysUntilNextPayment === 0 ? 'Cobra hoy' :
-                            mpDetails.daysUntilNextPayment === 1 ? 'Cobra mañana' :
-                              `Próximo cobro en ${mpDetails.daysUntilNextPayment} días` }
+                  ) : (
+                    <span className='inline-flex items-center gap-2 text-[var(--text-secondary)]'>
+                      { lemonDetails?.statusLabel ?? subscription?.status ?? 'Activa' }
+                      <span className='text-xs bg-[var(--bg-secondary)] text-[var(--text-secondary)] px-2 py-0.5 rounded border border-[var(--border-primary)]'>
+                        Lemon Squeezy
+                      </span>
+                      { isCanceled && subscriptionDaysRemaining !== null && subscriptionDaysRemaining > 0 && (
+                        <span className='text-xs bg-[var(--accent-danger)]/10 text-[var(--accent-danger)] px-2 py-0.5 rounded border border-[var(--accent-danger)]/30'>
+                          { subscriptionDaysRemaining === 1
+                            ? 'Finaliza en 1 día'
+                            : `Finaliza en ${subscriptionDaysRemaining} días` }
+                        </span>
+                      ) }
+                      { lemonTrialDaysRemaining !== null && lemonTrialDaysRemaining > 0 && (
+                        <span className='text-xs bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] px-2 py-0.5 rounded border border-[var(--accent-primary)]/30'>
+                          { lemonTrialDaysRemaining === 1
+                            ? 'Prueba gratis: último día'
+                            : `Prueba gratis: ${lemonTrialDaysRemaining} días` }
                         </span>
                       ) }
                     </span>
-                  ) : (
-                    'Tu suscripción está activa y renovable'
                   ) }
                 </CardDescription>
               </div>
+
               <div className='text-right'>
                 <div className='text-sm text-[var(--text-secondary)]'>
-                  { isManualAccess
-                    ? 'Validez:'
-                    : (mpDetails?.nextPaymentDate ? 'Próximo pago:' : 'Próxima renovación:') }
+                  { isManualAccess ? 'Validez:' : 'Renovación:' }
                 </div>
                 <div className='text-lg font-semibold text-[var(--text-primary)]'>
                   { isManualAccess
                     ? (planContext?.expires_at ? formatDate(planContext.expires_at) : 'Sin vencimiento')
-                    : mpDetails?.nextPaymentDate
-                      ? formatDate(mpDetails.nextPaymentDate)
-                      : (subscription?.current_period_end ? formatDate(subscription.current_period_end) : 'N/A') }
+                    : (lemonDetails?.currentPeriodEnd || subscription?.current_period_end
+                      ? formatDate(lemonDetails?.currentPeriodEnd ?? subscription?.current_period_end ?? '')
+                      : 'N/A') }
                 </div>
-                { !isManualAccess && mpDetails?.amount && (
-                  <div className='text-sm text-[var(--text-secondary)]'>
-                    ${ mpDetails.amount.toLocaleString() } { mpDetails.currency }
-                  </div>
-                ) }
               </div>
             </div>
           </CardHeader>
+
           <CardContent>
             <div className='flex flex-col gap-4'>
-              {/* Información detallada de MP */ }
-              { !isManualAccess && mpDetails && (
+              { !isManualAccess && subscription && (
                 <div className='grid grid-cols-2 md:grid-cols-4 gap-4 text-sm'>
                   <div>
-                    <span className='text-[var(--text-secondary)] block'>Pagos realizados</span>
-                    <span className='font-medium text-[var(--text-primary)]'>
-                      { mpDetails.chargedQuantity } { mpDetails.pendingChargeQuantity > 0 && `(${mpDetails.pendingChargeQuantity} pendiente${mpDetails.pendingChargeQuantity > 1 ? 's' : ''})` }
-                    </span>
+                    <span className='text-[var(--text-secondary)] block'>Procesador de pago</span>
+                    <span className='font-medium text-[var(--text-primary)]'>Lemon Squeezy</span>
                   </div>
                   <div>
-                    <span className='text-[var(--text-secondary)] block'>Total cobrado</span>
-                    <span className='font-medium text-[var(--text-primary)]'>
-                      ${ mpDetails.totalChargedAmount.toLocaleString() } { mpDetails.currency }
+                    <span className='text-[var(--text-secondary)] block'>Plan</span>
+                    <span className='font-medium text-[var(--text-primary)] uppercase'>
+                      { lemonDetails?.variantName && lemonDetails.variantName !== 'Default'
+                        ? lemonDetails.variantName
+                        : (subscription.plan_tier ?? currentPlanTier) }
                     </span>
                   </div>
-                  { mpDetails.endDate && (
+                  { (lemonDetails?.id || subscription.lemon_squeezy_subscription_id) && (
                     <div>
-                      <span className='text-[var(--text-secondary)] block'>Fecha de fin</span>
-                      <span className='font-medium text-[var(--text-primary)]'>
-                        { formatDate(mpDetails.endDate) }
+                      <span className='text-[var(--text-secondary)] block'>ID suscripción</span>
+                      <span className='font-medium text-[var(--text-primary)] font-mono text-xs'>
+                        { lemonDetails?.id || subscription.lemon_squeezy_subscription_id }
                       </span>
                     </div>
                   ) }
-                  { mpDetails.paymentMethodId && (
+                  { lemonDetails?.paymentMethod && (
                     <div>
                       <span className='text-[var(--text-secondary)] block'>Método de pago</span>
-                      <span className='font-medium text-[var(--text-primary)] capitalize'>
-                        { mpDetails.paymentMethodId.replace(/_/g, ' ') }
+                      <span className='font-medium text-[var(--text-primary)]'>
+                        { lemonDetails.paymentMethod }
                       </span>
                     </div>
                   ) }
-                  {
-                    subscription?.canceled_at && (
-                      <div>
-                        <span className='text-[var(--text-secondary)] block'>Cancelado el</span>
-                        <span className='font-medium text-[var(--text-primary)]'>
-                          { formatDate(subscription.canceled_at) }
-                        </span>
-                      </div>
-                    )
-                  }
                 </div>
               ) }
 
-              {/* Período y botón cancelar */ }
               <div className='flex items-center gap-4 text-sm border-t border-[var(--border-primary)] pt-4'>
                 { subscription?.current_period_start && subscription?.current_period_end && (
                   <div>
@@ -402,6 +376,7 @@ export const SubscriptionView: React.FC = () => {
                     </span>
                   </div>
                 ) }
+
                 { !isManualAccess && subscription && !subscription.cancel_at_period_end && (
                   <Button
                     variant='secondary'
@@ -412,6 +387,7 @@ export const SubscriptionView: React.FC = () => {
                     { cancelMutation.isPending ? 'Cancelando...' : 'Cancelar suscripción' }
                   </Button>
                 ) }
+
                 { !isManualAccess && subscription?.cancel_at_period_end && (
                   <div className='px-3 py-1 bg-[var(--accent-danger)]/10 border border-[var(--accent-danger)]/30 rounded text-[var(--accent-danger)] text-xs font-medium'>
                     Cancelada al final del período
@@ -423,8 +399,7 @@ export const SubscriptionView: React.FC = () => {
         </Card>
       ) }
 
-      {/* Estado de créditos IA */ }
-      { (currentPlanTier === 'pro' || currentPlanTier === 'enterprise') && (
+      { (currentPlanTier === 'pro') && (
         <Card className='mb-8 border-[var(--accent-primary)]/30'>
           <CardHeader>
             <CardTitle className='flex items-center gap-2'>
@@ -464,17 +439,18 @@ export const SubscriptionView: React.FC = () => {
                 <div className='w-full h-2 rounded-full bg-[var(--bg-secondary)] overflow-hidden'>
                   <div
                     className='h-full bg-[var(--accent-primary)] transition-all'
-                    style={ { width: `${Math.min(100, Math.max(0, aiCredits.quota > 0 ? (aiCredits.used / aiCredits.quota) * 100 : 0))}%` } }
+                    style={ {
+                      width: `${Math.min(
+                        100,
+                        Math.max(0, aiCredits.quota > 0 ? (aiCredits.used / aiCredits.quota) * 100 : 0)
+                      )}%`,
+                    } }
                   />
                 </div>
 
                 <div className='flex flex-wrap gap-x-6 gap-y-2 text-xs text-[var(--text-secondary)]'>
-                  <span>
-                    Renovación: { aiCredits.cycle_end ? formatDate(aiCredits.cycle_end) : 'N/A' }
-                  </span>
-                  <span>
-                    Inicio ciclo: { aiCredits.cycle_start ? formatDate(aiCredits.cycle_start) : 'N/A' }
-                  </span>
+                  <span>Renovación: { aiCredits.cycle_end ? formatDate(aiCredits.cycle_end) : 'N/A' }</span>
+                  <span>Inicio ciclo: { aiCredits.cycle_start ? formatDate(aiCredits.cycle_start) : 'N/A' }</span>
                 </div>
               </div>
             ) : (
@@ -486,26 +462,30 @@ export const SubscriptionView: React.FC = () => {
         </Card>
       ) }
 
-      {/* Grid de planes */ }
       <div className='-mx-6 bg-[var(--bg-secondary)] px-6 py-10 mb-8'>
-        <div className='flex gap-6 overflow-x-auto px-4  pb-2 pt-14 flex-col md:flex-row'>
-          { plans.map((plan) => (
-            <div key={ plan.key } className='space-y-2 relative'>
-              <PlanCard
-                planId={ plan.planId }
-                isCurrent={ plan.isCurrent }
-                isCanceled={ isCanceled }
-                plan_reference={ plan.planReference }
-                payerEmail={ user?.email }
-                onSubscriptionCreated={ handleSubscriptionCreated }
-                onSubscriptionReactivated={ handleSubscriptionReactivated }
-              />
-            </div>
+        <div className='flex gap-6 overflow-x-auto px-4 pb-2 pt-14 flex-col md:flex-row'>
+          <PlanCard
+            key='free_local_plan'
+            forceTier='free'
+            isCurrent={ currentPlanTier === 'free' }
+            isCanceled={ false }
+            payerEmail={ user?.email }
+          />
+
+          { lsPlans.map((plan) => (
+            <PlanCard
+              key={ `ls_${plan.external_id}` }
+              external_id={ plan.external_id }
+              provider={ plan.provider }
+              isCurrent={ currentPlanTier === (plan.plan_code ?? 'free') }
+              isCanceled={ isCanceled }
+              payerEmail={ user?.email }
+              payerId={ user?.id }
+            />
           )) }
         </div>
       </div>
 
-      {/* FAQ / Información adicional */ }
       <div className='grid md:grid-cols-2 gap-6 md:px-10 py-5'>
         <Card>
           <CardHeader>
@@ -525,8 +505,7 @@ export const SubscriptionView: React.FC = () => {
               <strong>Pro:</strong> Hasta 5 GB por proyecto
             </p>
             <p className='text-xs mt-4'>
-              El almacenamiento se calcula a partir de tus recursos y archivos
-              subidos.
+              El almacenamiento se calcula a partir de tus recursos y archivos subidos.
             </p>
           </CardContent>
         </Card>
@@ -549,8 +528,7 @@ export const SubscriptionView: React.FC = () => {
               <strong>Pro:</strong> Hasta 20 miembros por proyecto
             </p>
             <p className='text-xs mt-4'>
-              Invita a tu equipo a colaborar en proyectos. Los permisos se
-              asignan por rol.
+              Invita a tu equipo a colaborar en proyectos. Los permisos se asignan por rol.
             </p>
           </CardContent>
         </Card>
@@ -587,12 +565,11 @@ export const SubscriptionView: React.FC = () => {
               <strong>Cancelación:</strong> Válida hasta fin de período
             </p>
             <p className='text-xs mt-4'>
-              Recibe recibos por email. Puedes cambiar o cancelar en cualquier
-              momento.
+              Recibe recibos por email. Puedes cambiar o cancelar en cualquier momento.
             </p>
           </CardContent>
         </Card>
       </div>
-    </div >
+    </div>
   );
 };

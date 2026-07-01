@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 
 type SubscriptionSnapshot = {
@@ -9,7 +10,6 @@ type SubscriptionSnapshot = {
   status: string | null;
   plan_tier: string | null;
   current_period_end: string | null;
-  mercadopago_subscription_id: string | null;
 };
 
 function buildSignature(snapshot: SubscriptionSnapshot | null): string {
@@ -19,12 +19,12 @@ function buildSignature(snapshot: SubscriptionSnapshot | null): string {
     snapshot.status ?? '',
     snapshot.plan_tier ?? '',
     snapshot.current_period_end ?? '',
-    snapshot.mercadopago_subscription_id ?? '',
   ].join('|');
 }
 
 export default function SubscriptionRealtimeRefresh() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const previousSignatureRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -33,16 +33,13 @@ export default function SubscriptionRealtimeRefresh() {
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
     const fetchSnapshot = async (): Promise<SubscriptionSnapshot | null> => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user?.id) return null;
 
       const { data } = await supabase
         .from('subscriptions')
         .select(
-          'id, status, plan_tier, current_period_end, mercadopago_subscription_id'
+          'id, status, plan_tier, current_period_end'
         )
         .eq('user_id', user.id)
         .maybeSingle();
@@ -59,15 +56,23 @@ export default function SubscriptionRealtimeRefresh() {
       }
       if (previousSignatureRef.current !== signature) {
         previousSignatureRef.current = signature;
+        if (snapshot?.id) {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['subscription'], exact: false }),
+            queryClient.invalidateQueries({ queryKey: ['subscription-details'], exact: false }),
+            queryClient.invalidateQueries({ queryKey: ['lemon-subscription-details'], exact: false }),
+            queryClient.invalidateQueries({ queryKey: ['plan-context'], exact: false }),
+            queryClient.invalidateQueries({ queryKey: ['plan-tier'], exact: false }),
+            queryClient.invalidateQueries({ queryKey: ['projects'], exact: false }),
+            queryClient.invalidateQueries({ queryKey: ['ai-credits'], exact: false }),
+          ]);
+        }
         router.refresh();
       }
     };
 
     const init = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
+      const { data: { user } } = await supabase.auth.getUser();
       if (!active || !user?.id) return;
 
       await refreshIfChanged();
@@ -102,7 +107,8 @@ export default function SubscriptionRealtimeRefresh() {
         supabase.removeChannel(channel);
       }
     };
-  }, [router]);
+  }, [queryClient, router]);
 
   return null;
 }
+

@@ -41,7 +41,6 @@ export default function FeedbackModal() {
         message: data.message,
         metadata,
       });
-      console.log('Feedback enviado con éxito');
       toast.success('¡Gracias por tu feedback!');
     } catch (error) {
       console.error('Error al enviar feedback:', error);

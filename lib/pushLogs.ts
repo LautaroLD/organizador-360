@@ -46,7 +46,7 @@ export async function sendPushLog(
   userId: string,
   level: 'info' | 'warn' | 'error',
   message: string,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): Promise<void> {
   try {
     const { deviceType, browser } = getDeviceInfo();
@@ -68,7 +68,7 @@ export async function sendPushLog(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(logEntry),
-    }).catch(err => {
+    }).catch((err) => {
       // Si falla enviar log, no romper la app
       console.error('Failed to send push log:', err);
     });
@@ -86,18 +86,17 @@ export function logPushEvent(
   level: 'info' | 'warn' | 'error',
   message: string,
   emoji?: string,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): void {
   // Log local
   const timestamp = new Date().toLocaleTimeString();
   const logMessage = `[${timestamp}] ${emoji || ''} ${message}`;
-  
+
   if (level === 'error') {
     console.error(logMessage, details);
   } else if (level === 'warn') {
     console.warn(logMessage, details);
   } else {
-    console.log(logMessage, details);
   }
 
   // Log remoto (asincrónico, no bloquea)

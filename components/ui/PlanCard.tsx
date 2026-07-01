@@ -1,67 +1,113 @@
 'use client';
+
 import { useQuery } from '@tanstack/react-query';
-import React, { useEffect, useState } from 'react';
 import { Check, CheckCircle2, Loader2, Star, Zap } from 'lucide-react';
+import React, { useState } from 'react';
 import { Button } from './Button';
-import { resolveEffectivePlanTier } from '@/lib/subscriptionUtils';
-import MercadoPagoCardBrick from './MercadoPagoCardBrick';
 import { Modal } from './Modal';
-import { toast } from 'react-toastify';
+
+type Provider = 'lemon_squeezy';
 
 type PlanResponse = {
-  reason?: string;
-  auto_recurring?: {
-    transaction_amount?: number;
-    frequency_type?: string;
-    frequency?: number;
-    free_trial?: {
-      frequency?: number;
-    };
-  };
+
+  name: string;
+  price?: string;
+  buy_url?: string;
+  description?: string;
+  hasFreeTrial: boolean;
+  trialDays: number;
 };
 
-export default function PlanCard({
-  planId,
-  isCurrent,
-  isCanceled,
-  plan_reference,
-  payerEmail,
-  onSubscriptionCreated,
-  onSubscriptionReactivated,
-}: {
-  planId: string;
+type PlanTier = 'free' | 'starter' | 'pro';
+
+type PlanCardProps = {
+  external_id?: string;
+  provider?: Provider;
+  forceTier?: PlanTier;
   isCurrent: boolean;
   isCanceled: boolean;
-  plan_reference: string;
   payerEmail?: string;
-  onSubscriptionCreated?: (subscriptionId: string) => Promise<void> | void;
-  onSubscriptionReactivated?: () => Promise<void> | void;
-}) {
+  payerId?: string;
+};
+
+const PLAN_CONTENT: Record<PlanTier, { icon: React.ReactNode; description: string; features: string[]; }> = {
+  free: {
+    icon: <Zap className='h-8 w-8' />,
+    description: 'Perfecto para comenzar',
+    features: [
+      'Hasta 3 proyectos',
+      'Canales y chat ilimitados',
+      'Hasta 100 MB de recursos',
+      'Hasta 10 miembros por proyecto',
+      'Soporte por email',
+    ]
+  },
+  starter: {
+    icon: <Star className='h-8 w-8' />,
+    description: 'Para usuarios intermedios',
+    features: [
+      'Hasta 5 proyectos',
+      'Canales y chat ilimitados',
+      'Hasta 1 GB de recursos',
+      'Hasta 15 miembros por proyecto',
+      'Soporte prioritario',
+    ]
+  },
+  pro: {
+    icon: (
+      <>
+        <Star className='h-8 w-8' />
+        <Star className='h-8 w-8' />
+      </>
+    ),
+    description: 'Para usuarios avanzados',
+    features: [
+      'Hasta 10 proyectos',
+      'Canales y chat ilimitados',
+      'Hasta 5 GB de recursos',
+      'Hasta 20 miembros por proyecto',
+      'Asistente IA con Gemini',
+      'Generar tareas con IA',
+      'Resúmenes de chat con IA',
+      'Almacenamiento prioritario',
+      'Soporte prioritario',
+      'Integraciones avanzadas',
+      'Exportar datos',
+      'Analítica avanzada de proyectos con IA',
+    ]
+  },
+};
+
+function inferTierFromPlanName(name?: string): PlanTier {
+  const normalized = (name ?? '').toLowerCase();
+  if (normalized.includes('pro')) return 'pro';
+  if (normalized.includes('starter')) return 'starter';
+  return 'free';
+}
+
+export default function PlanCard({
+  external_id,
+  provider,
+  forceTier,
+  isCurrent,
+  isCanceled,
+  payerEmail,
+  payerId,
+}: PlanCardProps) {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [isReactivating, setIsReactivating] = useState(false);
-  const [checkoutState, setCheckoutState] = useState<
-    'form' | 'processing' | 'success'
-  >('form');
+  const [checkoutState, setCheckoutState] = useState<'form' | 'processing' | 'success'>('form');
 
-  function inferTierFromReference(planRef: string): 'free' | 'starter' | 'pro' {
-    const ref = planRef.toLowerCase();
-    if (ref.includes('free')) return 'free';
-    if (ref.includes('starter')) return 'starter';
-    return 'pro';
-  }
-
-  const referenceTier = inferTierFromReference(plan_reference);
-  const shouldFetchPlan = Boolean(planId) && referenceTier !== 'free';
-
+  const shouldFetchPlan = Boolean(external_id && provider === 'lemon_squeezy');
   const { data: plan, isLoading, error } = useQuery<PlanResponse>({
-    queryKey: ['plan', planId],
+    queryKey: ['plan', external_id ?? 'local', forceTier ?? 'auto'],
     queryFn: async () => {
-      const res = await fetch(`/api/mercadopago/plan/${planId}`, {
-        credentials: 'include',
-      });
+      const endpoint = `/api/lemon-squeezy/product/${external_id}`;
+
+      const res = await fetch(endpoint, { credentials: 'include' });
       if (!res.ok) {
         throw new Error('Error fetching plan data');
       }
+
       return res.json();
     },
     enabled: shouldFetchPlan,
@@ -70,295 +116,181 @@ export default function PlanCard({
     retry: 1,
   });
 
-  const planReason = (!isLoading && plan && typeof plan.reason === 'string') ? plan.reason : '';
-  const type = referenceTier === 'free'
-    ? 'free'
-    : resolveEffectivePlanTier({
-      planTier: referenceTier,
-      internalPlanTier: planReason,
-    });
-  const isFree = type === 'free';
-
-  const isPlanIdMissing = !planId && !isFree;
   const isLoadingState = shouldFetchPlan && isLoading;
-  const hasPlanDataError = !isFree && !isLoadingState && (!plan || error);
-  const canRenderPlan = isFree || (!!plan && !error);
+  const hasPlanDataError = shouldFetchPlan && !isLoadingState && !!error;
+  const canRenderLocalFree = !shouldFetchPlan && forceTier === 'free';
+  const canRenderPlan = (!isLoadingState && !hasPlanDataError && !!plan) || canRenderLocalFree;
+  let effectiveTier: PlanTier;
 
-  const planFeatures: Record<string, { icon: React.ReactNode; description: string; features: string[]; }> = {
-    free: {
-      icon: <Zap className='h-8 w-8' />,
-      description: 'Perfecto para comenzar',
-      features: [
-        'Hasta 3 proyectos',
-        'Canales y chat ilimitados',
-        'Hasta 100 MB de recursos',
-        'Hasta 10 miembros por proyecto',
-        'Soporte por email',
-      ]
-    },
-    starter: {
-      icon: <>
-        <Star className='h-8 w-8' />
-      </>,
-      description: 'Para usuarios intermedios',
-      features: [
-        'Hasta 5 proyectos',
-        'Canales y chat ilimitados',
-        'Hasta 1 GB de recursos',
-        'Hasta 15 miembros por proyecto',
-        'Soporte prioritario',
-      ]
-    },
-    pro: {
-      icon: <>
-        <Star className='h-8 w-8' />
-        <Star className='h-8 w-8' />
-      </>,
-      description: 'Para usuarios avanzados',
-      features: [
-        'Hasta 10 proyectos',
-        'Canales y chat ilimitados',
-        'Hasta 5 GB de recursos',
-        'Hasta 20 miembros por proyecto',
-        'Asistente IA con Gemini',
-        'Generar tareas con IA',
-        'Resúmenes de chat con IA',
-        'Almacenamiento prioritario',
-        'Soporte prioritario',
-        'Integraciones avanzadas',
-        'Exportar datos',
-        'Analítica avanzada de proyectos con IA',
-      ]
-    },
-  };
+  if (plan?.name) {
+    effectiveTier = inferTierFromPlanName(plan.name);
+  } else if (forceTier) {
+    effectiveTier = forceTier;
+  } else {
+    // Safe fallback when no tier hint is available.
+    effectiveTier = 'free';
+  }
 
-  const features = planFeatures[type]?.features || [];
-  const icon = planFeatures[type]?.icon || <Star className='h-8 w-8' />;
-  const description = planFeatures[type]?.description || '';
+  const planConfig: typeof PLAN_CONTENT[PlanTier] | undefined = PLAN_CONTENT[effectiveTier];
 
-  const displayPlanName = planReason || type.toUpperCase();
-  const amount = Number(plan?.auto_recurring?.transaction_amount ?? 0);
-  const displayAmount = isFree ? 0 : amount;
-
-  const isPro = type === 'pro';
-
+  const isFree = effectiveTier === 'free';
+  const isPro = effectiveTier === 'pro';
+  const displayPlanName = plan?.name ?? effectiveTier.toUpperCase();
+  const displayDescription = plan?.description || planConfig.description;
+  const displayPriceText = isFree ? 'Gratis' : (plan?.price || '$0/mes');
   const isCheckoutProcessing = checkoutState === 'processing';
 
-  useEffect(() => {
-    if (!isCheckoutOpen || checkoutState !== 'success') return;
-    const timer = window.setTimeout(() => {
-      setIsCheckoutOpen(false);
-      setCheckoutState('form');
-    }, 1800);
+  const isActionDisabled =
+    isLoadingState ||
+    isCheckoutProcessing ||
+    isFree ||
+    (isCurrent && !isCanceled);
 
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [checkoutState, isCheckoutOpen]);
-
-  const handleReactivate = async () => {
-    if (isReactivating) return;
-    setIsReactivating(true);
-    try {
-      const response = await fetch('/api/mercadopago/reactivate-subscription', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.error || 'No se pudo reactivar la suscripción');
-      }
-
-      await onSubscriptionReactivated?.();
-      toast.success('Suscripción reactivada correctamente');
-    } catch {
+  const handlePlanAction = async () => {
+    if (isCurrent && isCanceled) {
+      // Plan cancelado, proceder al checkout para reactivar
       setCheckoutState('form');
       setIsCheckoutOpen(true);
-      toast.info('No se pudo reactivar. Completa el checkout para suscribirte nuevamente.');
-    } finally {
-      setIsReactivating(false);
+    } else if (isCurrent && !isCanceled) {
+      // Plan activo, no hacer nada
+      setCheckoutState('form');
+      setIsCheckoutOpen(true);
+    } else if (!isCurrent) {
+      // No es el plan actual, proceder al checkout
+      setCheckoutState('form');
+      setIsCheckoutOpen(true);
     }
   };
 
+  const renderCheckout = () => {
+    if (provider === 'lemon_squeezy') {
+      return (
+        <div className='rounded-lg border border-[var(--text-secondary)]/20 p-4'>
+          <p className='mb-3 text-sm text-[var(--text-secondary)]'>
+            Seras redirigido a Lemon Squeezy para completar el pago.
+          </p>
+          <Button
+            className='w-full'
+            type='button'
+            onClick={ () => {
+              if (plan?.buy_url) {
+                const params = new URLSearchParams({
+                  'checkout[email]': payerEmail as string,
+                  'checkout[custom][user_id]': payerId as string,
+                });
+                window.location.href = `${plan.buy_url}?${params.toString()}`;
+              }
+            } }
+            disabled={ isCheckoutProcessing || !plan?.buy_url }
+          >
+            Continuar con Lemon Squeezy
+          </Button>
+        </div>
+      );
+    }
+
+
+  };
+
   return (
-    <div className='relative md:min-w-md md:max-w-md h-full'>
-
-      {/* Loading */ }
+    <div className='relative h-full md:min-w-md md:max-w-md'>
       { isLoadingState && (
-        <div className='rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-6 flex items-center justify-center min-h-80'>
+        <div className='flex min-h-80 items-center justify-center rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-6'>
           <div className='text-center'>
-            <div className='animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--accent-primary)] mx-auto mb-3'></div>
-            <p className='text-[var(--text-secondary)] text-sm'>Cargando plan...</p>
+            <div className='mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-b-2 border-[var(--accent-primary)]' />
+            <p className='text-sm text-[var(--text-secondary)]'>Cargando plan...</p>
           </div>
         </div>
       ) }
 
-      { !isLoadingState && isPlanIdMissing && (
-        <div className='rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-6 flex items-center justify-center min-h-80'>
+      { hasPlanDataError && (
+        <div className='flex min-h-80 items-center justify-center rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-6'>
           <div className='text-center'>
-            <p className='text-[var(--accent-danger)] font-bold mb-2'>Plan no disponible</p>
-            <p className='text-[var(--text-secondary)] text-xs'>Falta configurar el ID del plan en variables de entorno.</p>
+            <p className='mb-2 font-bold text-[var(--accent-danger)]'>No se pudo cargar el plan</p>
+            <p className='text-xs text-[var(--text-secondary)]'>Intenta recargar la pagina o contacta soporte.</p>
           </div>
         </div>
       ) }
 
-      {/* Error */ }
-      { !isLoadingState && !isPlanIdMissing && hasPlanDataError && (
-        <div className='rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-6 flex items-center justify-center min-h-80'>
-          <div className='text-center'>
-            <p className='text-[var(--accent-danger)] font-bold mb-2'>No se pudo cargar el plan</p>
-            <p className='text-[var(--text-secondary)] text-xs'>Intenta recargar la página o contacta soporte.</p>
-          </div>
-        </div>
-      ) }
-
-      {/* Plan cargado */ }
-      { !isLoadingState && canRenderPlan && (
-        <div className={ `relative rounded-xl border p-6 flex flex-col transition-all h-full ${isPro
-          ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/5 shadow-lg'
-          : 'border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]'
-          }` }>
-          {/* Badge "Más popular" para Pro */ }
+      { canRenderPlan && (
+        <div
+          className={ `relative flex h-full flex-col rounded-xl border p-6 transition-all ${isPro
+            ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/5 shadow-lg'
+            : 'border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]'
+            }` }
+        >
           { isPro && (
-            <span className='absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-bold px-3 py-1 rounded-full bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] whitespace-nowrap'>
-              Más popular
+            <span className='absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[var(--accent-primary)] px-3 py-1 text-xs font-bold text-[var(--accent-primary-contrast)]'>
+              Mas popular
             </span>
           ) }
 
-          {/* Badge plan actual */ }
           { isCurrent && (
-            <div className={ `absolute top-3 right-3 text-xs font-bold px-2 py-1 rounded-full ${isCanceled
-              ? 'bg-[var(--accent-danger)]/20 text-[var(--accent-danger)]'
-              : 'bg-green-500/20 text-green-700'
-              }` }>
+            <div
+              className={ `absolute right-3 top-3 rounded-full px-2 py-1 text-xs font-bold ${isCanceled
+                ? 'bg-[var(--accent-danger)]/20 text-[var(--accent-danger)]'
+                : 'bg-green-500/20 text-green-700'
+                }` }
+            >
               { isCanceled ? 'Cancelado' : 'Plan actual' }
             </div>
           ) }
 
-          {/* Nombre e icono */ }
-          <div className='flex flex-col items-center gap-2 mb-3'>
-            <span className='text-[var(--accent-primary)] flex'>{ icon }</span>
-            <h3 className='font-bold text-[var(--text-primary)] text-lg uppercase'>{ displayPlanName }</h3>
+          <div className='mb-3 flex flex-col items-center gap-2'>
+            <span className='flex text-[var(--accent-primary)]'>{ planConfig.icon }</span>
+            <h3 className='text-lg font-bold uppercase text-[var(--text-primary)]'>{ displayPlanName }</h3>
           </div>
 
-          {/* Precio */ }
-          <div className='mb-1'>
-            <span className='text-3xl font-extrabold text-[var(--text-primary)]'>
-              ${ displayAmount.toLocaleString() }
-            </span>
-            <span className='text-[var(--text-secondary)] ml-1 text-sm'>
-              /mes
-            </span>
-          </div>
+          <p className='mb-1 text-3xl font-extrabold text-[var(--text-primary)]'>{ displayPriceText }</p>
 
-          {/* Descripción */ }
-          <p className='text-sm text-[var(--text-secondary)] mb-1'>{ description }</p>
+          <p className='mb-1 text-sm text-[var(--text-secondary)]'>{ displayDescription }</p>
 
-          {/* Prueba gratuita */ }
-          { plan?.auto_recurring?.free_trial && (
-            <p className='text-xs font-medium text-[var(--accent-primary)] mb-4'>
-              ✓ { plan.auto_recurring.free_trial.frequency } días de prueba gratuita
+          { plan?.hasFreeTrial && plan?.trialDays > 0 && (
+            <p className='mt-1 text-xs font-medium text-[var(--accent-primary)]'>
+              Incluye { plan.trialDays } días de prueba gratis
             </p>
           ) }
 
-          {/* Features */ }
-          <ul className='space-y-2 mb-6 mt-3 '>
-            { features.map((feature) => (
+          <ul className='mb-6 mt-3 space-y-2'>
+            { planConfig.features.map((feature) => (
               <li key={ feature } className='flex items-start gap-2 text-sm text-[var(--text-secondary)]'>
-                <Check className='h-4 w-4 text-[var(--accent-primary)] shrink-0 mt-0.5' />
+                <Check className='mt-0.5 h-4 w-4 shrink-0 text-[var(--accent-primary)]' />
                 { feature }
               </li>
             )) }
           </ul>
-
-          {/* CTA */ }
-          <Button
-            className='w-full mt-auto'
-            variant={ isCurrent && !isCanceled ? 'primary' : 'secondary' }
-            disabled={ (isCurrent && !isCanceled) || isLoadingState || isFree || isReactivating }
-            onClick={ () => {
-              if (!isFree && isCurrent && isCanceled) {
-                void handleReactivate();
-                return;
-              }
-              if (!isFree && !isCurrent) {
-                setCheckoutState('form');
-                setIsCheckoutOpen(true);
-              }
-            } }
-          >
-            { isFree
-              ? 'Ya estás aquí'
-              : isLoadingState && isCurrent
-                ? 'Procesando...'
+          { !isFree &&
+            <Button
+              className='mt-auto w-full'
+              variant={ isCurrent && !isCanceled ? 'primary' : 'secondary' }
+              disabled={ isActionDisabled }
+              onClick={ () => void handlePlanAction() }
+            >
+              { isFree
+                ? 'Ya estas aquí'
                 : isCurrent
-                  ? (isCanceled ? (isReactivating ? 'Reactivando...' : 'Reactivar suscripción') : 'Plan actual')
+                  ? (isCanceled ? 'Reactivar suscripción' : 'Plan actual')
                   : 'Actualizar plan' }
-          </Button>
-
-          { !isFree && displayAmount > 0 && isCheckoutOpen && (
+            </Button>
+          }
+          { !isFree && isCheckoutOpen && (
             <Modal
               isOpen={ isCheckoutOpen }
-              onClose={ () => {
-                if (isCheckoutProcessing) return;
-                setIsCheckoutOpen(false);
-                setCheckoutState('form');
-              } }
-              title={ `Checkout ${planReason || 'Plan'}` }
+              onClose={ () => !isCheckoutProcessing && setIsCheckoutOpen(false) }
+              title={ `Checkout ${displayPlanName}` }
               size='lg'
             >
-              <div className='space-y-3'>
-                <p className='text-sm text-[var(--text-secondary)]'>
-                  Completa los datos de tu tarjeta para activar tu suscripción.
-                </p>
-                <p className='text-sm font-semibold text-[var(--text-primary)]'>
-                  Total: ${ displayAmount.toLocaleString() } / mes
-                </p>
-              </div>
-
               { checkoutState === 'success' ? (
-                <div className='mt-6 rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-6 text-center'>
-                  <CheckCircle2 className='mx-auto mb-3 h-12 w-12 text-emerald-500' />
-                  <h4 className='text-xl font-bold text-[var(--text-primary)]'>
-                    Pago confirmado
-                  </h4>
-                  <p className='mt-2 text-sm text-[var(--text-secondary)]'>
-                    Tu suscripción quedó activa. Estamos actualizando tu panel.
-                  </p>
+                <div className='p-6 text-center'>
+                  <CheckCircle2 className='mx-auto h-12 w-12 text-emerald-500' />
+                  <h4 className='font-bold'>Pago confirmado</h4>
                 </div>
               ) : (
-                <div className='mt-4 relative'>
-                  <MercadoPagoCardBrick
-                    planId={ planId }
-                    planName={ displayPlanName }
-                    amount={ displayAmount }
-                    payerEmail={ payerEmail }
-                    disabled={ isCheckoutProcessing }
-                    onProcessingChange={ (processing) => {
-                      setCheckoutState((previous) => {
-                        if (previous === 'success') return previous;
-                        return processing ? 'processing' : 'form';
-                      });
-                    } }
-                    onCheckoutSuccess={ () => {
-                      setCheckoutState('success');
-                    } }
-                    onSubscriptionCreated={ async (subscriptionId) => {
-                      await onSubscriptionCreated?.(subscriptionId);
-                    } }
-                  />
-
+                <div className='relative'>
+                  { renderCheckout() }
                   { isCheckoutProcessing && (
-                    <div className='absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-[var(--bg-primary)]/85 backdrop-blur-[2px]'>
-                      <div className='text-center'>
-                        <Loader2 className='mx-auto h-8 w-8 animate-spin text-[var(--accent-primary)]' />
-                        <p className='mt-3 text-sm font-semibold text-[var(--text-primary)]'>
-                          Confirmando pago...
-                        </p>
-                        <p className='mt-1 text-xs text-[var(--text-secondary)]'>
-                          Esto puede tardar unos segundos.
-                        </p>
-                      </div>
+                    <div className='absolute inset-0 flex items-center justify-center bg-[var(--bg-primary)]/85'>
+                      <Loader2 className='mx-auto h-8 w-8 animate-spin text-[var(--accent-primary)]' />
                     </div>
                   ) }
                 </div>

@@ -1,13 +1,12 @@
-/**
- * Subscription Utilities
- * Funciones auxiliares para gestionar límites de suscripción
- */
+import { PlanTier } from '@/types/planTypes';
 
 import { SupabaseClient } from '@supabase/supabase-js';
 
-export type PlanTier = 'free' | 'starter' | 'pro';
+// (Se eliminará esta línea)
 
-type MercadoPagoStatus = 'authorized' | 'pending' | 'paused' | 'cancelled';
+export type SubscriptionProvider = 'lemon_squeezy';
+
+type lemon_squeezyStatus = 'authorized' | 'pending' | 'paused' | 'cancelled';
 
 type SubscriptionAccessSnapshot = {
   status?: string | null;
@@ -36,26 +35,38 @@ function buildPlanIdMap(
 
   return {
     starter: [
-      pick(
-        'MP_STARTER_MENSUAL_PLAN_ID',
-        'NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID',
-      ),
+      pick('MP_STARTER_MENSUAL_PLAN_ID', 'NEXT_PUBLIC_LEMON_STARTER_PLAN_ID'),
     ].filter(Boolean),
     pro: [
-      pick('MP_PRO_MENSUAL_PLAN_ID', 'NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID'),
+      pick('MP_PRO_MENSUAL_PLAN_ID', 'NEXT_PUBLIC_LEMON_PRO_PLAN_ID'),
     ].filter(Boolean),
   };
 }
 
-export function getPublicMercadoPagoPlanIdMap() {
-  return buildPlanIdMap(false);
+function buildLemonVariantIdMap(): Record<'starter' | 'pro', string[]> {
+  const env = process.env;
+
+  return {
+    starter: [env.NEXT_PUBLIC_LEMON_STARTER_VARIANT_ID ?? ''].filter(Boolean),
+    pro: [env.NEXT_PUBLIC_LEMON_PRO_VARIANT_ID ?? ''].filter(Boolean),
+  };
 }
 
-export function getServerMercadoPagoPlanIdMap() {
-  return buildPlanIdMap(true);
+export function mapLemonVariantIdToTier(
+  variantId?: string | number | null,
+): PlanTier {
+  if (variantId === null || variantId === undefined) return 'free';
+
+  const normalizedVariantId = String(variantId).trim();
+  if (!normalizedVariantId) return 'free';
+
+  const map = buildLemonVariantIdMap();
+  if (map.starter.includes(normalizedVariantId)) return 'starter';
+  if (map.pro.includes(normalizedVariantId)) return 'pro';
+  return 'free';
 }
 
-export function mapMercadoPagoPlanIdToTier(
+export function maplemon_squeezyPlanIdToTier(
   planId?: string | null,
   useServerEnv = false,
 ): PlanTier {
@@ -69,8 +80,6 @@ export function mapMercadoPagoPlanIdToTier(
 export function resolveEffectivePlanTier(input: {
   planTier?: string | null;
   internalPlanTier?: string | null;
-  priceId?: string | null;
-  useServerEnv?: boolean;
 }): PlanTier {
   const fromDb = normalizeTier(input.planTier);
   if (KNOWN_PAID_TIERS.includes(fromDb)) return fromDb;
@@ -78,12 +87,12 @@ export function resolveEffectivePlanTier(input: {
   const fromInternal = normalizeTier(input.internalPlanTier);
   if (KNOWN_PAID_TIERS.includes(fromInternal)) return fromInternal;
 
-  return mapMercadoPagoPlanIdToTier(input.priceId, input.useServerEnv);
+  return 'free';
 }
 
-export function normalizeMercadoPagoStatus(
+export function normalizelemon_squeezyStatus(
   status?: string | null,
-): MercadoPagoStatus | null {
+): lemon_squeezyStatus | null {
   if (!status) return null;
   const normalized = status.toLowerCase();
   if (
@@ -97,8 +106,10 @@ export function normalizeMercadoPagoStatus(
   return null;
 }
 
-export function mapMercadoPagoStatusToDbStatus(status?: string | null): string {
-  const normalized = normalizeMercadoPagoStatus(status);
+export function maplemon_squeezyStatusToDbStatus(
+  status?: string | null,
+): string {
+  const normalized = normalizelemon_squeezyStatus(status);
   switch (normalized) {
     case 'authorized':
       return 'active';
@@ -113,14 +124,35 @@ export function mapMercadoPagoStatusToDbStatus(status?: string | null): string {
   }
 }
 
+export function mapLemonStatusToDbStatus(status?: string | null): string {
+  if (!status) return 'incomplete';
+
+  switch (status.toLowerCase()) {
+    case 'active':
+      return 'active';
+    case 'on_trial':
+      return 'trialing';
+    case 'past_due':
+    case 'paused':
+      return 'past_due';
+    case 'cancelled':
+    case 'expired':
+      return 'cancelled';
+    case 'unpaid':
+      return 'unpaid';
+    default:
+      return 'incomplete';
+  }
+}
+
 export function hasPaidAccess(
   snapshot: SubscriptionAccessSnapshot | null | undefined,
-  mercadoPagoStatus?: string | null,
+  lemon_squeezyStatus?: string | null,
 ): boolean {
   if (!snapshot) return false;
 
   const now = new Date();
-  const normalizedMpStatus = normalizeMercadoPagoStatus(mercadoPagoStatus);
+  const normalizedMpStatus = normalizelemon_squeezyStatus(lemon_squeezyStatus);
 
   if (normalizedMpStatus === 'authorized') {
     return true;

@@ -5,6 +5,7 @@ import { ProjectsView } from '@/components/dashboard/ProjectsView';
 import { InvitationsWidget } from '@/components/dashboard/InvitationsWidget';
 import SubscriptionSync from '@/components/dashboard/SubscriptionSync';
 import SubscriptionRealtimeRefresh from '@/components/dashboard/SubscriptionRealtimeRefresh';
+import { hasPaidAccess } from '@/lib/subscriptionUtils';
 // import { supabaseAdmin } from '@/lib/supabase/admin';
 
 // type SearchParams = { [key: string]: string | string[] | undefined; };
@@ -19,15 +20,41 @@ export default async function DashboardPage() {
 
   const { data: subscription } = await supabase
     .from('subscriptions')
-    .select('status, price_id, cancel_at_period_end, current_period_end')
+    .select('status, plan_tier, cancel_at_period_end, current_period_end')
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle();
 
   const { data: planTierRaw } = await supabase.rpc('get_user_plan', {
     p_user_id: user.id,
   });
-  const planTier = (typeof planTierRaw === 'string' ? planTierRaw : 'free');
-  const isPaid = planTier !== 'free';
+  const contextPlanTier =
+    typeof planTierRaw === 'string' &&
+      (planTierRaw.toLowerCase() === 'starter' ||
+        planTierRaw.toLowerCase() === 'pro')
+      ? planTierRaw.toLowerCase()
+      : 'free';
+
+  const subscriptionPlanTier =
+    typeof subscription?.plan_tier === 'string' &&
+      (subscription.plan_tier.toLowerCase() === 'starter' ||
+        subscription.plan_tier.toLowerCase() === 'pro')
+      ? subscription.plan_tier.toLowerCase()
+      : 'free';
+
+  const paidAccessFromSubscription = hasPaidAccess({
+    status: subscription?.status,
+    cancel_at_period_end: subscription?.cancel_at_period_end,
+    current_period_end: subscription?.current_period_end,
+  });
+
+  const effectivePlanTier =
+    contextPlanTier !== 'free'
+      ? contextPlanTier
+      : paidAccessFromSubscription && subscriptionPlanTier !== 'free'
+        ? subscriptionPlanTier
+        : 'free';
+
+  const isPaid = effectivePlanTier !== 'free';
 
   // Calcular días restantes si la cancelación está programada
   let daysRemaining: number | null = null;
@@ -40,15 +67,15 @@ export default async function DashboardPage() {
 
   const subtitleText = isPaid
     ? daysRemaining && daysRemaining > 0
-      ? `Plan ${planTier.toUpperCase()} Activo - ${daysRemaining} día${daysRemaining === 1 ? '' : 's'} restante${daysRemaining === 1 ? '' : 's'}`
-      : `Plan ${planTier.toUpperCase()} Activo`
+      ? `Plan ${effectivePlanTier.toUpperCase()} Activo - ${daysRemaining} día${daysRemaining === 1 ? '' : 's'} restante${daysRemaining === 1 ? '' : 's'}`
+      : `Plan ${effectivePlanTier.toUpperCase()} Activo`
     : <span>Plan gratuito <a href="/settings/subscription" className="font-bold underline ml-1">Ver planes</a></span>;
 
   return (
     <div className="min-h-dvh bg-[var(--bg-primary)]">
       <Header
         title="Mis Proyectos"
-        subtitle={subtitleText}
+        subtitle={ subtitleText }
       />
 
       <main className='m-6 space-y-6'>
@@ -62,7 +89,7 @@ export default async function DashboardPage() {
             </div>
           </div>
         )} */}
-        {/* Sincroniza la suscripción al volver de Mercado Pago */}
+        {/* Sincroniza la suscripción al volver de Mercado Pago */ }
         <SubscriptionSync />
         <SubscriptionRealtimeRefresh />
         <InvitationsWidget />
