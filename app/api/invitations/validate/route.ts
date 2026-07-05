@@ -21,7 +21,10 @@ export async function POST(request: NextRequest) {
     const { projectId } = body;
 
     if (!projectId) {
-      return NextResponse.json({ error: 'projectId es requerido' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'projectId es requerido' },
+        { status: 400 },
+      );
     }
 
     // Verificar que el usuario es el dueño o admin del proyecto
@@ -35,15 +38,27 @@ export async function POST(request: NextRequest) {
     if (memberError || !member) {
       return NextResponse.json(
         { error: 'No tienes acceso a este proyecto' },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
     // @ts-expect-error - project structure
     const ownerId = member.project.owner_id;
+    const canManageMembers = ownerId === user.id || member.role === 'Admin';
+
+    if (!canManageMembers) {
+      return NextResponse.json(
+        { error: 'Solo Owner o Admin pueden invitar miembros' },
+        { status: 403 },
+      );
+    }
 
     // Verificar límites
-    const validation = await canAddMemberToProject(supabase, projectId, ownerId);
+    const validation = await canAddMemberToProject(
+      supabase,
+      projectId,
+      ownerId,
+    );
 
     if (!validation.canAdd) {
       return NextResponse.json(
@@ -53,7 +68,7 @@ export async function POST(request: NextRequest) {
           currentCount: validation.currentCount,
           limit: validation.limit,
         },
-        { status: 200 }
+        { status: 200 },
       );
     }
 
@@ -63,13 +78,13 @@ export async function POST(request: NextRequest) {
         currentCount: validation.currentCount,
         limit: validation.limit,
       },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error('Error validating invitation:', error);
     return NextResponse.json(
       { error: 'Error al validar invitación' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
