@@ -13,6 +13,7 @@ interface KanbanColumnProps {
   phaseLabels?: Record<number, string>;
   epicLabels?: Record<string, string>;
   onEditTask?: (task: Task) => void;
+  isReadOnly?: boolean;
 }
 
 const columnTheme: Record<string, { ring: string; badge: string; dot: string; }> = {
@@ -33,7 +34,7 @@ const columnTheme: Record<string, { ring: string; badge: string; dot: string; }>
   },
 };
 
-const KanbanColumnComponent: React.FC<KanbanColumnProps> = ({ id, title, tasks, phaseLabels, epicLabels, onEditTask }) => {
+const KanbanColumnComponent: React.FC<KanbanColumnProps> = ({ id, title, tasks, phaseLabels, epicLabels, onEditTask, isReadOnly = false }) => {
   const { setNodeRef } = useDroppable({
     id: id,
   });
@@ -42,34 +43,35 @@ const KanbanColumnComponent: React.FC<KanbanColumnProps> = ({ id, title, tasks, 
   const theme = columnTheme[id] ?? columnTheme.todo;
 
   return (
-    <div id={id} className={`flex flex-col w-80 md:w-96 rounded-xl border ${theme.ring} h-fit max-h-full flex-shrink-0`}>
+    <div id={ id } className={ `flex flex-col w-80 md:w-96 rounded-xl border ${theme.ring} h-fit max-h-full flex-shrink-0` }>
       <h3 className="font-semibold text-[var(--text-primary)] px-4 py-3 flex justify-between items-center flex-none border-b border-[var(--text-secondary)]/10">
         <span className="flex items-center gap-2">
-          <span className={`h-2.5 w-2.5 rounded-full ${theme.dot}`} />
-          {title}
+          <span className={ `h-2.5 w-2.5 rounded-full ${theme.dot}` } />
+          { title }
         </span>
-        <span className={`${theme.badge} text-xs px-2.5 py-1 rounded-full font-semibold`}>
-          {tasks.length}
+        <span className={ `${theme.badge} text-xs px-2.5 py-1 rounded-full font-semibold` }>
+          { tasks.length }
         </span>
       </h3>
 
-      <div ref={setNodeRef} className="flex-1 p-3 overflow-y-auto space-y-2 min-h-[140px]">
-        <SortableContext items={sortableTaskIds} strategy={verticalListSortingStrategy}>
-          {tasks.length === 0 ? (
+      <div ref={ setNodeRef } className="flex-1 p-3 overflow-y-auto space-y-2 min-h-[140px]">
+        <SortableContext items={ sortableTaskIds } strategy={ verticalListSortingStrategy }>
+          { tasks.length === 0 ? (
             <div className="h-24 rounded-lg border border-dashed border-[var(--text-secondary)]/25 bg-[var(--bg-primary)]/50 flex items-center justify-center text-xs text-[var(--text-secondary)] text-center px-3">
               Arrastra tareas aqui o crea una nueva para esta columna
             </div>
           ) : (
             tasks.map((task) => (
               <KanbanTask
-                key={task.id}
-                task={task}
-                phaseLabel={task.phase_roadmap_id ? phaseLabels?.[task.phase_roadmap_id] : null}
-                epicLabel={task.epic_id ? epicLabels?.[task.epic_id] : null}
-                onEdit={() => onEditTask?.(task)}
+                key={ task.id }
+                task={ task }
+                phaseLabel={ task.phase_roadmap_id ? phaseLabels?.[task.phase_roadmap_id] : null }
+                epicLabel={ task.epic_id ? epicLabels?.[task.epic_id] : null }
+                isReadOnly={ isReadOnly }
+                onEdit={ () => onEditTask?.(task) }
               />
             ))
-          )}
+          ) }
         </SortableContext>
       </div>
     </div>

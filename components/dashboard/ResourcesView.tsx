@@ -52,6 +52,8 @@ export const ResourcesView: React.FC = () => {
   const { user } = useAuthStore();
   const { currentProject, setCurrentProject } = useProjectStore();
   const queryClient = useQueryClient();
+  const normalizedRole = currentProject?.userRole?.toLowerCase();
+  const isViewer = normalizedRole === 'viewer';
 
   const projectTier = currentProject?.plan_tier === 'starter' || currentProject?.plan_tier === 'pro'
     ? currentProject.plan_tier
@@ -110,6 +112,9 @@ export const ResourcesView: React.FC = () => {
   // Create link mutation
   const createLinkMutation = useMutation({
     mutationFn: async (data: LinkFormData) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para agregar links');
+      }
       const { error } = await supabase.from('resources').insert({
         project_id: currentProject!.id,
         title: data.title,
@@ -132,6 +137,9 @@ export const ResourcesView: React.FC = () => {
   // Upload file mutation
   const uploadFileMutation = useMutation({
     mutationFn: async ({ file, customName }: { file: File; customName?: string; }) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para subir archivos');
+      }
       // Check storage limit
       const { canAdd, reason } = await checkStorageLimit(supabase, currentProject!.id, file.size);
       if (!canAdd) {
@@ -201,6 +209,9 @@ export const ResourcesView: React.FC = () => {
   // Delete resource mutation
   const deleteResourceMutation = useMutation({
     mutationFn: async (resource: Resource) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para eliminar recursos');
+      }
       let fileSize = resource.size || 0;
 
       if (resource.type === 'file') {
@@ -263,6 +274,9 @@ export const ResourcesView: React.FC = () => {
   // Bulk delete mutation
   const bulkDeleteMutation = useMutation({
     mutationFn: async (resourcesToDelete: Resource[]) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para eliminar recursos');
+      }
       let totalSize = 0;
       const filePathsToDelete: string[] = [];
       const idsToDelete: string[] = [];
@@ -335,6 +349,10 @@ export const ResourcesView: React.FC = () => {
 
   // Analyze Resource Function
   const handleAnalyzeResource = async (resource: Resource) => {
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar recursos');
+      return;
+    }
     setAnalyzingResource(resource);
     setIsAnalyzeModalOpen(true);
     setAnalysisSummary(null);
@@ -377,6 +395,9 @@ export const ResourcesView: React.FC = () => {
   };
 
   const toggleSelection = (resource: Resource, selected: boolean) => {
+    if (isViewer) {
+      return;
+    }
     const newSelected = new Set(selectedResources);
     if (selected) {
       newSelected.add(resource.id);
@@ -387,6 +408,10 @@ export const ResourcesView: React.FC = () => {
   };
 
   const handleBulkDelete = () => {
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar recursos');
+      return;
+    }
     if (!resources) return;
     const resourcesToDelete = resources.filter(r => selectedResources.has(r.id));
     if (confirm(`¿Estás seguro de eliminar ${resourcesToDelete.length} recursos?`)) {
@@ -458,10 +483,13 @@ export const ResourcesView: React.FC = () => {
                 used={ currentProject.storage_used || 0 }
                 limit={ projectLimits.MAX_STORAGE_BYTES }
               />
+              { isViewer && (
+                <p className='mt-2 text-xs text-[var(--text-secondary)]'>Modo solo lectura: tu rol Viewer no puede crear, subir ni eliminar recursos.</p>
+              ) }
             </div>
           </div>
           <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
-            { selectionMode ? (
+            { !isViewer && selectionMode ? (
               <>
                 <Button
                   onClick={ handleBulkDelete }
@@ -484,7 +512,7 @@ export const ResourcesView: React.FC = () => {
                   Cancelar
                 </Button>
               </>
-            ) : (
+            ) : !isViewer ? (
               <>
                 <Button
                   onClick={ () => setSelectionMode(true) }
@@ -511,7 +539,7 @@ export const ResourcesView: React.FC = () => {
                   Subir Archivo
                 </Button>
               </>
-            ) }
+            ) : null }
           </div>
         </div>
 
@@ -526,6 +554,7 @@ export const ResourcesView: React.FC = () => {
                 onDelete={ (resource) => deleteResourceMutation.mutate(resource) }
                 onAnalyze={ handleAnalyzeResource }
                 isPremium={ canUseAI }
+                canManage={ !isViewer }
                 selectionMode={ selectionMode }
                 selected={ selectedResources.has(resource.id) }
                 onSelect={ toggleSelection }
@@ -545,33 +574,39 @@ export const ResourcesView: React.FC = () => {
                 ? 'Comienza agregando links o subiendo archivos al proyecto'
                 : `${getEmptyStateText()} cargados en tu proyecto.` }
             </p>
-            <div className='flex flex-col sm:flex-row items-center justify-center gap-2'>
-              <Button onClick={ () => setIsLinkModalOpen(true) }>
-                <Plus className='h-4 w-4 mr-2' />
-                Agregar Link
-              </Button>
-              <Button onClick={ () => setIsFileModalOpen(true) } variant='secondary'>
-                <Upload className='h-4 w-4 mr-2' />
-                Subir Archivo
-              </Button>
-            </div>
+            { !isViewer && (
+              <div className='flex flex-col sm:flex-row items-center justify-center gap-2'>
+                <Button onClick={ () => setIsLinkModalOpen(true) }>
+                  <Plus className='h-4 w-4 mr-2' />
+                  Agregar Link
+                </Button>
+                <Button onClick={ () => setIsFileModalOpen(true) } variant='secondary'>
+                  <Upload className='h-4 w-4 mr-2' />
+                  Subir Archivo
+                </Button>
+              </div>
+            ) }
           </div>
         ) }
       </div>
 
-      <AddLinkModal
-        isOpen={ isLinkModalOpen }
-        onClose={ () => setIsLinkModalOpen(false) }
-        onSubmit={ (data) => createLinkMutation.mutate(data) }
-        isLoading={ createLinkMutation.isPending }
-      />
+      { !isViewer && (
+        <AddLinkModal
+          isOpen={ isLinkModalOpen }
+          onClose={ () => setIsLinkModalOpen(false) }
+          onSubmit={ (data) => createLinkMutation.mutate(data) }
+          isLoading={ createLinkMutation.isPending }
+        />
+      ) }
 
-      <UploadFileModal
-        isOpen={ isFileModalOpen }
-        onClose={ () => setIsFileModalOpen(false) }
-        onUpload={ (file, customName) => uploadFileMutation.mutate({ file, customName }) }
-        isLoading={ uploadFileMutation.isPending }
-      />
+      { !isViewer && (
+        <UploadFileModal
+          isOpen={ isFileModalOpen }
+          onClose={ () => setIsFileModalOpen(false) }
+          onUpload={ (file, customName) => uploadFileMutation.mutate({ file, customName }) }
+          isLoading={ uploadFileMutation.isPending }
+        />
+      ) }
 
       <AnalyzeResourceModal
         isOpen={ isAnalyzeModalOpen }

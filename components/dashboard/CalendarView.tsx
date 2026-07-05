@@ -131,6 +131,8 @@ export const CalendarView: React.FC = () => {
   const oauthProcessedRef = useRef(false);
   const { user } = useAuthStore();
   const { currentProject } = useProjectStore();
+  const normalizedRole = currentProject?.userRole?.toLowerCase();
+  const isViewer = normalizedRole === 'viewer';
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -218,6 +220,10 @@ export const CalendarView: React.FC = () => {
 
   // Conectar con Google Calendar (usando hook unificado)
   const connectGoogleCalendar = async () => {
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
+      return;
+    }
     try {
       await connectGoogle(currentProject?.id);
     } catch (error) {
@@ -228,6 +234,10 @@ export const CalendarView: React.FC = () => {
 
   // Desconectar Google Calendar (usando hook unificado)
   const disconnectGoogleCalendar = async () => {
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
+      return;
+    }
     try {
       await disconnectGoogle();
       toast.info('Google Calendar desconectado');
@@ -356,6 +366,10 @@ export const CalendarView: React.FC = () => {
 
   // Sincronizar todos los eventos existentes
   const syncAllEventsToGoogle = async () => {
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
+      return;
+    }
     if (!activeTokens || !events || events.length === 0) {
       toast.error('No hay eventos para sincronizar');
       return;
@@ -434,6 +448,9 @@ export const CalendarView: React.FC = () => {
   // Create event mutation
   const createEventMutation = useMutation({
     mutationFn: async (data: EventFormData) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para crear eventos');
+      }
       if (isEndBeforeStart(data)) {
         throw new Error('La hora de fin no puede ser menor que la hora de inicio');
       }
@@ -553,6 +570,9 @@ export const CalendarView: React.FC = () => {
   // Delete event mutation
   const deleteEventMutation = useMutation({
     mutationFn: async (eventId: string) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para eliminar eventos');
+      }
       // Primero obtener el evento para tener su información
       const { data: eventData } = await supabase
         .from('events')
@@ -585,6 +605,10 @@ export const CalendarView: React.FC = () => {
   });
 
   const deleteEventsAndSync = async (eventIds: string[]) => {
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
+      return;
+    }
     const loadingToast = toast.loading(`Eliminando ${eventIds.length} evento(s)...`);
 
     try {
@@ -628,6 +652,10 @@ export const CalendarView: React.FC = () => {
 
   // Eliminar todos los eventos que ya pasaron
   const handleDeletePastEvents = async () => {
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
+      return;
+    }
     if (!events) return;
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -685,6 +713,9 @@ export const CalendarView: React.FC = () => {
                 <p className="text-sm text-[var(--text-secondary)]">
                   { events?.length || 0 } evento{ events?.length !== 1 ? 's' : '' } en total
                 </p>
+                { isViewer && (
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">Modo solo lectura: tu rol Viewer no puede crear, eliminar ni sincronizar eventos.</p>
+                ) }
                 { (() => {
                   const now = new Date();
                   now.setHours(0, 0, 0, 0);
@@ -725,15 +756,17 @@ export const CalendarView: React.FC = () => {
               <div className="flex flex-col sm:flex-row gap-2">
                 { activeIsConnected ? (
                   <>
-                    <Button
-                      onClick={ syncAllEventsToGoogle }
-                      variant="secondary"
-                      disabled={ isSyncing || !events || events.length === 0 }
-                    >
-                      <RefreshCw className={ `h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}` } />
-                      { isSyncing ? `Sincronizando (${syncProgress.current}/${syncProgress.total})` : 'Sincronizar Todos' }
-                    </Button>
-                    { authMethod !== 'google_login' && (
+                    { !isViewer && (
+                      <Button
+                        onClick={ syncAllEventsToGoogle }
+                        variant="secondary"
+                        disabled={ isSyncing || !events || events.length === 0 }
+                      >
+                        <RefreshCw className={ `h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}` } />
+                        { isSyncing ? `Sincronizando (${syncProgress.current}/${syncProgress.total})` : 'Sincronizar Todos' }
+                      </Button>
+                    ) }
+                    { !isViewer && authMethod !== 'google_login' && (
                       <Button
                         onClick={ disconnectGoogleCalendar }
                         variant="secondary"
@@ -743,26 +776,30 @@ export const CalendarView: React.FC = () => {
                     ) }
                   </>
                 ) : (
+                  !isViewer && (
+                    <Button
+                      onClick={ connectGoogleCalendar }
+                      variant="secondary"
+                      disabled={ isGoogleLoading }
+                    >
+                      { isGoogleUser && needsReconnect ? '🔄 Reconectar Calendar' : '📅 Conectar Google Calendar' }
+                    </Button>
+                  )
+                ) }
+                { !isViewer && (
                   <Button
-                    onClick={ connectGoogleCalendar }
-                    variant="secondary"
-                    disabled={ isGoogleLoading }
+                    onClick={ () => {
+                      setIsModalOpen(true);
+                      reset();
+                      setSelectedDays([]);
+                      setShowRecurrenceOptions(false);
+                    } }
                   >
-                    { isGoogleUser && needsReconnect ? '🔄 Reconectar Calendar' : '📅 Conectar Google Calendar' }
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nuevo Evento
                   </Button>
                 ) }
-                <Button
-                  onClick={ () => {
-                    setIsModalOpen(true);
-                    reset();
-                    setSelectedDays([]);
-                    setShowRecurrenceOptions(false);
-                  } }
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nuevo Evento
-                </Button>
-                { events && events.some(e => new Date(e.start_date) < (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })()) && (
+                { !isViewer && events && events.some(e => new Date(e.start_date) < (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })()) && (
                   <Button
                     variant="secondary"
                     onClick={ handleDeletePastEvents }
@@ -827,6 +864,7 @@ export const CalendarView: React.FC = () => {
             <EventList
               groupedEvents={ groupedAndSortedEvents }
               sortedDates={ sortedDates }
+              canManage={ !isViewer }
               onDeleteEvent={ (eventId) => deleteEventMutation.mutate(eventId) }
               onDeleteAllEventsFromDate={ handleDeleteAllEventsFromDate }
               onDeleteMultipleEvents={ handleDeleteMultipleEvents }
@@ -842,50 +880,54 @@ export const CalendarView: React.FC = () => {
                 <p className="text-sm text-[var(--text-secondary)] mb-6">
                   Crea tu primer evento para comenzar a organizar
                 </p>
-                <Button
-                  onClick={ () => setIsModalOpen(true) }
-                  size="lg"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Crear Evento
-                </Button>
+                { !isViewer && (
+                  <Button
+                    onClick={ () => setIsModalOpen(true) }
+                    size="lg"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Crear Evento
+                  </Button>
+                ) }
               </div>
             </div>
           ) }
         </div>
 
         {/* Create Event Modal */ }
-        <EventModal
-          isOpen={ isModalOpen }
-          onClose={ () => {
-            setIsModalOpen(false);
-            setShowRecurrenceOptions(false);
-            setSelectedDays([]);
-          } }
-          onSubmit={ (data) => {
-            const formData = {
-              ...data,
-              selected_days: data.recurrence_type !== 'none' ? selectedDays : [],
-            };
+        { !isViewer && (
+          <EventModal
+            isOpen={ isModalOpen }
+            onClose={ () => {
+              setIsModalOpen(false);
+              setShowRecurrenceOptions(false);
+              setSelectedDays([]);
+            } }
+            onSubmit={ (data) => {
+              const formData = {
+                ...data,
+                selected_days: data.recurrence_type !== 'none' ? selectedDays : [],
+              };
 
-            if (isEndBeforeStart(formData)) {
-              toast.error('La hora de fin no puede ser menor que la hora de inicio');
-              return;
-            }
+              if (isEndBeforeStart(formData)) {
+                toast.error('La hora de fin no puede ser menor que la hora de inicio');
+                return;
+              }
 
-            createEventMutation.mutate(formData);
-          } }
-          handleSubmit={ handleSubmit }
-          register={ register }
-          errors={ errors }
-          watch={ watch }
-          setValue={ setValue }
-          selectedDays={ selectedDays }
-          setSelectedDays={ setSelectedDays }
-          showRecurrenceOptions={ showRecurrenceOptions }
-          setShowRecurrenceOptions={ setShowRecurrenceOptions }
-          isLoading={ createEventMutation.isPending }
-        />
+              createEventMutation.mutate(formData);
+            } }
+            handleSubmit={ handleSubmit }
+            register={ register }
+            errors={ errors }
+            watch={ watch }
+            setValue={ setValue }
+            selectedDays={ selectedDays }
+            setSelectedDays={ setSelectedDays }
+            showRecurrenceOptions={ showRecurrenceOptions }
+            setShowRecurrenceOptions={ setShowRecurrenceOptions }
+            isLoading={ createEventMutation.isPending }
+          />
+        ) }
       </div>
 
       {/* Botón Scroll to Top */ }
