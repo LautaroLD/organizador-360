@@ -30,42 +30,49 @@
 ## ✨ Características
 
 ### 🎯 Gestión de Proyectos
+
 - **Tablero Kanban** con drag & drop
 - **Asignación de tareas** con roles personalizados
 - **Sistema de etiquetas** para organización
 - **Control de miembros** con límites por plan
 
 ### 💬 Chat en Tiempo Real
+
 - **Mensajería instantánea** por proyecto
 - **Canal general** para todo el equipo
 - **Notificaciones push** en tiempo real
 - **Historial de mensajes** persistente
 
 ### 📅 Calendario Compartido
+
 - **Integración con Google Calendar**
 - **Eventos recurrentes** (semanales/personalizados)
 - **Sincronización bidireccional**
 - **Vista mensual/lista** de eventos
 
 ### 📚 Base de Conocimiento
+
 - **Repositorio de archivos** con límites de almacenamiento
 - **Enlaces importantes** organizados
 - **Categorización por tipo** (Archivos/Links/Todos)
 - **Búsqueda y filtrado** avanzado
 
 ### 💳 Sistema de Suscripciones
+
 - **Plan Free**: Hasta 10 miembros, 100MB storage, sin acceso a IA
 - **Plan Pro**: Hasta 20 miembros, 5GB storage, acceso completo a IA
-- **Integración con Mercado Pago** para pagos
+- **Integración con Lemon Squeezy** para pagos
 - **Gestión de suscripciones** automática
 
 ### 🔐 Autenticación y Seguridad
+
 - **OAuth con Google**
 - **Autenticación tradicional** (email/password)
 - **Row Level Security (RLS)** en Supabase
 - **Invitaciones por token** seguras
 
 ### 🔔 Notificaciones
+
 - **Push notifications** con Web Push API
 - **Service Worker** para notificaciones offline
 - **Logs de debugging** para diagnóstico
@@ -75,6 +82,7 @@
 ## 🛠 Tecnologías
 
 ### Frontend
+
 - **[Next.js 16](https://nextjs.org/)** - Framework React con App Router
 - **[React 19](https://react.dev/)** - Biblioteca UI
 - **[TypeScript](https://www.typescriptlang.org/)** - Type safety
@@ -85,19 +93,22 @@
 - **[dnd-kit](https://dndkit.com/)** - Drag & drop
 
 ### Backend & Base de Datos
+
 - **[Supabase](https://supabase.com/)** - Backend as a Service
   - PostgreSQL con RLS
   - Realtime subscriptions
   - Authentication
   - Storage
-- **[Mercado Pago](https://www.mercadopago.com.ar/developers/)** - Procesamiento de pagos
+- **[Lemon Squeezy](https://www.lemonsqueezy.com/)** - Procesamiento de pagos
 
 ### APIs Externas
+
 - **[Google Calendar API](https://developers.google.com/calendar)** - Sincronización de eventos
 - **[Google OAuth](https://developers.google.com/identity/protocols/oauth2)** - Autenticación social
 - **[Web Push](https://web.dev/push-notifications-overview/)** - Notificaciones push
 
 ### Herramientas de Desarrollo
+
 - **[ESLint](https://eslint.org/)** - Linting
 - **[Jest](https://jestjs.io/)** - Testing unitario
 - **[Testing Library](https://testing-library.com/)** - Testing de componentes
@@ -113,7 +124,7 @@ Antes de comenzar, asegúrate de tener instalado:
 - **npm** >= 9.0.0 o **pnpm** >= 8.0.0
 - **Git**
 - Cuenta en **[Supabase](https://supabase.com/)**
-- Cuenta en **[Mercado Pago](https://www.mercadopago.com.ar/developers/)** (para pagos)
+- Cuenta en **[Lemon Squeezy](https://www.lemonsqueezy.com/)** (para pagos)
 - **[Google Cloud Console](https://console.cloud.google.com/)** proyecto configurado
 
 ---
@@ -176,16 +187,12 @@ Completa todas las variables (ver [.env.example](.env.example) para detalles).
      - `https://tu-dominio.com/api/google/callback`
 5. Copia Client ID y Client Secret a `.env.local`
 
-### 4. Configuración de Mercado Pago
+### 4. Configuración de Lemon Squeezy
 
-1. Regístrate en [Mercado Pago Developers](https://www.mercadopago.com.ar/developers/)
-2. Crea una aplicación para obtener tus Credenciales (Access Token y Public Key)
-3. Crea un plan de suscripción (`/preapproval_plan`) y obtén su ID
-4. Configura webhook endpoint: `https://tu-dominio.com/api/webhooks/mercadopago`
-5. Configura las variables de entorno:
-   - `MP_ACCESS_TOKEN`
-   - `NEXT_PUBLIC_MP_PUBLIC_KEY`
-   - `MP_PRO_PLAN_ID`
+1. Crea una cuenta en [Lemon Squeezy](https://www.lemonsqueezy.com/)
+2. Crea tus productos/variants para planes Starter y Pro
+3. Configura webhook endpoint: `https://tu-dominio.com/api/webhooks/lemon-squeezy`
+4. Configura las variables de entorno de Lemon (API key, webhook secret y checkout URLs)
 
 ### 5. Configuración de Web Push
 
@@ -345,11 +352,12 @@ Usuario → Next.js Auth API → Supabase Auth → JWT Token → RLS Policies
 // Ejemplo de suscripción realtime
 const channel = supabase
   .channel('project-messages')
-  .on('postgres_changes', 
+  .on(
+    'postgres_changes',
     { event: 'INSERT', schema: 'public', table: 'messages' },
     (payload) => {
       // Manejar nuevo mensaje
-    }
+    },
   )
   .subscribe();
 ```
@@ -363,15 +371,15 @@ const channel = supabase
 
 ### Límites por Plan
 
-| Feature | Free | Pro |
-|---------|------|-----|
-| Miembros por proyecto | 10 | 20 |
-| Almacenamiento | 100MB | 5GB |
-| Proyectos | ∞ | ∞ |
-| Google Calendar | ✅ | ✅ |
-| **Asistente IA** | ❌ | ✅ |
-| **Generar tareas con IA** | ❌ | ✅ |
-| **Resúmenes de chat con IA** | ❌ | ✅ |
+| Feature                      | Free  | Pro |
+| ---------------------------- | ----- | --- |
+| Miembros por proyecto        | 10    | 20  |
+| Almacenamiento               | 100MB | 5GB |
+| Proyectos                    | ∞     | ∞   |
+| Google Calendar              | ✅    | ✅  |
+| **Asistente IA**             | ❌    | ✅  |
+| **Generar tareas con IA**    | ❌    | ✅  |
+| **Resúmenes de chat con IA** | ❌    | ✅  |
 
 ---
 

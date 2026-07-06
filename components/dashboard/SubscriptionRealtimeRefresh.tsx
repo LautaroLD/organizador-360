@@ -59,7 +59,6 @@ export default function SubscriptionRealtimeRefresh() {
         if (snapshot?.id) {
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: ['subscription'], exact: false }),
-            queryClient.invalidateQueries({ queryKey: ['subscription-details'], exact: false }),
             queryClient.invalidateQueries({ queryKey: ['lemon-subscription-details'], exact: false }),
             queryClient.invalidateQueries({ queryKey: ['plan-context'], exact: false }),
             queryClient.invalidateQueries({ queryKey: ['plan-tier'], exact: false }),

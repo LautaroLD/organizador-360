@@ -83,7 +83,7 @@ test.describe('Settings & Subscription (Requires Auth)', () => {
 
     await checkoutCta.click();
 
-    // Se eliminaron las aserciones de la interfaz de pago con // No se encontró referencia directa a Mercado Pago en el código visible..
+    // Se eliminaron las aserciones de la interfaz de pago legacy.
 
     await expect(page.getByRole('heading', { name: /Checkout/i })).toBeHidden({
       timeout: 7000,

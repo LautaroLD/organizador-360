@@ -12,23 +12,14 @@ jest.mock('@/store/authStore', () => ({
   useAuthStore: () => ({ user: { id: 'user-123', email: 'test@example.com' } }),
 }));
 
-jest.mock('react-toastify', () => ({
-  toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-  },
-}));
-
 // Mock useQuery para controlar estados directamente
 const mockUseQuery = jest.fn();
-const mockUseMutation = jest.fn();
 
 jest.mock('@tanstack/react-query', () => {
   const original = jest.requireActual('@tanstack/react-query');
   return {
     ...original,
     useQuery: (...args: any[]) => mockUseQuery(...args),
-    useMutation: (...args: any[]) => mockUseMutation(...args),
   };
 });
 
@@ -61,7 +52,6 @@ describe('SubscriptionView', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUseMutation.mockReturnValue({ mutate: jest.fn(), isPending: false });
   });
 
   const renderComponent = () =>
@@ -92,9 +82,6 @@ describe('SubscriptionView', () => {
         };
       }
       if (options.queryKey[0] === 'subscription') {
-        return { data: null, isLoading: false };
-      }
-      if (options.queryKey[0] === 'subscription-details') {
         return { data: null, isLoading: false };
       }
       if (options.queryKey[0] === 'plans') {

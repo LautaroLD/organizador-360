@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server';
-import { cancelPreviousProviderSubscription } from '@/lib/subscriptionProviderSwitch';
 import { NextResponse } from 'next/server';
 
 type LemonCheckoutBody = {
@@ -41,18 +40,6 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-
-    const { data: existingSubscription } = await supabase
-      .from('subscriptions')
-      .select('payment_provider, status, lemon_squeezy_subscription_id')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    await cancelPreviousProviderSubscription({
-      existingSubscription,
-      targetProvider: 'lemon_squeezy',
-      userId: user.id,
-    });
 
     const checkoutBaseUrl = getCheckoutBaseUrl(planTier);
     if (!checkoutBaseUrl) {

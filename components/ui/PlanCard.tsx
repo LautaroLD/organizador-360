@@ -28,6 +28,7 @@ type PlanCardProps = {
   isCanceled: boolean;
   payerEmail?: string;
   payerId?: string;
+  hidePaidActions?: boolean;
 };
 
 const PLAN_CONTENT: Record<PlanTier, { icon: React.ReactNode; description: string; features: string[]; }> = {
@@ -93,6 +94,7 @@ export default function PlanCard({
   isCanceled,
   payerEmail,
   payerId,
+  hidePaidActions = false,
 }: PlanCardProps) {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [checkoutState, setCheckoutState] = useState<'form' | 'processing' | 'success'>('form');
@@ -144,22 +146,12 @@ export default function PlanCard({
     isLoadingState ||
     isCheckoutProcessing ||
     isFree ||
-    (isCurrent && !isCanceled);
+    isCurrent;
 
   const handlePlanAction = async () => {
-    if (isCurrent && isCanceled) {
-      // Plan cancelado, proceder al checkout para reactivar
-      setCheckoutState('form');
-      setIsCheckoutOpen(true);
-    } else if (isCurrent && !isCanceled) {
-      // Plan activo, no hacer nada
-      setCheckoutState('form');
-      setIsCheckoutOpen(true);
-    } else if (!isCurrent) {
-      // No es el plan actual, proceder al checkout
-      setCheckoutState('form');
-      setIsCheckoutOpen(true);
-    }
+    // Checkout is only enabled when this is not the current plan.
+    setCheckoutState('form');
+    setIsCheckoutOpen(true);
   };
 
   const renderCheckout = () => {
@@ -259,17 +251,17 @@ export default function PlanCard({
               </li>
             )) }
           </ul>
-          { !isFree &&
+          { !isFree && !hidePaidActions &&
             <Button
               className='mt-auto w-full'
-              variant={ isCurrent && !isCanceled ? 'primary' : 'secondary' }
+              variant={ isCurrent ? 'primary' : 'secondary' }
               disabled={ isActionDisabled }
               onClick={ () => void handlePlanAction() }
             >
               { isFree
                 ? 'Ya estas aquí'
                 : isCurrent
-                  ? (isCanceled ? 'Reactivar suscripción' : 'Plan actual')
+                  ? 'Plan actual'
                   : 'Actualizar plan' }
             </Button>
           }

@@ -108,11 +108,11 @@ export default function TermsOfServicePage() {
             Ofrecemos planes de suscripción con diferentes características:
           </p>
           <ul className="list-disc pl-6 space-y-2 mb-4">
-            <li>Los pagos se procesan de forma segura a través de Mercado Pago</li>
+            <li>Los pagos se procesan de forma segura a través de Lemon Squeezy</li>
             <li>Las suscripciones son de facturación mensual y se renuevan automáticamente</li>
             <li>Puede cancelar su suscripción en cualquier momento; el acceso continúa hasta el fin del período pagado</li>
             <li>No se emiten reembolsos por períodos no utilizados, salvo que la ley lo requiera</li>
-            <li>Al suscribirse, sus datos de pago son procesados directamente por Mercado Pago conforme a sus propios términos</li>
+            <li>Al suscribirse, sus datos de pago son procesados directamente por Lemon Squeezy conforme a sus propios términos</li>
           </ul>
         </section>
 
@@ -148,7 +148,7 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-2xl font-semibold mb-4">9. Privacidad</h2>
           <p>
-            El uso de nuestro servicio también está regido por nuestra{' '}
+            El uso de nuestro servicio también está regido por nuestra{ ' ' }
             <a
               href="/privacy"
               className="text-blue-600 dark:text-blue-400 hover:underline"

@@ -66,7 +66,7 @@ export default function PrivacyPolicyPage() {
             <li>Facilitar la colaboración en proyectos</li>
             <li>Enviar notificaciones sobre actualizaciones y actividades</li>
             <li>Mantener la seguridad de su cuenta</li>
-            <li>Procesar pagos a través de Mercado Pago</li>
+            <li>Procesar pagos a través de Lemon Squeezy</li>
             <li>Generar sugerencias y asistencia mediante IA (Google Gemini) en planes habilitados</li>
             <li>Cumplir con obligaciones legales</li>
             <li>Analizar y mejorar el rendimiento de la aplicación</li>
@@ -92,7 +92,7 @@ export default function PrivacyPolicyPage() {
             de su cuenta de Google.
           </p>
           <p className="mb-4">
-            El uso que hacemos de la información recibida de las APIs de Google cumple con la{' '}
+            El uso que hacemos de la información recibida de las APIs de Google cumple con la{ ' ' }
             <a
               href="https://developers.google.com/terms/api-services-user-data-policy"
               target="_blank"
@@ -112,7 +112,7 @@ export default function PrivacyPolicyPage() {
           </p>
           <ul className="list-disc pl-6 space-y-2">
             <li>Con miembros de proyectos cuando colabora en equipo</li>
-            <li><strong>Mercado Pago:</strong> al suscribirse, su email y datos de pago son procesados por Mercado Pago conforme a su propia política de privacidad</li>
+            <li><strong>Lemon Squeezy:</strong> al suscribirse, su email y datos de pago son procesados por Lemon Squeezy conforme a su propia política de privacidad</li>
             <li><strong>Google Gemini:</strong> en planes con IA habilitada, fragmentos del contenido de sus proyectos (tareas, mensajes, descripciones) se envían a la API de Gemini para generar respuestas. No se envían datos de pago ni contraseñas</li>
             <li>Con proveedores de servicios de infraestructura que nos ayudan a operar la aplicación (ej. Supabase para base de datos y almacenamiento)</li>
             <li>Cuando sea requerido por ley o para proteger nuestros derechos legales</li>
@@ -221,7 +221,7 @@ export default function PrivacyPolicyPage() {
           <h2 className="text-2xl font-semibold mb-4">Declaración de Uso Limitado de Google</h2>
           <p className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
             El uso que hace esta aplicación de la información recibida de las APIs de Google se
-            adherirá a la{' '}
+            adherirá a la{ ' ' }
             <a
               href="https://developers.google.com/terms/api-services-user-data-policy#additional_requirements_for_specific_api_scopes"
               target="_blank"

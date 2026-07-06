@@ -16,9 +16,11 @@ type LemonSubscriptionAttributes = {
   card_last_four?: string | null;
   user_email?: string;
   customer_portal_url?: string | null;
+  customer_portal_update_subscription?: string | null;
   urls?: {
     customer_portal?: string;
     update_payment_method?: string;
+    customer_portal_update_subscription?: string;
   };
 };
 
@@ -172,6 +174,10 @@ export async function GET() {
           attributes?.urls?.customer_portal ??
           null,
         updatePaymentMethodUrl: attributes?.urls?.update_payment_method ?? null,
+        updateSubscriptionUrl:
+          attributes?.customer_portal_update_subscription ??
+          attributes?.urls?.customer_portal_update_subscription ??
+          null,
         provider: 'lemon_squeezy',
       };
 

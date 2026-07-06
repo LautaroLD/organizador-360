@@ -1,9 +1,8 @@
 'use client';
 
 import React from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Calendar, HardDrive, Lock, Star, Users } from 'lucide-react';
-import { toast } from 'react-toastify';
 import { createClient } from '@/lib/supabase/client';
 import { hasPaidAccess } from '@/lib/subscriptionUtils';
 import { formatDate } from '@/lib/utils';
@@ -36,8 +35,6 @@ interface SubscriptionRow {
   cancel_at_period_end: boolean | null;
   current_period_start: string | null;
   current_period_end: string | null;
-  canceled_at: string | null;
-  payment_provider: string | null;
   lemon_squeezy_subscription_id: string | null;
 }
 
@@ -67,6 +64,9 @@ interface LemonSqueezyDetails {
   cancelAtPeriodEnd?: boolean;
   variantName?: string | null;
   paymentMethod?: string | null;
+  customerPortalUrl?: string | null;
+  updatePaymentMethodUrl?: string | null;
+  updateSubscriptionUrl?: string | null;
 }
 
 function normalizeTier(value?: string | null): PlanTier {
@@ -115,7 +115,11 @@ function formatSubscriptionDate(dateValue?: string | null): string {
 export const SubscriptionView: React.FC = () => {
   const supabase = createClient();
   const { user } = useAuthStore();
-  const queryClient = useQueryClient();
+
+  const openExternalUrl = React.useCallback((url?: string | null) => {
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, []);
 
   const { data: planContext, isLoading: planContextLoading } = useQuery({
     queryKey: ['plan-context', user?.id],
@@ -149,7 +153,7 @@ export const SubscriptionView: React.FC = () => {
       const { data, error } = await supabase
         .from('subscriptions')
         .select(
-          'status, plan_tier, cancel_at_period_end, current_period_start, current_period_end, canceled_at, payment_provider, lemon_squeezy_subscription_id'
+          'status, plan_tier, cancel_at_period_end, current_period_start, current_period_end, lemon_squeezy_subscription_id'
         )
         .eq('user_id', user.id)
         .maybeSingle();
@@ -255,27 +259,6 @@ export const SubscriptionView: React.FC = () => {
     lemonDetails?.currentPeriodEnd ?? subscription?.current_period_end
   );
 
-  const cancelMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch('/api/lemon-squeezy/cancel-subscription', { method: 'POST' });
-      if (!response.ok) {
-        throw new Error('Error al cancelar suscripción');
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      toast.success('Suscripción cancelada. Tu plan finalizará al fin del período.');
-      queryClient.invalidateQueries({ queryKey: ['subscription'], exact: false });
-      queryClient.invalidateQueries({ queryKey: ['lemon-subscription-details'], exact: false });
-      queryClient.invalidateQueries({ queryKey: ['plan-context'], exact: false });
-      queryClient.invalidateQueries({ queryKey: ['ai-credits'], exact: false });
-    },
-    onError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : 'Error al cancelar';
-      toast.error(message);
-    },
-  });
-
   if (subscriptionLoading || planContextLoading || plansGroupByProvidersLoading) {
     return (
       <div className='flex items-center justify-center h-full p-12'>
@@ -286,7 +269,6 @@ export const SubscriptionView: React.FC = () => {
       </div>
     );
   }
-
   return (
     <div className='p-6 mx-auto'>
       <div className='mb-8'>
@@ -403,23 +385,46 @@ export const SubscriptionView: React.FC = () => {
                   </div>
                 ) }
 
-                { !isManualAccess && subscription && !subscription.cancel_at_period_end && (
-                  <Button
-                    variant='secondary'
-                    size='sm'
-                    onClick={ () => cancelMutation.mutate() }
-                    disabled={ cancelMutation.isPending }
-                  >
-                    { cancelMutation.isPending ? 'Cancelando...' : 'Cancelar suscripción' }
-                  </Button>
-                ) }
-
                 { !isManualAccess && subscription?.cancel_at_period_end && (
                   <div className='px-3 py-1 bg-[var(--accent-danger)]/10 border border-[var(--accent-danger)]/30 rounded text-[var(--accent-danger)] text-xs font-medium'>
                     Cancelada al final del período
                   </div>
                 ) }
               </div>
+
+              { !isManualAccess && (
+                <div className='flex flex-wrap items-center gap-2 border-t border-[var(--border-primary)] pt-4'>
+                  { lemonDetails?.updateSubscriptionUrl && (
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={ () => openExternalUrl(lemonDetails.updateSubscriptionUrl) }
+                    >
+                      Cambiar plan en Lemon
+                    </Button>
+                  ) }
+
+                  { lemonDetails?.updatePaymentMethodUrl && (
+                    <Button
+                      variant='secondary'
+                      size='sm'
+                      onClick={ () => openExternalUrl(lemonDetails.updatePaymentMethodUrl) }
+                    >
+                      Actualizar método de pago
+                    </Button>
+                  ) }
+
+                  { lemonDetails?.customerPortalUrl && (
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={ () => openExternalUrl(lemonDetails.customerPortalUrl) }
+                    >
+                      Abrir portal de facturación
+                    </Button>
+                  ) }
+                </div>
+              ) }
             </div>
           </CardContent>
         </Card>
@@ -496,6 +501,7 @@ export const SubscriptionView: React.FC = () => {
             isCurrent={ currentPlanTier === 'free' }
             isCanceled={ false }
             payerEmail={ user?.email }
+            hidePaidActions={ Boolean(isPaid && !isManualAccess) }
           />
 
           { lsPlans.map((plan) => (
@@ -507,6 +513,7 @@ export const SubscriptionView: React.FC = () => {
               isCanceled={ isCanceled }
               payerEmail={ user?.email }
               payerId={ user?.id }
+              hidePaidActions={ Boolean(isPaid && !isManualAccess) }
             />
           )) }
         </div>
@@ -591,7 +598,7 @@ export const SubscriptionView: React.FC = () => {
               <strong>Cancelación:</strong> Válida hasta fin de período
             </p>
             <p className='text-xs mt-4'>
-              Recibe recibos por email. Puedes cambiar o cancelar en cualquier momento.
+              Recibe recibos por email. Gestiona cambios de plan y cancelación desde el portal de Lemon.
             </p>
           </CardContent>
         </Card>
