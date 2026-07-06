@@ -66,7 +66,7 @@ const PLAN_CONTENT: Record<PlanTier, { icon: React.ReactNode; description: strin
       'Hasta 10 proyectos',
       'Canales y chat ilimitados',
       'Hasta 5 GB de recursos',
-      'Hasta 20 miembros por proyecto',
+      'Hasta 30 miembros por proyecto',
       'Asistente IA con Gemini',
       'Generar tareas con IA',
       'Resúmenes de chat con IA',

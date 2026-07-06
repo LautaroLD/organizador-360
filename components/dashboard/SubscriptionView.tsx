@@ -558,7 +558,7 @@ export const SubscriptionView: React.FC = () => {
               <strong>Starter:</strong> Hasta 15 miembros por proyecto
             </p>
             <p>
-              <strong>Pro:</strong> Hasta 20 miembros por proyecto
+              <strong>Pro:</strong> Hasta 30 miembros por proyecto
             </p>
             <p className='text-xs mt-4'>
               Invita a tu equipo a colaborar en proyectos. Los permisos se asignan por rol.

@@ -60,7 +60,7 @@
 ### 💳 Sistema de Suscripciones
 
 - **Plan Free**: Hasta 10 miembros, 100MB storage, sin acceso a IA
-- **Plan Pro**: Hasta 20 miembros, 5GB storage, acceso completo a IA
+- **Plan Pro**: Hasta 30 miembros, 5GB storage, acceso completo a IA
 - **Integración con Lemon Squeezy** para pagos
 - **Gestión de suscripciones** automática
 
