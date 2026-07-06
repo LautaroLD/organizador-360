@@ -136,6 +136,7 @@ export async function GET() {
       const payload = (await response.json()) as LemonSubscriptionResponse;
 
       const lsSubscription = payload.data;
+
       const attributes = lsSubscription?.attributes;
 
       const details = {

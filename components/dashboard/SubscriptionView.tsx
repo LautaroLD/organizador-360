@@ -82,8 +82,34 @@ function calculateDaysRemaining(dateValue?: string | null): number | null {
   const end = new Date(dateValue);
   if (Number.isNaN(end.getTime())) return null;
   const now = new Date();
+  // Lemon Squeezy entrega ISO 8601 con zona; calculamos por fecha UTC para evitar desfases de día.
+  if (isIsoDateTimeWithTimeZone(dateValue)) {
+    const startOfTodayUtc = Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+    );
+    const startOfEndUtc = Date.UTC(
+      end.getUTCFullYear(),
+      end.getUTCMonth(),
+      end.getUTCDate(),
+    );
+    const diffDays = Math.floor(
+      (startOfEndUtc - startOfTodayUtc) / (1000 * 60 * 60 * 24),
+    );
+    return diffDays > 0 ? diffDays : null;
+  }
+
   if (end <= now) return null;
   return Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function isIsoDateTimeWithTimeZone(value: string): boolean {
+  return /T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(value);
+}
+function formatSubscriptionDate(dateValue?: string | null): string {
+  if (!dateValue) return 'N/A';
+  return formatDate(dateValue, { preserveUTCDate: true });
 }
 
 export const SubscriptionView: React.FC = () => {
@@ -288,7 +314,7 @@ export const SubscriptionView: React.FC = () => {
                       Acceso manual activo
                       { planContext?.expires_at && (
                         <span className='text-xs bg-[var(--accent-warning)]/10 text-[var(--text-warning)] px-2 py-0.5 rounded'>
-                          Vence el { formatDate(planContext.expires_at) }
+                          Vence el { formatSubscriptionDate(planContext.expires_at) }
                         </span>
                       ) }
                     </span>
@@ -323,9 +349,9 @@ export const SubscriptionView: React.FC = () => {
                 </div>
                 <div className='text-lg font-semibold text-[var(--text-primary)]'>
                   { isManualAccess
-                    ? (planContext?.expires_at ? formatDate(planContext.expires_at) : 'Sin vencimiento')
+                    ? (planContext?.expires_at ? formatSubscriptionDate(planContext.expires_at) : 'Sin vencimiento')
                     : (lemonDetails?.currentPeriodEnd || subscription?.current_period_end
-                      ? formatDate(lemonDetails?.currentPeriodEnd ?? subscription?.current_period_end ?? '')
+                      ? formatSubscriptionDate(lemonDetails?.currentPeriodEnd ?? subscription?.current_period_end)
                       : 'N/A') }
                 </div>
               </div>
@@ -371,8 +397,8 @@ export const SubscriptionView: React.FC = () => {
                 { subscription?.current_period_start && subscription?.current_period_end && (
                   <div>
                     <span className='text-[var(--text-secondary)]'>
-                      Período actual: { formatDate(subscription.current_period_start) } a{ ' ' }
-                      { formatDate(subscription.current_period_end) }
+                      Período actual: { formatSubscriptionDate(subscription.current_period_start) } a{ ' ' }
+                      { formatSubscriptionDate(subscription.current_period_end) }
                     </span>
                   </div>
                 ) }
@@ -449,8 +475,8 @@ export const SubscriptionView: React.FC = () => {
                 </div>
 
                 <div className='flex flex-wrap gap-x-6 gap-y-2 text-xs text-[var(--text-secondary)]'>
-                  <span>Renovación: { aiCredits.cycle_end ? formatDate(aiCredits.cycle_end) : 'N/A' }</span>
-                  <span>Inicio ciclo: { aiCredits.cycle_start ? formatDate(aiCredits.cycle_start) : 'N/A' }</span>
+                  <span>Renovación: { aiCredits.cycle_end ? formatSubscriptionDate(aiCredits.cycle_end) : 'N/A' }</span>
+                  <span>Inicio ciclo: { aiCredits.cycle_start ? formatSubscriptionDate(aiCredits.cycle_start) : 'N/A' }</span>
                 </div>
               </div>
             ) : (

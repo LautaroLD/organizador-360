@@ -5,11 +5,28 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(date: string | Date) {
-  return new Date(date).toLocaleDateString('es-ES', {
+interface FormatDateOptions {
+  preserveUTCDate?: boolean;
+}
+
+function isIsoDateTimeWithTimeZone(value: string) {
+  return /T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(value);
+}
+
+export function formatDate(date: string | Date, options?: FormatDateOptions) {
+  const parsedDate = parseDateValue(date);
+  if (!parsedDate) return 'Fecha invalida';
+
+  const shouldPreserveUTCDate =
+    options?.preserveUTCDate &&
+    typeof date === 'string' &&
+    isIsoDateTimeWithTimeZone(date);
+
+  return parsedDate.toLocaleDateString('es-ES', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
+    ...(shouldPreserveUTCDate ? { timeZone: 'UTC' } : {}),
   });
 }
 
@@ -41,7 +58,10 @@ export function formatTime(date: string | Date) {
   });
 }
 
-export function formatChatTimestamp(date: string | Date, now: Date = new Date()) {
+export function formatChatTimestamp(
+  date: string | Date,
+  now: Date = new Date(),
+) {
   const messageDate = new Date(date);
 
   if (Number.isNaN(messageDate.getTime())) {

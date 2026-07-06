@@ -1,4 +1,10 @@
-import { cn, formatDate, formatTime, formatDateTime, formatChatTimestamp } from '@/lib/utils';
+import {
+  cn,
+  formatDate,
+  formatTime,
+  formatDateTime,
+  formatChatTimestamp,
+} from '@/lib/utils';
 
 describe('Utility Functions', () => {
   describe('cn (className merger)', () => {
@@ -9,7 +15,11 @@ describe('Utility Functions', () => {
     });
 
     it('handles conditional classes', () => {
-      const result = cn('base-class', true && 'conditional-class', false && 'hidden-class');
+      const result = cn(
+        'base-class',
+        true && 'conditional-class',
+        false && 'hidden-class',
+      );
       expect(result).toContain('base-class');
       expect(result).toContain('conditional-class');
       expect(result).not.toContain('hidden-class');
@@ -25,7 +35,7 @@ describe('Utility Functions', () => {
     it('formats date correctly in Spanish', () => {
       const date = new Date('2024-01-15T10:30:00');
       const formatted = formatDate(date);
-      
+
       expect(formatted).toContain('2024');
       expect(formatted).toContain('ene'); // Spanish abbreviation
     });
@@ -41,20 +51,29 @@ describe('Utility Functions', () => {
       const formatted = formatDate(now);
       expect(formatted).toBeTruthy();
     });
+
+    it('preserves UTC calendar date for ISO strings with timezone', () => {
+      const formatted = formatDate('2024-01-15T00:30:00Z', {
+        preserveUTCDate: true,
+      });
+
+      expect(formatted).toContain('15');
+      expect(formatted).toContain('2024');
+    });
   });
 
   describe('formatTime', () => {
     it('formats time correctly', () => {
       const date = new Date('2024-01-15T14:30:00');
       const formatted = formatTime(date);
-      
+
       expect(formatted).toMatch(/\d{2}:\d{2}/);
     });
 
     it('uses 24-hour format', () => {
       const date = new Date('2024-01-15T14:30:00');
       const formatted = formatTime(date);
-      
+
       // Should show 14:30 not 2:30 PM
       expect(formatted).toContain('14');
     });
@@ -64,7 +83,7 @@ describe('Utility Functions', () => {
     it('combines date and time', () => {
       const date = new Date('2024-01-15T14:30:00');
       const formatted = formatDateTime(date);
-      
+
       expect(formatted).toContain('2024');
       expect(formatted).toMatch(/\d{2}:\d{2}/);
     });
