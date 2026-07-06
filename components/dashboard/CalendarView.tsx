@@ -14,6 +14,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { EventModal } from '@/components/calendar/EventModal';
 import { EventList } from '@/components/calendar/EventList';
 import { generateRecurringEvents } from '@/lib/calendarUtils';
+import { getUserPlanTier } from '@/lib/subscriptionUtils';
+import Link from 'next/link';
 
 interface EventFormData {
   title: string;
@@ -127,6 +129,7 @@ export const CalendarView: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
   const [lastSyncSummary, setLastSyncSummary] = useState<SyncSummary | null>(null);
+  const [isProMember, setIsProMember] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const oauthProcessedRef = useRef(false);
   const { user } = useAuthStore();
@@ -149,6 +152,7 @@ export const CalendarView: React.FC = () => {
     processOAuthCallback,
   } = useGoogleCalendarTokens();
   const userTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', []);
+  const canUseGoogleSync = isProMember && !isViewer;
 
   const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<EventFormData>({
     defaultValues: {
@@ -218,8 +222,31 @@ export const CalendarView: React.FC = () => {
     handleGoogleAuth();
   }, [currentProject?.id, processOAuthCallback, router, searchParams]);
 
+  useEffect(() => {
+    const loadPlan = async () => {
+      if (!user?.id) {
+        setIsProMember(false);
+        return;
+      }
+
+      try {
+        const tier = await getUserPlanTier(supabase, user.id);
+        setIsProMember(tier === 'pro');
+      } catch (error) {
+        console.error('Error al cargar plan para Google Calendar:', error);
+        setIsProMember(false);
+      }
+    };
+
+    loadPlan();
+  }, [supabase, user?.id]);
+
   // Conectar con Google Calendar (usando hook unificado)
   const connectGoogleCalendar = async () => {
+    if (!isProMember) {
+      toast.error('La sincronización con Google Calendar está disponible solo para miembros PRO');
+      return;
+    }
     if (isViewer) {
       toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
       return;
@@ -234,6 +261,10 @@ export const CalendarView: React.FC = () => {
 
   // Desconectar Google Calendar (usando hook unificado)
   const disconnectGoogleCalendar = async () => {
+    if (!isProMember) {
+      toast.error('La sincronización con Google Calendar está disponible solo para miembros PRO');
+      return;
+    }
     if (isViewer) {
       toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
       return;
@@ -249,6 +280,9 @@ export const CalendarView: React.FC = () => {
 
   // Sincronizar evento con Google Calendar
   const syncEventToGoogle = async (event: SyncPayloadEvent, checkDuplicate = false) => {
+    if (!isProMember) {
+      return { success: false, skipped: false, googleEventId: null };
+    }
     if (!activeTokens) {
       return { success: false, skipped: false };
     }
@@ -281,6 +315,15 @@ export const CalendarView: React.FC = () => {
   };
 
   const syncEventsBatchToGoogle = async (eventsBatch: SyncPayloadEvent[], checkDuplicate = false) => {
+    if (!isProMember) {
+      return {
+        created: 0,
+        updated: 0,
+        linked: 0,
+        skipped: 0,
+        errors: eventsBatch.length,
+      };
+    }
     if (!activeTokens) {
       return {
         created: 0,
@@ -331,6 +374,9 @@ export const CalendarView: React.FC = () => {
   // Eliminar evento de Google Calendar
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const deleteEventFromGoogle = async (event: any) => {
+    if (!isProMember) {
+      return;
+    }
     const projectId = event.project_id || currentProject?.id;
     const startDate = typeof event.start_date === 'string'
       ? event.start_date.split('T')[0]
@@ -366,6 +412,10 @@ export const CalendarView: React.FC = () => {
 
   // Sincronizar todos los eventos existentes
   const syncAllEventsToGoogle = async () => {
+    if (!isProMember) {
+      toast.error('La sincronización con Google Calendar está disponible solo para miembros PRO');
+      return;
+    }
     if (isViewer) {
       toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
       return;
@@ -488,7 +538,7 @@ export const CalendarView: React.FC = () => {
       toast.success('Evento(s) creado(s) exitosamente');
 
       // Sincronizar con Google Calendar si está conectado
-      if (activeIsConnected && activeTokens) {
+      if (canUseGoogleSync && activeIsConnected && activeTokens) {
         const generatedEvents = generateRecurringEvents(variables);
         let syncFailures = 0;
 
@@ -735,6 +785,14 @@ export const CalendarView: React.FC = () => {
 
             {/* Google Calendar Integration */ }
             <div className="flex flex-col gap-2">
+              { !isProMember && (
+                <div className="text-xs text-center sm:text-right bg-[var(--accent-primary)]/10 border border-[var(--accent-primary)]/30 text-[var(--text-primary)] px-2 py-1 rounded">
+                  Sincronizar Google Calendar es exclusivo del plan PRO.{ ' ' }
+                  <Link href="/settings/subscription" className="underline font-semibold">
+                    Ver planes
+                  </Link>
+                </div>
+              ) }
               { activeIsConnected && activeUserEmail && (
                 <div className="text-xs text-[var(--text-secondary)] text-center sm:text-right flex items-center justify-center sm:justify-end gap-1">
                   { authMethod === 'google_login' && (
@@ -754,7 +812,7 @@ export const CalendarView: React.FC = () => {
               ) }
 
               <div className="flex flex-col sm:flex-row gap-2">
-                { activeIsConnected ? (
+                { canUseGoogleSync && activeIsConnected ? (
                   <>
                     { !isViewer && (
                       <Button
@@ -776,7 +834,7 @@ export const CalendarView: React.FC = () => {
                     ) }
                   </>
                 ) : (
-                  !isViewer && (
+                  canUseGoogleSync && (
                     <Button
                       onClick={ connectGoogleCalendar }
                       variant="secondary"
@@ -811,7 +869,7 @@ export const CalendarView: React.FC = () => {
                 ) }
               </div>
 
-              { activeIsConnected && (
+              { canUseGoogleSync && activeIsConnected && (
                 <div className="rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] p-2.5">
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="text-[var(--text-secondary)]">Estado de sincronización</span>
