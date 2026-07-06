@@ -14,7 +14,7 @@ export default function PrivacyPolicyPage() {
       <div className="space-y-6 text-gray-700 dark:text-gray-300">
         <section>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Última actualización: 17 de abril de 2026
+            Última actualización: 6 de julio de 2026
           </p>
           <p>
             Esta Política de Privacidad describe cómo <strong>Veenzo</strong> recopila, usa y protege su información
@@ -136,10 +136,19 @@ export default function PrivacyPolicyPage() {
 
         <section>
           <h2 className="text-2xl font-semibold mb-4">6. Retención de Datos</h2>
-          <p>
+          <p className="mb-4">
             Conservamos su información personal mientras su cuenta esté activa o según sea necesario
             para proporcionar servicios. Puede solicitar la eliminación de su cuenta y datos en cualquier
             momento desde la configuración de la aplicación o contactándonos directamente.
+          </p>
+          <p className="mb-4">
+            En relación con los recursos de proyectos (archivos y enlaces), aplicamos límites de almacenamiento
+            según el plan activo del titular. Si un proyecto excede su límite, se habilita un período de gracia
+            de 60 días para liberar espacio o reactivar una suscripción compatible.
+          </p>
+          <p>
+            Si el proyecto permanece excedido tras ese período, los recursos asociados pueden eliminarse
+            automáticamente para restablecer el cumplimiento de límites de almacenamiento.
           </p>
         </section>
 

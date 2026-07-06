@@ -139,7 +139,7 @@ export default function PlanCard({
   const isPro = effectiveTier === 'pro';
   const displayPlanName = plan?.name ?? effectiveTier.toUpperCase();
   const displayDescription = plan?.description || planConfig.description;
-  const displayPriceText = isFree ? 'Gratis' : (plan?.price || '$0/mes');
+  const displayPriceText = isFree ? 'Gratis' : (plan?.price?.replace('month', 'mes') || '$0/mes');
   const isCheckoutProcessing = checkoutState === 'processing';
 
   const isActionDisabled =

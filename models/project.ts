@@ -14,6 +14,7 @@ export interface Project {
   plan_tier?: 'free' | 'starter' | 'pro';
   userRole?: string;
   storage_used?: number;
+  storage_over_limit_since?: string | null;
   enabled: boolean;
 }
 
