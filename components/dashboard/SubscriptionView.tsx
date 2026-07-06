@@ -5,9 +5,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Calendar, HardDrive, Lock, Star, Users } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { hasPaidAccess } from '@/lib/subscriptionUtils';
-import { formatDate } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
-import { Button } from '@/components/ui/Button';
+import { buttonVariants } from '@/components/ui/Button';
 import {
   Card,
   CardContent,
@@ -115,11 +115,6 @@ function formatSubscriptionDate(dateValue?: string | null): string {
 export const SubscriptionView: React.FC = () => {
   const supabase = createClient();
   const { user } = useAuthStore();
-
-  const openExternalUrl = React.useCallback((url?: string | null) => {
-    if (!url) return;
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }, []);
 
   const { data: planContext, isLoading: planContextLoading } = useQuery({
     queryKey: ['plan-context', user?.id],
@@ -395,33 +390,36 @@ export const SubscriptionView: React.FC = () => {
               { !isManualAccess && (
                 <div className='flex flex-wrap items-center gap-2 border-t border-[var(--border-primary)] pt-4'>
                   { lemonDetails?.updateSubscriptionUrl && (
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      onClick={ () => openExternalUrl(lemonDetails.updateSubscriptionUrl) }
+                    <a
+                      className={ cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'no-underline') }
+                      href={ lemonDetails.updateSubscriptionUrl }
+                      target='_blank'
+                      rel='noopener noreferrer'
                     >
                       Cambiar plan en Lemon
-                    </Button>
+                    </a>
                   ) }
 
                   { lemonDetails?.updatePaymentMethodUrl && (
-                    <Button
-                      variant='secondary'
-                      size='sm'
-                      onClick={ () => openExternalUrl(lemonDetails.updatePaymentMethodUrl) }
+                    <a
+                      className={ cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'no-underline') }
+                      href={ lemonDetails.updatePaymentMethodUrl }
+                      target='_blank'
+                      rel='noopener noreferrer'
                     >
                       Actualizar método de pago
-                    </Button>
+                    </a>
                   ) }
 
                   { lemonDetails?.customerPortalUrl && (
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={ () => openExternalUrl(lemonDetails.customerPortalUrl) }
+                    <a
+                      className={ cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'no-underline') }
+                      href={ lemonDetails.customerPortalUrl }
+                      target='_blank'
+                      rel='noopener noreferrer'
                     >
                       Abrir portal de facturación
-                    </Button>
+                    </a>
                   ) }
                 </div>
               ) }

@@ -138,6 +138,9 @@ describe('SubscriptionView', () => {
       currentPeriodEnd: '2099-02-01T00:00:00.000Z',
       cancelAtPeriodEnd: false,
       variantName: 'pro',
+      customerPortalUrl: 'https://billing.lemonsqueezy.com/portal',
+      updatePaymentMethodUrl: 'https://billing.lemonsqueezy.com/payment-method',
+      updateSubscriptionUrl: 'https://billing.lemonsqueezy.com/subscription',
     };
 
     mockUseQuery.mockImplementation((options) => {
@@ -179,6 +182,18 @@ describe('SubscriptionView', () => {
     expect(screen.getAllByText('Plan PRO').length).toBeGreaterThan(0);
     expect(screen.getByText('Activa')).toBeInTheDocument();
     expect(screen.getByText('sub-123')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Cambiar plan en Lemon' })).toHaveAttribute(
+      'href',
+      'https://billing.lemonsqueezy.com/subscription',
+    );
+    expect(screen.getByRole('link', { name: 'Actualizar método de pago' })).toHaveAttribute(
+      'href',
+      'https://billing.lemonsqueezy.com/payment-method',
+    );
+    expect(screen.getByRole('link', { name: 'Abrir portal de facturación' })).toHaveAttribute(
+      'href',
+      'https://billing.lemonsqueezy.com/portal',
+    );
   });
 
   it('renders cancelled but still active subscription correctly', () => {
