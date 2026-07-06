@@ -26,7 +26,7 @@ export interface Member {
   user_id: string;
   role: string;
   joined_at: string;
-  user: User;
+  user: User | null;
   tags?: MemberTagAssociation[];
 }
 

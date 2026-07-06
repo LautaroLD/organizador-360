@@ -44,6 +44,9 @@ export const MemberCard: React.FC<MemberCardProps> = ({
   onManageTags,
 }) => {
   const memberTags = member.tags?.map(mt => mt.tag) || [];
+  const memberName = member.user?.name || 'Usuario';
+  const memberEmail = member.user?.email || 'Sin email';
+
   return (
     <Card className='bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20'>
       <CardHeader>
@@ -53,8 +56,8 @@ export const MemberCard: React.FC<MemberCardProps> = ({
               { getRoleIcon(member.role) }
             </div>
             <div>
-              <CardTitle className='text-base'>{ member.user.name || 'Usuario' }</CardTitle>
-              <CardDescription className='text-xs'>{ member.user.email }</CardDescription>
+              <CardTitle className='text-base'>{ memberName }</CardTitle>
+              <CardDescription className='text-xs'>{ memberEmail }</CardDescription>
             </div>
           </div>
           { canManage && member.role !== 'Owner' && member.user_id !== currentUserId && (

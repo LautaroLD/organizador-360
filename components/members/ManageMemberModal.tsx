@@ -14,12 +14,15 @@ export const ManageMemberModal: React.FC<ManageMemberModalProps> = ({
   isLoading,
 }) => {
   if (!member) return null;
+  const memberName = member.user?.name || 'Usuario';
+  const memberEmail = member.user?.email || 'Sin email';
+
   return (
-    <Modal isOpen={ !!member } onClose={ onClose } title={ `Gestionar: ${member.user.name}` }>
+    <Modal isOpen={ !!member } onClose={ onClose } title={ `Gestionar: ${memberName}` }>
       <div className='space-y-4'>
         <div className='bg-[var(--bg-primary)] p-3 rounded-lg'>
           <p className='text-sm text-[var(--text-secondary)]'>
-            Email: <span className='text-[var(--text-primary)]'>{ member.user.email }</span>
+            Email: <span className='text-[var(--text-primary)]'>{ memberEmail }</span>
           </p>
           <p className='text-sm text-[var(--text-secondary)] mt-1'>
             Rol actual:{ ' ' }
@@ -48,8 +51,8 @@ export const ManageMemberModal: React.FC<ManageMemberModalProps> = ({
             variant='danger'
             className='w-full'
             onClick={ () => {
-              if (confirm(`¿Estás seguro de eliminar a ${member.user.name} del proyecto?`)) {
-                onRemove(member.id, member.user.name);
+              if (confirm(`¿Estás seguro de eliminar a ${memberName} del proyecto?`)) {
+                onRemove(member.id, memberName);
               }
             } }
             disabled={ isLoading }
