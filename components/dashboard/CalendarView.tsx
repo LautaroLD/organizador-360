@@ -257,7 +257,6 @@ export const CalendarView: React.FC = () => {
     const disconnectForPlanDowngrade = async () => {
       try {
         await disconnectGoogle();
-        toast.info('Google Calendar se desconectó automáticamente porque tu plan ya no es PRO');
       } catch (error) {
         console.error('Error al desconectar Google Calendar por cambio de plan:', error);
       }
@@ -830,7 +829,7 @@ export const CalendarView: React.FC = () => {
               ) }
 
               {/* Mensaje para usuarios de Google que necesitan reconectar */ }
-              { isGoogleUser && needsReconnect && !activeIsConnected && (
+              { isProMember && isGoogleUser && needsReconnect && !activeIsConnected && (
                 <div className="text-xs text-amber-600 dark:text-amber-400 text-center sm:text-right bg-amber-500/10 px-2 py-1 rounded">
                   Tu sesión de Google Calendar expiró. Reconecta para sincronizar.
                 </div>

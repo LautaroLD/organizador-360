@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
 import { createClient } from '@/lib/supabase/client';
@@ -12,6 +12,7 @@ import { useThemeStore } from '@/store/themeStore';
 import { useGoogleCalendarTokens } from '@/hooks/useGoogleCalendarTokens';
 import { toast } from 'react-toastify';
 import { PASSWORD_REQUIREMENTS_MESSAGE, isStrongPassword } from '@/lib/passwordValidation';
+import { getUserPlanTier } from '@/lib/subscriptionUtils';
 
 const MAX_NAME_LENGTH = 80;
 
@@ -42,6 +43,26 @@ export const SettingsView: React.FC = () => {
   const [isSavingDarkColor, setIsSavingDarkColor] = useState(false);
   const [hasUnsavedLightColor, setHasUnsavedLightColor] = useState(false);
   const [hasUnsavedDarkColor, setHasUnsavedDarkColor] = useState(false);
+  const [isProMember, setIsProMember] = useState(false);
+
+  useEffect(() => {
+    const loadPlan = async () => {
+      if (!user?.id) {
+        setIsProMember(false);
+        return;
+      }
+
+      try {
+        const tier = await getUserPlanTier(supabase, user.id);
+        setIsProMember(tier === 'pro');
+      } catch (error) {
+        console.error('Error al cargar plan en configuración:', error);
+        setIsProMember(false);
+      }
+    };
+
+    loadPlan();
+  }, [supabase, user?.id]);
 
   // Mensajes reemplazados por toasts (react-toastify)
 
@@ -261,7 +282,7 @@ export const SettingsView: React.FC = () => {
       </div>
 
       <div className="space-y-6">
-        {/* Subscription */}
+        {/* Subscription */ }
         <Card className="border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/5">
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -282,7 +303,7 @@ export const SettingsView: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* User Profile */}
+        {/* User Profile */ }
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -294,35 +315,35 @@ export const SettingsView: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Nombre */}
+            {/* Nombre */ }
             <div className=''>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
                 Nombre
               </label>
-              {isEditingName ? (
+              { isEditingName ? (
                 <div className="space-y-2" >
                   <Input
                     type="text"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
+                    value={ newName }
+                    onChange={ (e) => setNewName(e.target.value) }
                     placeholder="Tu nombre"
-                    maxLength={MAX_NAME_LENGTH}
-                    disabled={isUpdatingName}
+                    maxLength={ MAX_NAME_LENGTH }
+                    disabled={ isUpdatingName }
                   />
                   <div className="flex space-x-2">
                     <Button
                       size="sm"
-                      onClick={handleUpdateName}
-                      disabled={isUpdatingName}
+                      onClick={ handleUpdateName }
+                      disabled={ isUpdatingName }
                     >
                       <Save className="h-4 w-4 mr-1" />
-                      {isUpdatingName ? 'Guardando...' : 'Guardar'}
+                      { isUpdatingName ? 'Guardando...' : 'Guardar' }
                     </Button>
                     <Button
                       size="sm"
                       variant="secondary"
-                      onClick={handleCancelEditName}
-                      disabled={isUpdatingName}
+                      onClick={ handleCancelEditName }
+                      disabled={ isUpdatingName }
                     >
                       <X className="h-4 w-4 mr-1" />
                       Cancelar
@@ -334,30 +355,30 @@ export const SettingsView: React.FC = () => {
                   <div className="flex items-center space-x-2 w-2/3">
                     <User className="h-4 w-4 text-[var(--text-secondary)]" />
                     <p className="text-[var(--text-primary)] max-w-2/3 truncate">
-                      {user?.user_metadata?.name || 'Sin nombre'}
+                      { user?.user_metadata?.name || 'Sin nombre' }
                     </p>
                   </div>
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => setIsEditingName(true)}
+                    onClick={ () => setIsEditingName(true) }
                   >
                     <Edit2 className="h-4 w-4 mr-1" />
                     Editar
                   </Button>
                 </div>
-              )}
+              ) }
             </div>
 
-            {/* Email */}
+            {/* Email */ }
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
                 Email
               </label>
               <div className="flex items-center space-x-2">
                 <Mail className="h-4 w-4 text-[var(--text-secondary)]" />
-                <p className="text-[var(--text-primary)]">{user?.email}</p>
-                {isGoogleUser && (
+                <p className="text-[var(--text-primary)]">{ user?.email }</p>
+                { isGoogleUser && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-600 dark:text-blue-400">
                     <svg viewBox="0 0 24 24" className="h-3 w-3 mr-1">
                       <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -367,35 +388,35 @@ export const SettingsView: React.FC = () => {
                     </svg>
                     Google
                   </span>
-                )}
+                ) }
               </div>
             </div>
 
-            {/* Estado de Google Calendar */}
-            {(isGoogleUser || isGoogleCalendarConnected) && (
+            {/* Estado de Google Calendar */ }
+            { (isGoogleUser || isGoogleCalendarConnected) && (
               <div>
                 <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
                   Google Calendar
                 </label>
                 <div className="flex items-center space-x-2">
                   <Calendar className="h-4 w-4 text-[var(--text-secondary)]" />
-                  {isGoogleCalendarConnected ? (
+                  { isGoogleCalendarConnected ? (
                     <div className="flex items-center space-x-2">
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-green-500/20 text-green-600 dark:text-green-400">
                         ✓ Conectado
                       </span>
-                      {authMethod === 'google_login' && (
+                      { authMethod === 'google_login' && (
                         <span className="text-xs text-[var(--text-secondary)]">
                           (automático)
                         </span>
-                      )}
-                      {googleEmail && (
+                      ) }
+                      { googleEmail && (
                         <span className="text-xs text-[var(--text-secondary)]">
-                          {googleEmail}
+                          { googleEmail }
                         </span>
-                      )}
+                      ) }
                     </div>
-                  ) : needsReconnect ? (
+                  ) : isProMember && needsReconnect ? (
                     <div className="flex items-center space-x-2">
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400">
                         ⚠ Sesión expirada
@@ -408,25 +429,25 @@ export const SettingsView: React.FC = () => {
                     <span className="text-xs text-[var(--text-secondary)]">
                       No conectado
                     </span>
-                  )}
+                  ) }
                 </div>
               </div>
-            )}
+            ) }
 
-            {/* ID de Usuario */}
+            {/* ID de Usuario */ }
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
                 ID de Usuario
               </label>
               <div className="flex items-center space-x-2">
                 <Shield className="h-4 w-4 text-[var(--text-secondary)]" />
-                <p className="text-[var(--text-primary)] text-xs font-mono">{user?.id}</p>
+                <p className="text-[var(--text-primary)] text-xs font-mono">{ user?.id }</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Cambiar Contraseña */}
+        {/* Cambiar Contraseña */ }
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -438,7 +459,7 @@ export const SettingsView: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isChangingPassword ? (
+            { isChangingPassword ? (
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
@@ -446,10 +467,10 @@ export const SettingsView: React.FC = () => {
                   </label>
                   <Input
                     type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    value={ currentPassword }
+                    onChange={ (e) => setCurrentPassword(e.target.value) }
                     placeholder="Ingresa tu contraseña actual"
-                    disabled={isUpdatingPassword}
+                    disabled={ isUpdatingPassword }
                   />
                 </div>
                 <div>
@@ -458,10 +479,10 @@ export const SettingsView: React.FC = () => {
                   </label>
                   <Input
                     type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
+                    value={ newPassword }
+                    onChange={ (e) => setNewPassword(e.target.value) }
                     placeholder="Min. 8 chars, mayús/minús, número y símbolo"
-                    disabled={isUpdatingPassword}
+                    disabled={ isUpdatingPassword }
                   />
                 </div>
                 <div>
@@ -470,24 +491,24 @@ export const SettingsView: React.FC = () => {
                   </label>
                   <Input
                     type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    value={ confirmPassword }
+                    onChange={ (e) => setConfirmPassword(e.target.value) }
                     placeholder="Confirma tu nueva contraseña"
-                    disabled={isUpdatingPassword}
+                    disabled={ isUpdatingPassword }
                   />
                 </div>
                 <div className="flex space-x-2">
                   <Button
-                    onClick={handleUpdatePassword}
-                    disabled={isUpdatingPassword}
+                    onClick={ handleUpdatePassword }
+                    disabled={ isUpdatingPassword }
                   >
                     <Save className="h-4 w-4 mr-1" />
-                    {isUpdatingPassword ? 'Actualizando...' : 'Actualizar Contraseña'}
+                    { isUpdatingPassword ? 'Actualizando...' : 'Actualizar Contraseña' }
                   </Button>
                   <Button
                     variant="secondary"
-                    onClick={handleCancelChangePassword}
-                    disabled={isUpdatingPassword}
+                    onClick={ handleCancelChangePassword }
+                    disabled={ isUpdatingPassword }
                   >
                     <X className="h-4 w-4 mr-1" />
                     Cancelar
@@ -495,15 +516,15 @@ export const SettingsView: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <Button onClick={() => setIsChangingPassword(true)}>
+              <Button onClick={ () => setIsChangingPassword(true) }>
                 <Lock className="h-4 w-4 mr-2" />
                 Cambiar Contraseña
               </Button>
-            )}
+            ) }
           </CardContent>
         </Card>
 
-        {/* Appearance */}
+        {/* Appearance */ }
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -519,11 +540,11 @@ export const SettingsView: React.FC = () => {
               <div>
                 <p className="text-[var(--text-primary)] font-medium">Tema Actual</p>
                 <p className="text-sm text-[var(--text-secondary)]">
-                  {theme === 'light' ? 'Modo Claro' : 'Modo Oscuro'}
+                  { theme === 'light' ? 'Modo Claro' : 'Modo Oscuro' }
                 </p>
               </div>
-              <Button onClick={toggleTheme}>
-                Cambiar a {theme === 'light' ? 'Oscuro' : 'Claro'}
+              <Button onClick={ toggleTheme }>
+                Cambiar a { theme === 'light' ? 'Oscuro' : 'Claro' }
               </Button>
             </div>
             <div className="space-y-4">
@@ -540,27 +561,27 @@ export const SettingsView: React.FC = () => {
                 <div className="flex items-center space-x-2">
                   <Input
                     type="color"
-                    value={customColors.light || '#007bff'}
-                    onChange={(e) => handleColorChange('light', e.target.value)}
+                    value={ customColors.light || '#007bff' }
+                    onChange={ (e) => handleColorChange('light', e.target.value) }
                     className='w-10 h-10 p-0 border-0 cursor-pointer bg-transparent'
-                    disabled={isSavingLightColor}
+                    disabled={ isSavingLightColor }
                   />
-                  {customColors.light && (
+                  { customColors.light && (
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() => handleResetColor('light')}
-                      disabled={isSavingLightColor}
+                      onClick={ () => handleResetColor('light') }
+                      disabled={ isSavingLightColor }
                     >
                       Restablecer
                     </Button>
-                  )}
+                  ) }
                   <Button
                     size="sm"
-                    onClick={() => void persistCustomColor('light')}
-                    disabled={isSavingLightColor || !hasUnsavedLightColor}
+                    onClick={ () => void persistCustomColor('light') }
+                    disabled={ isSavingLightColor || !hasUnsavedLightColor }
                   >
-                    {isSavingLightColor ? 'Guardando...' : 'Guardar'}
+                    { isSavingLightColor ? 'Guardando...' : 'Guardar' }
                   </Button>
                 </div>
               </div>
@@ -576,34 +597,34 @@ export const SettingsView: React.FC = () => {
                 <div className="flex items-center space-x-2">
                   <Input
                     type="color"
-                    value={customColors.dark || '#8a42f5'}
-                    onChange={(e) => handleColorChange('dark', e.target.value)}
+                    value={ customColors.dark || '#8a42f5' }
+                    onChange={ (e) => handleColorChange('dark', e.target.value) }
                     className='w-10 h-10 p-0 border-0 cursor-pointer bg-transparent'
-                    disabled={isSavingDarkColor}
+                    disabled={ isSavingDarkColor }
                   />
-                  {customColors.dark && (
+                  { customColors.dark && (
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() => handleResetColor('dark')}
-                      disabled={isSavingDarkColor}
+                      onClick={ () => handleResetColor('dark') }
+                      disabled={ isSavingDarkColor }
                     >
                       Restablecer
                     </Button>
-                  )}
+                  ) }
                   <Button
                     size="sm"
-                    onClick={() => void persistCustomColor('dark')}
-                    disabled={isSavingDarkColor || !hasUnsavedDarkColor}
+                    onClick={ () => void persistCustomColor('dark') }
+                    disabled={ isSavingDarkColor || !hasUnsavedDarkColor }
                   >
-                    {isSavingDarkColor ? 'Guardando...' : 'Guardar'}
+                    { isSavingDarkColor ? 'Guardando...' : 'Guardar' }
                   </Button>
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
-        {/* Delete Account */}
+        {/* Delete Account */ }
         <Card className='border-red-500'>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -616,13 +637,13 @@ export const SettingsView: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className='w-full flex'>
-              <Button variant="danger" className='ml-auto' onClick={handleDeleteAccount}>
+              <Button variant="danger" className='ml-auto' onClick={ handleDeleteAccount }>
                 Eliminar Cuenta
               </Button>
             </div>
           </CardContent>
         </Card>
-        {/* About */}
+        {/* About */ }
         <Card>
           <CardHeader>
             <CardTitle>Acerca de Veenzo</CardTitle>
@@ -632,8 +653,8 @@ export const SettingsView: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-2 text-sm text-[var(--text-secondary)]">
-              <p><strong>Versión:</strong> {process.env.NEXT_PUBLIC_APP_VERSION ?? '1.0.0'}</p>
-              <p><strong>Última actualización:</strong> {process.env.NEXT_PUBLIC_BUILD_DATE ?? 'Abril 2026'}</p>
+              <p><strong>Versión:</strong> { process.env.NEXT_PUBLIC_APP_VERSION ?? '1.0.0' }</p>
+              <p><strong>Última actualización:</strong> { process.env.NEXT_PUBLIC_BUILD_DATE ?? 'Abril 2026' }</p>
               <p className="pt-2 border-t border-[var(--text-secondary)]">
                 Veenzo es una plataforma de colaboración todo-en-uno diseñada específicamente
                 para equipos de desarrollo.
