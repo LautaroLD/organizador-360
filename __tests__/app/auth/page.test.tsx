@@ -80,13 +80,13 @@ describe('AuthPage - Google Authentication', () => {
     expect(screen.getByText(/o continúa con/i)).toBeInTheDocument();
   });
 
-  it('debería mostrar mensaje sobre vinculación automática del calendario', () => {
+  it('debería mostrar mensaje de acceso rápido con Google', () => {
     render(<AuthPage />);
 
-    expect(screen.getByText(/al usar google, tu calendario se vinculará automáticamente/i)).toBeInTheDocument();
+    expect(screen.getByText(/puedes iniciar sesión rápido con tu cuenta de google/i)).toBeInTheDocument();
   });
 
-  it('debería llamar a signInWithOAuth con los scopes de Calendar al hacer clic en Google', async () => {
+  it('debería llamar a signInWithOAuth sin scopes de Calendar al hacer clic en Google', async () => {
     mockSignInWithOAuth.mockResolvedValue({ error: null });
 
     render(<AuthPage />);
@@ -97,13 +97,9 @@ describe('AuthPage - Google Authentication', () => {
     await waitFor(() => {
       expect(mockSignInWithOAuth).toHaveBeenCalledWith({
         provider: 'google',
-        options: expect.objectContaining({
-          scopes: expect.stringContaining('calendar'),
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        }),
+        options: {
+          redirectTo: 'http://localhost:3000/auth/callback',
+        },
       });
     });
   });

@@ -132,6 +132,7 @@ export const CalendarView: React.FC = () => {
   const [isProMember, setIsProMember] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const oauthProcessedRef = useRef(false);
+  const autoDisconnectHandledRef = useRef(false);
   const { user } = useAuthStore();
   const { currentProject } = useProjectStore();
   const normalizedRole = currentProject?.userRole?.toLowerCase();
@@ -240,6 +241,30 @@ export const CalendarView: React.FC = () => {
 
     loadPlan();
   }, [supabase, user?.id]);
+
+  useEffect(() => {
+    if (isProMember) {
+      autoDisconnectHandledRef.current = false;
+      return;
+    }
+
+    if (!activeIsConnected || autoDisconnectHandledRef.current) {
+      return;
+    }
+
+    autoDisconnectHandledRef.current = true;
+
+    const disconnectForPlanDowngrade = async () => {
+      try {
+        await disconnectGoogle();
+        toast.info('Google Calendar se desconectó automáticamente porque tu plan ya no es PRO');
+      } catch (error) {
+        console.error('Error al desconectar Google Calendar por cambio de plan:', error);
+      }
+    };
+
+    disconnectForPlanDowngrade();
+  }, [activeIsConnected, disconnectGoogle, isProMember]);
 
   // Conectar con Google Calendar (usando hook unificado)
   const connectGoogleCalendar = async () => {
