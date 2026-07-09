@@ -9,11 +9,9 @@ import { Modal } from './Modal';
 type Provider = 'lemon_squeezy';
 
 type PlanResponse = {
-
   name: string;
   price?: string;
   buy_url?: string;
-  description?: string;
   hasFreeTrial: boolean;
   trialDays: number;
 };
@@ -138,7 +136,7 @@ export default function PlanCard({
   const isFree = effectiveTier === 'free';
   const isPro = effectiveTier === 'pro';
   const displayPlanName = plan?.name ?? effectiveTier.toUpperCase();
-  const displayDescription = plan?.description || planConfig.description;
+  const displayDescription = planConfig.description;
   const displayPriceText = isFree ? 'Gratis' : (plan?.price?.replace('month', 'mes') || '$0/mes');
   const isCheckoutProcessing = checkoutState === 'processing';
 
