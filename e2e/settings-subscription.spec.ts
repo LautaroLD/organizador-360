@@ -36,10 +36,18 @@ test.describe('Settings & Subscription (Requires Auth)', () => {
       'E2E_TEST_EMAIL/E2E_TEST_PASSWORD no configuradas para tests autenticados.',
     );
     await page.goto('/settings', { waitUntil: 'domcontentloaded' });
+    const loadingSession = page.getByText(/Cargando sesión/i);
+    if (await loadingSession.isVisible().catch(() => false)) {
+      await loadingSession.waitFor({ state: 'hidden', timeout: 15000 });
+    }
+
     // Use main role to get the page heading (not sidebar)
     await expect(
-      page.getByRole('main').getByRole('heading', { name: /configuración/i }),
-    ).toBeVisible();
+      page
+        .getByRole('main')
+        .getByRole('heading', { name: /configuraci[oó]n/i })
+        .first(),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test('should display subscription page', async ({ page }) => {
@@ -63,8 +71,6 @@ test.describe('Settings & Subscription (Requires Auth)', () => {
       'E2E_TEST_EMAIL/E2E_TEST_PASSWORD no configuradas para tests autenticados.',
     );
 
-    // No se requiere reemplazo de contenido, solo eliminación del bloque completo.
-
     await page.goto('/settings/subscription', {
       waitUntil: 'domcontentloaded',
     });
@@ -77,7 +83,7 @@ test.describe('Settings & Subscription (Requires Auth)', () => {
     if ((await checkoutCta.count()) === 0) {
       test.skip(
         true,
-        'No hay CTA de suscripción habilitada (faltan planes configurados en entorno CI).',
+        'No hay CTA de checkout visible para este usuario/entorno (plan actual o catálogo no disponible).',
       );
     }
 

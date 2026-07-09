@@ -23,7 +23,6 @@ export async function GET(
       name: attributes.name,
       price: attributes.price_formatted,
       buy_url: attributes.buy_now_url,
-      description: attributes.description,
       hasFreeTrial: variant.has_free_trial,
       trialDays: variant.trial_interval_count,
     };
