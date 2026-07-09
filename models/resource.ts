@@ -25,6 +25,7 @@ export interface ResourceCardProps {
   onDelete: (resource: Resource) => void;
   onAnalyze?: (resource: Resource) => void;
   isPremium?: boolean;
+  canManage?: boolean;
   selected?: boolean;
   onSelect?: (resource: Resource, selected: boolean) => void;
   selectionMode?: boolean;
@@ -49,4 +50,10 @@ export interface UploadFileModalProps {
   isLoading: boolean;
 }
 
-export type ResourceTab = 'all' | 'links' | 'documents' | 'images' | 'videos' | 'others';
+export type ResourceTab =
+  | 'all'
+  | 'links'
+  | 'documents'
+  | 'images'
+  | 'videos'
+  | 'others';

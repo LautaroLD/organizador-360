@@ -14,7 +14,7 @@ export default function TermsOfServicePage() {
       <div className="space-y-6 text-gray-700 dark:text-gray-300">
         <section>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Última actualización: 17 de abril de 2026
+            Última actualización: 6 de julio de 2026
           </p>
           <p>
             Bienvenido a <strong>Veenzo</strong>, plataforma de gestión de proyectos y colaboración en equipo. Al acceder o utilizar
@@ -88,7 +88,7 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-2xl font-semibold mb-4">5.5 Inteligencia Artificial (Gemini)</h2>
           <p className="mb-4">
-            Veenzo ofrece funciones de asistencia con IA en planes pagos (Pro y superiores) mediante la API de Google Gemini:
+            Veenzo ofrece funciones de asistencia con IA exclusivamente en el <strong>plan Pro</strong> mediante la API de Google Gemini:
           </p>
           <ul className="list-disc pl-6 space-y-2 mb-4">
             <li>Para generar sugerencias, resumir conversaciones o crear tareas, se envían fragmentos del contenido de sus proyectos a la API de Gemini</li>
@@ -108,11 +108,19 @@ export default function TermsOfServicePage() {
             Ofrecemos planes de suscripción con diferentes características:
           </p>
           <ul className="list-disc pl-6 space-y-2 mb-4">
-            <li>Los pagos se procesan de forma segura a través de Mercado Pago</li>
+            <li>Los pagos se procesan de forma segura a través de Lemon Squeezy</li>
             <li>Las suscripciones son de facturación mensual y se renuevan automáticamente</li>
-            <li>Puede cancelar su suscripción en cualquier momento; el acceso continúa hasta el fin del período pagado</li>
+            <li>La gestión de su suscripción (cancelación, cambio de plan o reactivación) se realiza a través del portal de cliente de Lemon Squeezy, accesible desde el panel de suscripción de la aplicación</li>
+            <li>Al cancelar, el acceso continúa hasta el fin del período ya abonado</li>
             <li>No se emiten reembolsos por períodos no utilizados, salvo que la ley lo requiera</li>
-            <li>Al suscribirse, sus datos de pago son procesados directamente por Mercado Pago conforme a sus propios términos</li>
+            <li>Al suscribirse, sus datos de pago son procesados directamente por Lemon Squeezy conforme a sus propios términos</li>
+          </ul>
+          <h3 className="text-xl font-medium mb-2">6.1 Política de almacenamiento de recursos</h3>
+          <ul className="list-disc pl-6 space-y-2">
+            <li>Los límites de almacenamiento dependen del plan activo del titular del proyecto</li>
+            <li>Si un proyecto supera su límite, se bloquean las acciones de creación o carga de recursos; se mantienen disponibles las acciones de descarga individual y eliminación de recursos</li>
+            <li>El titular dispone de un período de gracia de 60 días para liberar espacio o reactivar un plan que cubra el uso actual</li>
+            <li>Si al finalizar ese período el proyecto continúa excedido, los recursos del proyecto podrán eliminarse automáticamente para restablecer el cumplimiento de límites</li>
           </ul>
         </section>
 
@@ -148,7 +156,7 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-2xl font-semibold mb-4">9. Privacidad</h2>
           <p>
-            El uso de nuestro servicio también está regido por nuestra{' '}
+            El uso de nuestro servicio también está regido por nuestra{ ' ' }
             <a
               href="/privacy"
               className="text-blue-600 dark:text-blue-400 hover:underline"

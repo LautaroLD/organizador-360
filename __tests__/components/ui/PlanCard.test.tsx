@@ -14,19 +14,21 @@ describe('PlanCard', () => {
 
   const renderComponent = (props: any) =>
     render(
-      <QueryClientProvider client={queryClient}>
-        <PlanCard {...props} />
+      <QueryClientProvider client={ queryClient }>
+        <PlanCard { ...props } />
       </QueryClientProvider>
     );
 
   beforeEach(() => {
+    jest.restoreAllMocks();
     jest.clearAllMocks();
     queryClient.clear();
   });
 
-  it('muestra estado de plan no disponible cuando falta planId', () => {
-    renderComponent({ planId: '', isCurrent: false, isCanceled: false, plan_reference: 'PRO_MENSUAL' });
-    expect(screen.getByText('Plan no disponible')).toBeInTheDocument();
+  it('muestra plan free local cuando no hay external_id', () => {
+    renderComponent({ forceTier: 'free', isCurrent: false, isCanceled: false });
+    expect(screen.getByText('FREE')).toBeInTheDocument();
+    expect(screen.getByText('Perfecto para comenzar')).toBeInTheDocument();
   });
 
   it('muestra error si falla la carga', () => {
@@ -38,52 +40,55 @@ describe('PlanCard', () => {
 
   it('muestra los features del plan PRO', async () => {
     // Mock fetch para devolver un plan PRO
-    jest.spyOn(global, 'fetch').mockResolvedValueOnce({
+    jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
-        reason: 'pro',
-        auto_recurring: { transaction_amount: 2000, frequency_type: 'months', frequency: 1 },
+        name: 'Plan PRO',
+        price: '$2,000 ARS',
+        description: 'Para usuarios avanzados',
+        hasFreeTrial: false,
+        trialDays: 0,
       })
     } as any);
-    renderComponent({ planId: 'pro', isCurrent: false, isCanceled: false, plan_reference: 'PRO_MENSUAL' });
+    renderComponent({ external_id: 'pro', provider: 'lemon_squeezy', isCurrent: false, isCanceled: false });
     expect(await screen.findByText('Para usuarios avanzados')).toBeInTheDocument();
     expect(await screen.findByText('Hasta 10 proyectos')).toBeInTheDocument();
     expect(await screen.findByText('Actualizar plan')).toBeInTheDocument();
   });
 
   it('muestra el badge de ACTUAL si es el plan actual', async () => {
-    jest.spyOn(global, 'fetch').mockResolvedValueOnce({
+    jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
-        reason: 'pro',
-        auto_recurring: { transaction_amount: 2000, frequency_type: 'months', frequency: 1 },
+        name: 'Plan PRO',
+        price: '$2,000 ARS',
+        description: 'Para usuarios avanzados',
+        hasFreeTrial: false,
+        trialDays: 0,
       })
     } as any);
-    renderComponent({ planId: 'pro', isCurrent: true, isCanceled: false, plan_reference: 'PRO_MENSUAL' });
+    renderComponent({ external_id: 'pro', provider: 'lemon_squeezy', isCurrent: true, isCanceled: false });
     expect((await screen.findAllByText('Plan actual')).length).toBeGreaterThan(0);
   });
 
   it('muestra el badge CANCELADO (ACTIVO) si el plan está cancelado pero activo', async () => {
-    jest.spyOn(global, 'fetch').mockResolvedValueOnce({
+    jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
-        reason: 'pro',
-        auto_recurring: { transaction_amount: 2000, frequency_type: 'months', frequency: 1 },
+        name: 'Plan PRO',
+        price: '$2,000 ARS',
+        description: 'Para usuarios avanzados',
+        hasFreeTrial: false,
+        trialDays: 0,
       })
     } as any);
-    renderComponent({ planId: 'pro', isCurrent: true, isCanceled: true, plan_reference: 'PRO_MENSUAL' });
+    renderComponent({ external_id: 'pro', provider: 'lemon_squeezy', isCurrent: true, isCanceled: true });
     expect(await screen.findByText('Cancelado')).toBeInTheDocument();
   });
 
-  it('muestra el botón Ya estás aquí si es el plan free', async () => {
-    jest.spyOn(global, 'fetch').mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        reason: 'free',
-        auto_recurring: { transaction_amount: 0, frequency_type: 'forever', frequency: 0 },
-      })
-    } as any);
-    renderComponent({ planId: 'free', isCurrent: true, isCanceled: false, plan_reference: 'FREE' });
-    expect(await screen.findByText('Ya estás aquí')).toBeInTheDocument();
+  it('no muestra botón de acción en plan free', () => {
+    renderComponent({ forceTier: 'free', isCurrent: true, isCanceled: false });
+    expect(screen.queryByText('Ya estas aquí')).not.toBeInTheDocument();
+    expect(screen.queryByText('Actualizar plan')).not.toBeInTheDocument();
   });
 });

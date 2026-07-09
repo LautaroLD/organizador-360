@@ -74,8 +74,7 @@ export async function POST(req: NextRequest) {
       typeof project.plan_tier === 'string'
         ? project.plan_tier.toLowerCase()
         : 'free';
-    const analyticsEnabledByPlan =
-      projectTier === 'pro' || projectTier === 'enterprise';
+    const analyticsEnabledByPlan = projectTier === 'pro';
     const canUseAnalytics =
       typeof analyticsEnabledByDb === 'boolean'
         ? analyticsEnabledByDb

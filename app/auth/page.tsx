@@ -244,11 +244,6 @@ export default function AuthPage() {
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
-          scopes: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
         },
       });
 
@@ -433,7 +428,7 @@ export default function AuthPage() {
                 </Button>
 
                 <p className="mt-3 text-xs text-center text-[var(--text-secondary)]">
-                  Al usar Google, tu calendario se vinculará automáticamente
+                  Puedes iniciar sesión rápido con tu cuenta de Google
                 </p>
               </>
             ) }

@@ -12,6 +12,8 @@ import { MessageContent } from '@/components/ui/MessageContent';
 export function ProjectSettings() {
   const supabase = createClient();
   const { currentProject } = useProjectStore();
+  const normalizedRole = currentProject?.userRole?.toLowerCase();
+  const isViewer = normalizedRole === 'viewer';
   const [projectName, setProjectName] = useState(currentProject?.name || '');
   const [projectDescription, setProjectDescription] = useState(
     currentProject?.description || ''
@@ -20,6 +22,9 @@ export function ProjectSettings() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const handleSave = useMutation({
     mutationFn: async () => {
+      if (isViewer) {
+        return;
+      }
       try {
         await supabase
           .from('projects')
@@ -47,6 +52,9 @@ export function ProjectSettings() {
 
 
   const handleDelete = async () => {
+    if (isViewer) {
+      return;
+    }
     if (showDeleteConfirm) {
       await supabase.from('projects').delete().eq('id', currentProject.id);
       window.location.href = '/dashboard';
@@ -62,7 +70,7 @@ export function ProjectSettings() {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className=" w-full p-6 space-y-8">
-        {/* Información General */}
+        {/* Información General */ }
         <section className="bg-[var(--bg-secondary)] rounded-lg border border-[var(--text-secondary)]/20 overflow-hidden">
           <div className="px-6 py-4 border-b border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]">
             <h2 className="text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2">
@@ -71,6 +79,11 @@ export function ProjectSettings() {
             </h2>
           </div>
           <div className="p-6 space-y-4">
+            { isViewer && (
+              <div className="rounded-lg border border-[var(--text-secondary)]/30 bg-[var(--bg-primary)] p-3 text-sm text-[var(--text-secondary)]">
+                Modo solo lectura: con rol Viewer no puedes editar la configuración del proyecto.
+              </div>
+            ) }
             <div>
               <label
                 htmlFor="project-name"
@@ -81,8 +94,9 @@ export function ProjectSettings() {
               <input
                 id="project-name"
                 type="text"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
+                value={ projectName }
+                onChange={ (e) => setProjectName(e.target.value) }
+                disabled={ isViewer }
                 className="w-full px-3 py-2 bg-[var(--bg-primary)] border border-[var(--text-secondary)]/20 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] focus:border-transparent text-[var(--text-primary)]"
                 placeholder="Ej: Mi Proyecto"
               />
@@ -96,49 +110,51 @@ export function ProjectSettings() {
                 Descripción
               </label>
               <div className="flex gap-1 p-1 bg-[var(--bg-primary)] border border-[var(--text-secondary)]/20 rounded-lg mb-3 text-xs">
-                {(['richtext', 'preview'] as const).map((tab) => (
+                { (['richtext', 'preview'] as const).map((tab) => (
                   <button
-                    key={tab}
+                    key={ tab }
                     type="button"
-                    onClick={() => setDescriptionTab(tab)}
-                    className={`flex-1 py-1.5 px-2 rounded-md font-medium transition-colors ${descriptionTab === tab
+                    onClick={ () => setDescriptionTab(tab) }
+                    disabled={ isViewer }
+                    className={ `flex-1 py-1.5 px-2 rounded-md font-medium transition-colors ${descriptionTab === tab
                       ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                      }`}
+                      }` }
                   >
-                    {tab === 'richtext' ? 'Editar' : 'Vista previa'}
+                    { tab === 'richtext' ? 'Editar' : 'Vista previa' }
                   </button>
-                ))}
+                )) }
               </div>
-              {descriptionTab === 'richtext' ? (
+              { descriptionTab === 'richtext' ? (
                 <RichTextEditor
-                  rows={20}
-                  value={projectDescription}
-                  onChange={(value) => setProjectDescription(value)}
+                  rows={ 20 }
+                  value={ projectDescription }
+                  onChange={ (value) => setProjectDescription(value) }
                   placeholder="Describe brevemente tu proyecto..."
+                  disabled={ isViewer }
                 />
               ) : (
                 <div className="rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-3 min-h-[10rem]">
-                  {projectDescription.trim().length > 0
-                    ? <MessageContent content={projectDescription} />
-                    : <span className="text-[var(--text-secondary)] italic text-sm">Sin contenido</span>}
+                  { projectDescription.trim().length > 0
+                    ? <MessageContent content={ projectDescription } />
+                    : <span className="text-[var(--text-secondary)] italic text-sm">Sin contenido</span> }
                 </div>
-              )}
+              ) }
             </div>
 
-            {hasChanges && (
+            { hasChanges && !isViewer && (
               <Button
-                onClick={() => handleSave.mutate()}
-                disabled={handleSave.isPending}
+                onClick={ () => handleSave.mutate() }
+                disabled={ handleSave.isPending }
               >
                 <Save className="w-4 h-4 mr-2" />
-                {handleSave.isPending ? 'Guardando...' : 'Guardar Cambios'}
+                { handleSave.isPending ? 'Guardando...' : 'Guardar Cambios' }
               </Button>
-            )}
+            ) }
           </div>
         </section>
 
-        {/* Estadísticas del Proyecto */}
+        {/* Estadísticas del Proyecto */ }
         <section className="bg-[var(--bg-secondary)] rounded-lg border border-[var(--text-secondary)]/20 overflow-hidden">
           <div className="px-6 py-4 border-b border-[var(--text-secondary)]/20 bg-[var(--bg-primary)]">
             <h2 className="text-lg font-semibold text-[var(--text-primary)]">
@@ -152,14 +168,14 @@ export function ProjectSettings() {
                   Fecha de Creación
                 </div>
                 <div className="text-lg font-semibold text-[var(--text-primary)]">
-                  {new Date(currentProject.created_at).toLocaleDateString(
+                  { new Date(currentProject.created_at).toLocaleDateString(
                     'es-ES',
                     {
                       day: 'numeric',
                       month: 'long',
                       year: 'numeric',
                     }
-                  )}
+                  ) }
                 </div>
               </div>
 
@@ -168,72 +184,74 @@ export function ProjectSettings() {
                   Última Modificación
                 </div>
                 <div className="text-lg font-semibold text-[var(--text-primary)]">
-                  {new Date(currentProject.updated_at).toLocaleDateString(
+                  { new Date(currentProject.updated_at).toLocaleDateString(
                     'es-ES',
                     {
                       day: 'numeric',
                       month: 'long',
                       year: 'numeric',
                     }
-                  )}
+                  ) }
                 </div>
               </div>
 
               <div className="bg-[var(--bg-primary)] rounded-lg p-4 border border-[var(--text-secondary)]/10">
                 <div className="text-sm text-[var(--text-secondary)] mb-1">ID del Proyecto</div>
                 <div className="text-sm font-mono text-[var(--text-primary)] truncate">
-                  {currentProject.id}
+                  { currentProject.id }
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Zona de Peligro */}
-        <section className="bg-[var(--bg-secondary)] rounded-lg border border-red-500/30 overflow-hidden">
-          <div className="px-6 py-4 border-b border-red-500/30 bg-red-500/10">
-            <h2 className="text-lg font-semibold text-red-600 dark:text-red-400 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5" />
-              Zona de Peligro
-            </h2>
-          </div>
-          <div className="p-6 space-y-4">
-            <div>
-              <h3 className="font-medium text-[var(--text-primary)] mb-2">
-                Eliminar Proyecto
-              </h3>
-              <p className="text-sm text-[var(--text-secondary)] mb-4">
-                Una vez eliminado, no podrás recuperar este proyecto. Esta
-                acción es permanente.
-              </p>
-              {showDeleteConfirm ? (
-                <div className="flex gap-2">
+        {/* Zona de Peligro */ }
+        { !isViewer && (
+          <section className="bg-[var(--bg-secondary)] rounded-lg border border-red-500/30 overflow-hidden">
+            <div className="px-6 py-4 border-b border-red-500/30 bg-red-500/10">
+              <h2 className="text-lg font-semibold text-red-600 dark:text-red-400 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                Zona de Peligro
+              </h2>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <h3 className="font-medium text-[var(--text-primary)] mb-2">
+                  Eliminar Proyecto
+                </h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-4">
+                  Una vez eliminado, no podrás recuperar este proyecto. Esta
+                  acción es permanente.
+                </p>
+                { showDeleteConfirm ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={ handleDelete }
+                      className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Confirmar Eliminación
+                    </button>
+                    <button
+                      onClick={ () => setShowDeleteConfirm(false) }
+                      className="px-4 py-2 bg-[var(--bg-primary)] text-[var(--text-primary)] border border-[var(--text-secondary)]/20 rounded-md hover:bg-[var(--text-secondary)]/10 transition-colors cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
                   <button
-                    onClick={handleDelete}
+                    onClick={ () => setShowDeleteConfirm(true) }
                     className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
-                    Confirmar Eliminación
+                    Eliminar Proyecto
                   </button>
-                  <button
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="px-4 py-2 bg-[var(--bg-primary)] text-[var(--text-primary)] border border-[var(--text-secondary)]/20 rounded-md hover:bg-[var(--text-secondary)]/10 transition-colors cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Eliminar Proyecto
-                </button>
-              )}
+                ) }
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        ) }
       </div>
     </div>
   );

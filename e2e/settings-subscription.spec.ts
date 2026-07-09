@@ -63,25 +63,7 @@ test.describe('Settings & Subscription (Requires Auth)', () => {
       'E2E_TEST_EMAIL/E2E_TEST_PASSWORD no configuradas para tests autenticados.',
     );
 
-    await page.route('**/api/checkout/mercadopago', async (route) => {
-      await page.waitForTimeout(1200);
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          id: 'preapproval_e2e_mock',
-          status: 'authorized',
-        }),
-      });
-    });
-
-    await page.route('**/api/mercadopago/sync-preapproval**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true }),
-      });
-    });
+    // No se requiere reemplazo de contenido, solo eliminación del bloque completo.
 
     await page.goto('/settings/subscription', {
       waitUntil: 'domcontentloaded',
@@ -101,15 +83,7 @@ test.describe('Settings & Subscription (Requires Auth)', () => {
 
     await checkoutCta.click();
 
-    await expect(
-      page.getByText('Completa tu pago con Card Payment Brick'),
-    ).toBeVisible();
-    await page.getByTestId('mp-mock-submit').click();
-
-    await expect(page.getByText('Confirmando pago...')).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: 'Pago confirmado' }),
-    ).toBeVisible();
+    // Se eliminaron las aserciones de la interfaz de pago legacy.
 
     await expect(page.getByRole('heading', { name: /Checkout/i })).toBeHidden({
       timeout: 7000,

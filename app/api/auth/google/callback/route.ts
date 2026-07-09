@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import { createHash } from 'crypto';
+import { createClient } from '@/lib/supabase/server';
+import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -24,6 +26,30 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.redirect(
+        new URL(
+          '/dashboard?error=Debes iniciar sesión para conectar Google Calendar',
+          request.url,
+        ),
+      );
+    }
+
+    const canUseGoogleCalendar = await canUseAIFeatures(supabase, user.id);
+    if (!canUseGoogleCalendar) {
+      return NextResponse.redirect(
+        new URL(
+          '/dashboard?error=Google Calendar está disponible solo para plan Pro',
+          request.url,
+        ),
+      );
+    }
+
     const redirectUri =
       process.env.NEXT_PUBLIC_REDIRECT_URI ||
       'http://localhost:3000/api/auth/google/callback';

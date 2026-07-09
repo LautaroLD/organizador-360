@@ -1,6 +1,6 @@
 /**
  * Tests para el hook useGoogleCalendarTokens
- * 
+ *
  * Verifica la lógica de detección de usuarios Google y manejo de tokens
  */
 
@@ -67,6 +67,12 @@ describe('useGoogleCalendarTokens', () => {
         },
       });
 
+      mockFrom.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+      });
+
       const { result } = renderHook(() => useGoogleCalendarTokens());
 
       await waitFor(() => {
@@ -74,7 +80,8 @@ describe('useGoogleCalendarTokens', () => {
       });
 
       expect(result.current.isGoogleUser).toBe(true);
-      expect(result.current.authMethod).toBe('google_login');
+      expect(result.current.authMethod).toBe(null);
+      expect(result.current.needsReconnect).toBe(true);
     });
 
     it('debería detectar usuario de Google por identities', async () => {
@@ -90,6 +97,12 @@ describe('useGoogleCalendarTokens', () => {
             provider_token: 'google-access-token',
           },
         },
+      });
+
+      mockFrom.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
       });
 
       const { result } = renderHook(() => useGoogleCalendarTokens());
@@ -134,7 +147,7 @@ describe('useGoogleCalendarTokens', () => {
   });
 
   describe('needsReconnect', () => {
-    it('debería indicar needsReconnect cuando usuario Google no tiene provider_token', async () => {
+    it('debería indicar needsReconnect cuando usuario Google no tiene vinculación manual', async () => {
       mockGetSession.mockResolvedValue({
         data: {
           session: {
@@ -144,7 +157,7 @@ describe('useGoogleCalendarTokens', () => {
               app_metadata: { provider: 'google' },
               identities: [],
             },
-            provider_token: null, // Sin token de provider
+            provider_token: null,
           },
         },
       });
@@ -165,7 +178,7 @@ describe('useGoogleCalendarTokens', () => {
       expect(result.current.needsReconnect).toBe(true);
     });
 
-    it('no debería indicar needsReconnect cuando usuario Google tiene provider_token', async () => {
+    it('debería indicar needsReconnect aunque usuario Google tenga provider_token si no vinculó Calendar', async () => {
       mockGetSession.mockResolvedValue({
         data: {
           session: {
@@ -186,7 +199,7 @@ describe('useGoogleCalendarTokens', () => {
         expect(result.current.isLoading).toBe(false);
       });
 
-      expect(result.current.needsReconnect).toBe(false);
+      expect(result.current.needsReconnect).toBe(true);
     });
   });
 
@@ -218,7 +231,9 @@ describe('useGoogleCalendarTokens', () => {
       mockFrom.mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
-        maybeSingle: jest.fn().mockResolvedValue({ data: mockTokenData, error: null }),
+        maybeSingle: jest
+          .fn()
+          .mockResolvedValue({ data: mockTokenData, error: null }),
       });
 
       const { result } = renderHook(() => useGoogleCalendarTokens());
@@ -256,7 +271,9 @@ describe('useGoogleCalendarTokens', () => {
       mockFrom.mockReturnValue({
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
-        maybeSingle: jest.fn().mockResolvedValue({ data: mockExpiredTokenData, error: null }),
+        maybeSingle: jest
+          .fn()
+          .mockResolvedValue({ data: mockExpiredTokenData, error: null }),
         delete: mockDelete,
       });
 
@@ -292,7 +309,11 @@ describe('useGoogleCalendarTokens', () => {
       });
 
       (global.fetch as jest.Mock).mockResolvedValue({
-        json: jest.fn().mockResolvedValue({ authUrl: 'https://accounts.google.com/oauth...' }),
+        json: jest
+          .fn()
+          .mockResolvedValue({
+            authUrl: 'https://accounts.google.com/oauth...',
+          }),
       });
 
       const { result } = renderHook(() => useGoogleCalendarTokens());
@@ -311,7 +332,9 @@ describe('useGoogleCalendarTokens', () => {
 
       await result.current.connectGoogleCalendar('project-123');
 
-      expect(global.fetch).toHaveBeenCalledWith('/api/google/auth-url?projectId=project-123');
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/google/auth-url?projectId=project-123',
+      );
 
       // Restaurar location
       Object.defineProperty(window, 'location', {
@@ -332,7 +355,9 @@ describe('useGoogleCalendarTokens', () => {
       const mockUpdate = jest.fn().mockReturnValue({
         eq: mockUpdateEq,
       });
-      const mockMaybeSingle = jest.fn().mockResolvedValue({ data: { id: 'existing-token' }, error: null });
+      const mockMaybeSingle = jest
+        .fn()
+        .mockResolvedValue({ data: { id: 'existing-token' }, error: null });
       const mockEq = jest.fn().mockReturnValue({
         maybeSingle: mockMaybeSingle,
       });
@@ -371,7 +396,10 @@ describe('useGoogleCalendarTokens', () => {
       expect(response.handled).toBe(true);
       expect(response.status).toBe('success');
       expect(response.redirectTo).toBe('/projects/project-123/calendar');
-      expect(mockSetTokens).toHaveBeenCalledWith(callbackPayload.tokens, 'user@gmail.com');
+      expect(mockSetTokens).toHaveBeenCalledWith(
+        callbackPayload.tokens,
+        'user@gmail.com',
+      );
     });
 
     it('debería devolver error cuando viene errorParam', async () => {

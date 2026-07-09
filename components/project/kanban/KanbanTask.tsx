@@ -14,6 +14,7 @@ interface KanbanTaskProps {
   phaseLabel?: string | null;
   epicLabel?: string | null;
   onEdit?: () => void;
+  isReadOnly?: boolean;
 }
 
 interface KanbanTaskCardProps {
@@ -129,7 +130,7 @@ const KanbanTaskCardComponent: React.FC<KanbanTaskCardProps> = ({ task, phaseLab
 
 export const KanbanTaskCard = React.memo(KanbanTaskCardComponent);
 
-const KanbanTaskComponent: React.FC<KanbanTaskProps> = ({ task, phaseLabel, epicLabel, onEdit }) => {
+const KanbanTaskComponent: React.FC<KanbanTaskProps> = ({ task, phaseLabel, epicLabel, onEdit, isReadOnly = false }) => {
   const {
     attributes,
     listeners,
@@ -149,10 +150,10 @@ const KanbanTaskComponent: React.FC<KanbanTaskProps> = ({ task, phaseLabel, epic
     <div
       ref={ setNodeRef }
       style={ style }
-      { ...attributes }
-      { ...listeners }
-      onClick={ onEdit }
-      className={ clsx('cursor-pointer', isDragging ? 'opacity-70 scale-[0.98]' : 'opacity-100') }
+      { ...(isReadOnly ? {} : attributes) }
+      { ...(isReadOnly ? {} : listeners) }
+      onClick={ isReadOnly ? undefined : onEdit }
+      className={ clsx(isReadOnly ? 'cursor-default' : 'cursor-pointer', isDragging ? 'opacity-70 scale-[0.98]' : 'opacity-100') }
     >
       <KanbanTaskCard task={ task } phaseLabel={ phaseLabel } epicLabel={ epicLabel } />
     </div>

@@ -64,6 +64,9 @@ export const ChatView: React.FC = () => {
   const [summaryError, setSummaryError] = useState('');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
+  const normalizedRole = currentProject?.userRole?.toLowerCase();
+  const isViewer = normalizedRole === 'viewer';
+  const canManageChannels = normalizedRole === 'owner' || normalizedRole === 'admin';
 
   // Verificar si el usuario puede usar IA
   useEffect(() => {
@@ -246,6 +249,9 @@ export const ChatView: React.FC = () => {
   // Create channel mutation
   const createChannelMutation = useMutation({
     mutationFn: async (data: ChannelFormData) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para crear canales');
+      }
       const { error } = await supabase
         .from('channels')
         .insert({
@@ -270,6 +276,9 @@ export const ChatView: React.FC = () => {
   // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para enviar mensajes');
+      }
       const { error } = await supabase
         .from('messages')
         .insert({
@@ -294,6 +303,9 @@ export const ChatView: React.FC = () => {
   // Delete channel mutation
   const deleteChannelMutation = useMutation({
     mutationFn: async (channelId: string) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para eliminar canales');
+      }
       // Delete messages first
       await supabase.from('messages').delete().eq('channel_id', channelId);
 
@@ -317,6 +329,9 @@ export const ChatView: React.FC = () => {
   // Rename channel mutation
   const renameChannelMutation = useMutation({
     mutationFn: async ({ channelId, name, description }: { channelId: string; name: string; description: string; }) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para editar canales');
+      }
       const { error } = await supabase
         .from('channels')
         .update({
@@ -350,6 +365,9 @@ export const ChatView: React.FC = () => {
   // Toggle Pin Mutation
   const togglePinMutation = useMutation({
     mutationFn: async ({ messageId }: { messageId: string; }) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para destacar mensajes');
+      }
       const { error } = await supabase
         .rpc('toggle_message_pin', { message_id: messageId });
       if (error) throw error;
@@ -364,6 +382,9 @@ export const ChatView: React.FC = () => {
   // Delete Message Mutation
   const deleteMessageMutation = useMutation({
     mutationFn: async (messageId: string) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para eliminar mensajes');
+      }
       const { error } = await supabase
         .from('messages')
         .update({ is_deleted: true })
@@ -416,6 +437,9 @@ export const ChatView: React.FC = () => {
   // Update Message Mutation
   const updateMessageMutation = useMutation({
     mutationFn: async ({ messageId, content }: { messageId: string; content: string; }) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para editar mensajes');
+      }
       const { error } = await supabase
         .from('messages')
         .update({ content, updated_at: new Date().toISOString() })
@@ -536,6 +560,10 @@ export const ChatView: React.FC = () => {
   }, []);
 
   const onSubmitMessage = () => {
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar el chat');
+      return;
+    }
     if (messageContent.trim()) {
       sendMessageMutation.mutate(messageContent);
     }
@@ -656,7 +684,7 @@ export const ChatView: React.FC = () => {
         <div className="p-4 border-b border-[var(--text-secondary)]/20">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-[var(--text-primary)]">Canales</h3>
-            { (currentProject?.userRole === 'Owner' || currentProject?.userRole === 'Admin') && (
+            { canManageChannels && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -692,7 +720,7 @@ export const ChatView: React.FC = () => {
                   <Hash className="h-4 w-4 mr-2 flex-shrink-0" />
                   <span className="truncate">{ channel.name }</span>
                 </div>
-                { channel.name !== 'general' && selectedChannel?.id === channel.id && (
+                { canManageChannels && channel.name !== 'general' && selectedChannel?.id === channel.id && (
                   <div className="flex items-center gap-1 ml-2 flex-shrink-0">
                     <span
                       role="button"
@@ -1002,7 +1030,7 @@ export const ChatView: React.FC = () => {
                     </div>
 
                     {/* Actions Menu */ }
-                    { !editingMessageId && (
+                    { !editingMessageId && !isViewer && (
                       <div className={ clsx(
                         "flex items-start pt-6 transition-opacity",
                         message.user?.id === user?.id ? 'flex-row-reverse' : 'flex-row',
@@ -1086,7 +1114,12 @@ export const ChatView: React.FC = () => {
 
             {/* Message Input */ }
             <div className="p-2  border-t border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] flex-shrink-0">
-              { replyingTo && (
+              { isViewer && (
+                <div className="mb-2 rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+                  Modo solo lectura: con rol Viewer no puedes enviar ni editar mensajes.
+                </div>
+              ) }
+              { replyingTo && !isViewer && (
                 <div className="mb-2 p-2 bg-[var(--bg-primary)] rounded-lg border border-[var(--accent-primary)]/40 flex items-start justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1 text-xs text-[var(--text-secondary)] mb-1">
@@ -1113,7 +1146,7 @@ export const ChatView: React.FC = () => {
                   onSubmit={ onSubmitMessage }
                   submitBehavior="enter"
                   placeholder={ `Mensaje en #${selectedChannel.name}` }
-                  disabled={ sendMessageMutation.isPending }
+                  disabled={ sendMessageMutation.isPending || isViewer }
                   className="flex-1"
                 />
                 <div className='flex flex-col justify-between gap-2'>
@@ -1122,7 +1155,7 @@ export const ChatView: React.FC = () => {
                     className='flex-1'
                     title="Enviar mensaje (Enter)"
                     onClick={ onSubmitMessage }
-                    disabled={ sendMessageMutation.isPending || !messageContent.trim() }
+                    disabled={ sendMessageMutation.isPending || !messageContent.trim() || isViewer }
                     aria-label="Enviar mensaje"
                   >
                     <Send className="h-5 w-5" />

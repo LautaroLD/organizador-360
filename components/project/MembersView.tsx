@@ -334,67 +334,67 @@ export const MembersView: React.FC = () => {
               Miembros del Proyecto
             </h2>
             <p className='text-sm md:text-base text-[var(--text-secondary)] mt-1'>
-              {members?.length || 0} miembro(s) en el equipo
-              {(() => {
+              { members?.length || 0 } miembro(s) en el equipo
+              { (() => {
                 const tier = currentProject?.plan_tier === 'starter' || currentProject?.plan_tier === 'pro'
                   ? currentProject.plan_tier
                   : (currentProject?.is_premium ? 'pro' : 'free');
                 const limit = getPlanLimits(tier).MAX_MEMBERS_PER_PROJECT;
 
                 return (
-                  <span className={`ml-2 text-xs font-medium ${tier === 'free' ? 'text-orange-500' : 'text-[var(--accent-primary)]'}`}>
-                    {`Plan ${tier.toUpperCase()}: máx. ${limit} miembros`}
+                  <span className={ `ml-2 text-xs font-medium ${tier === 'free' ? 'text-orange-500' : 'text-[var(--accent-primary)]'}` }>
+                    { `Plan ${tier.toUpperCase()}: máx. ${limit} miembros` }
                   </span>
                 );
-              })()}
+              })() }
             </p>
           </div>
           <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
-            {canManageMembers && (
+            { canManageMembers && (
               <Button
                 variant='secondary'
-                onClick={() => setIsTagManagementOpen(true)}
+                onClick={ () => setIsTagManagementOpen(true) }
                 className='w-full sm:w-auto'
               >
                 <Settings className='h-4 w-4 mr-2' />
                 Gestionar Tags
               </Button>
-            )}
-            {canManageMembers && (
+            ) }
+            { canManageMembers && (
               <Button
-                onClick={handleInviteClick}
+                onClick={ handleInviteClick }
                 className='w-full sm:w-auto'
               >
                 <UserPlus className='h-4 w-4 mr-2' />
                 Invitar Miembro
               </Button>
-            )}
-            {currentProject?.userRole !== 'Owner' && (
+            ) }
+            { currentProject?.userRole !== 'Owner' && (
               <Button
                 variant='danger'
-                onClick={handleLeaveClick}
+                onClick={ handleLeaveClick }
                 className='w-full sm:w-auto'
               >
                 Abandonar Proyecto
               </Button>
-            )}
+            ) }
           </div>
 
         </div>
 
-        {/* Members Grid */}
-        {members && members.length > 0 ? (
+        {/* Members Grid */ }
+        { members && members.length > 0 ? (
           <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-6'>
-            {members.map((member) => (
+            { members.map((member) => (
               <MemberCard
-                key={member.id}
-                member={member}
-                currentUserId={user?.id}
-                canManage={canManageMembers}
-                onManageClick={setSelectedMember}
-                onManageTags={setSelectedMemberForTags}
+                key={ member.id }
+                member={ member }
+                currentUserId={ user?.id }
+                canManage={ canManageMembers }
+                onManageClick={ setSelectedMember }
+                onManageTags={ setSelectedMemberForTags }
               />
-            ))}
+            )) }
           </div>
         ) : (
           <div className='text-center py-12 md:py-16'>
@@ -407,55 +407,55 @@ export const MembersView: React.FC = () => {
             <p className='text-sm md:text-base text-[var(--text-secondary)] mb-6 max-w-md mx-auto px-4'>
               Invita a colaboradores para comenzar a trabajar en equipo
             </p>
-            {canManageMembers && (
-              <Button onClick={handleInviteClick} size='lg'>
+            { canManageMembers && (
+              <Button onClick={ handleInviteClick } size='lg'>
                 <UserPlus className='h-5 w-5 mr-2' />
                 Invitar primer miembro
               </Button>
-            )}
+            ) }
           </div>
-        )}
+        ) }
       </div>
 
-      {/* Modals */}
+      {/* Modals */ }
       <InviteMemberModal
-        isOpen={isInviteModalOpen}
-        onClose={() => setIsInviteModalOpen(false)}
-        projectId={currentProject?.id ?? null}
-        projectName={currentProject?.name}
-        currentMemberCount={members?.length}
-        memberLimit={(() => {
+        isOpen={ isInviteModalOpen }
+        onClose={ () => setIsInviteModalOpen(false) }
+        projectId={ currentProject?.id ?? null }
+        projectName={ currentProject?.name }
+        currentMemberCount={ members?.length }
+        memberLimit={ (() => {
           const limit = getPlanLimits(projectTier ?? 'free').MAX_MEMBERS_PER_PROJECT;
           return limit === null ? undefined : limit;
-        })()}
-        isPremium={projectTier !== 'free'}
-        planTier={projectTier}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['project-members'] })}
+        })() }
+        isPremium={ projectTier !== 'free' }
+        planTier={ projectTier }
+        onSuccess={ () => queryClient.invalidateQueries({ queryKey: ['project-members'] }) }
       />
 
       <ManageMemberModal
-        member={selectedMember}
-        onClose={() => setSelectedMember(null)}
-        onChangeRole={(memberId, newRole) => changeRoleMutation.mutate({ memberId, newRole })}
-        onRemove={(memberId) => removeMemberMutation.mutate(memberId)}
-        isLoading={changeRoleMutation.isPending || removeMemberMutation.isPending}
+        member={ selectedMember }
+        onClose={ () => setSelectedMember(null) }
+        onChangeRole={ (memberId, newRole) => changeRoleMutation.mutate({ memberId, newRole }) }
+        onRemove={ (memberId) => removeMemberMutation.mutate(memberId) }
+        isLoading={ changeRoleMutation.isPending || removeMemberMutation.isPending }
       />
 
       <MemberTagsModal
-        member={selectedMemberForTags}
-        projectTags={projectTags}
-        onClose={() => setSelectedMemberForTags(null)}
-        onAssignTag={(memberId, tagId) => assignTagMutation.mutate({ memberId, tagId })}
-        onRemoveTag={(memberId, tagId) => removeTagMutation.mutate({ memberId, tagId })}
+        member={ selectedMemberForTags }
+        projectTags={ projectTags }
+        onClose={ () => setSelectedMemberForTags(null) }
+        onAssignTag={ (memberId, tagId) => assignTagMutation.mutate({ memberId, tagId }) }
+        onRemoveTag={ (memberId, tagId) => removeTagMutation.mutate({ memberId, tagId }) }
       />
 
       <ProjectTagsModal
-        isOpen={isTagManagementOpen}
-        onClose={() => setIsTagManagementOpen(false)}
-        tags={projectTags}
-        onCreateTag={(data) => createTagMutation.mutate(data)}
-        onUpdateTag={(tagId, data) => updateTagMutation.mutate({ tagId, data })}
-        onDeleteTag={(tagId) => deleteTagMutation.mutate(tagId)}
+        isOpen={ isTagManagementOpen }
+        onClose={ () => setIsTagManagementOpen(false) }
+        tags={ projectTags }
+        onCreateTag={ (data) => createTagMutation.mutate(data) }
+        onUpdateTag={ (tagId, data) => updateTagMutation.mutate({ tagId, data }) }
+        onDeleteTag={ (tagId) => deleteTagMutation.mutate(tagId) }
         isLoading={
           createTagMutation.isPending ||
           updateTagMutation.isPending ||

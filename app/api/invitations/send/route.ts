@@ -21,14 +21,20 @@ type EdgeResponsePayload = {
 
 function isAuthError(status: number, data: EdgeResponsePayload | null) {
   const message = `${data?.error ?? ''} ${data?.message ?? ''}`.toLowerCase();
-  return status === 401 || message.includes('invalid jwt') || message.includes('unauthorized');
+  return (
+    status === 401 ||
+    message.includes('invalid jwt') ||
+    message.includes('unauthorized')
+  );
 }
 
 function isSmtpSpamRejected(data: EdgeResponsePayload | null) {
   const message = `${data?.error ?? ''} ${data?.message ?? ''}`.toLowerCase();
   return (
     message.includes('550') &&
-    (message.includes('spam') || message.includes('mensaje rechazado') || message.includes('message failed'))
+    (message.includes('spam') ||
+      message.includes('mensaje rechazado') ||
+      message.includes('message failed'))
   );
 }
 
@@ -36,7 +42,9 @@ function decodeJwtIss(token: string) {
   try {
     const payload = token.split('.')[1];
     if (!payload) return null;
-    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { iss?: string };
+    const decoded = JSON.parse(
+      Buffer.from(payload, 'base64url').toString('utf8'),
+    ) as { iss?: string };
     return decoded.iss ?? null;
   } catch {
     return null;
@@ -66,7 +74,9 @@ async function callInvitationFunction(params: {
     body: JSON.stringify(payload),
   });
 
-  const data = (await response.json().catch(() => null)) as EdgeResponsePayload | null;
+  const data = (await response
+    .json()
+    .catch(() => null)) as EdgeResponsePayload | null;
   return { response, data };
 }
 
@@ -79,21 +89,54 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 });
+      return NextResponse.json(
+        { success: false, error: 'No autenticado' },
+        { status: 401 },
+      );
     }
 
-    const reqBody = (await request.json().catch(() => null)) as SendInvitationPayload | null;
+    const reqBody = (await request
+      .json()
+      .catch(() => null)) as SendInvitationPayload | null;
     if (!reqBody?.projectId || !reqBody?.role) {
       return NextResponse.json(
         { success: false, error: 'projectId y role son requeridos' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if ((reqBody.inviteType ?? 'email') === 'email' && !reqBody.inviteeEmail) {
       return NextResponse.json(
-        { success: false, error: 'inviteeEmail es requerido para invitacion por email' },
-        { status: 400 }
+        {
+          success: false,
+          error: 'inviteeEmail es requerido para invitacion por email',
+        },
+        { status: 400 },
+      );
+    }
+
+    const { data: member, error: memberError } = await supabase
+      .from('project_members')
+      .select('role, project:projects(owner_id)')
+      .eq('project_id', reqBody.projectId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (memberError || !member) {
+      return NextResponse.json(
+        { success: false, error: 'No tienes acceso a este proyecto' },
+        { status: 403 },
+      );
+    }
+
+    // @ts-expect-error - project structure
+    const ownerId = member.project.owner_id;
+    const canManageMembers = ownerId === user.id || member.role === 'Admin';
+
+    if (!canManageMembers) {
+      return NextResponse.json(
+        { success: false, error: 'Solo Owner o Admin pueden invitar miembros' },
+        { status: 403 },
       );
     }
 
@@ -102,7 +145,7 @@ export async function POST(request: NextRequest) {
     if (!supabaseUrl || !anonKey) {
       return NextResponse.json(
         { success: false, error: 'Configuracion incompleta de Supabase' },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -120,7 +163,7 @@ export async function POST(request: NextRequest) {
     if (!accessToken) {
       return NextResponse.json(
         { success: false, error: 'Sesion invalida. Inicia sesion nuevamente.' },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -165,7 +208,7 @@ export async function POST(request: NextRequest) {
             expected_iss: expectedIss,
           },
         },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -181,16 +224,19 @@ export async function POST(request: NextRequest) {
           inviteType: data?.inviteType,
           isNewUser: data?.isNewUser,
         },
-        { status: 422 }
+        { status: 422 },
       );
     }
 
-    return NextResponse.json(data ?? { success: false, error: 'Respuesta invalida' }, { status: response.status });
+    return NextResponse.json(
+      data ?? { success: false, error: 'Respuesta invalida' },
+      { status: response.status },
+    );
   } catch (error) {
     console.error('Error sending invitation:', error);
     return NextResponse.json(
       { success: false, error: 'Error al enviar invitacion' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

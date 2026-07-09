@@ -95,7 +95,7 @@ export default function HomePage() {
       name: 'Pro',
       description: 'Todo el poder de Veenzo',
       icon: <><Star className="h-5 w-5" /> <Star className="h-5 w-5" /></>,
-      features: ['10 proyectos', 'Asistente IA con Gemini', '5 GB de recursos', 'Hasta 20 miembros/proyecto', 'Analítica avanzada con IA', 'Resúmenes y generación de tareas'],
+      features: ['10 proyectos', 'Asistente IA con Gemini', '5 GB de recursos', 'Hasta 30 miembros/proyecto', 'Analítica avanzada con IA', 'Resúmenes y generación de tareas'],
       cta: 'Ver planes',
       highlighted: true,
     },

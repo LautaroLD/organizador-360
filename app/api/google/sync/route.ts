@@ -8,6 +8,7 @@ import {
 } from '@/lib/googleCalendarUtils';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 
 import { calendar_v3 } from 'googleapis';
 
@@ -123,7 +124,9 @@ const getGoogleErrorStatus = (error: unknown) => {
     };
   };
 
-  return err?.response?.status || err?.response?.data?.code || err?.code || null;
+  return (
+    err?.response?.status || err?.response?.data?.code || err?.code || null
+  );
 };
 
 const isGoogleNotFoundError = (error: unknown) => {
@@ -154,6 +157,19 @@ const getAuthenticatedUser = async () => {
   }
 
   return { supabase, user, session };
+};
+
+const ensureProGoogleAccess = async (
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+) => {
+  const canUseGoogleCalendar = await canUseAIFeatures(supabase, userId);
+  if (!canUseGoogleCalendar) {
+    throw new HttpError(
+      403,
+      'La sincronización con Google Calendar está disponible solo para plan Pro',
+    );
+  }
 };
 
 const getSessionGoogleTokens = (
@@ -329,7 +345,10 @@ const syncEventWithGoogle = async ({
         linkedGoogleEvent.id,
         googleEvent,
       );
-      await persistGoogleEventId(localEvent, updated.id || linkedGoogleEvent.id);
+      await persistGoogleEventId(
+        localEvent,
+        updated.id || linkedGoogleEvent.id,
+      );
       return { action: 'updated', data: updated };
     }
   }
@@ -452,11 +471,13 @@ const getProjectGoogleTokens = async (projectId: string) => {
 
 export async function POST(request: NextRequest) {
   try {
-    const { user, session } = await getAuthenticatedUser();
+    const { supabase, user, session } = await getAuthenticatedUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    await ensureProGoogleAccess(supabase, user.id);
 
     const body = await request.json();
     const {
@@ -575,11 +596,13 @@ export async function POST(request: NextRequest) {
 // Obtener eventos de Google Calendar
 export async function GET() {
   try {
-    const { user, session } = await getAuthenticatedUser();
+    const { supabase, user, session } = await getAuthenticatedUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    await ensureProGoogleAccess(supabase, user.id);
 
     const storedTokens = await getUserGoogleTokens(user.id);
     const sessionTokens = getSessionGoogleTokens(
@@ -609,21 +632,23 @@ export async function GET() {
 // Eliminar evento de Google Calendar
 export async function DELETE(request: NextRequest) {
   try {
-    const { user, session } = await getAuthenticatedUser();
+    const { supabase, user, session } = await getAuthenticatedUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    await ensureProGoogleAccess(supabase, user.id);
+
     const body = await request.json();
     const { eventTitle, startDate, projectId, googleEventId, eventId } =
       body as {
-      eventTitle?: string;
-      startDate?: string;
-      projectId?: string;
-      googleEventId?: string | null;
-      eventId?: string | null;
-    };
+        eventTitle?: string;
+        startDate?: string;
+        projectId?: string;
+        googleEventId?: string | null;
+        eventId?: string | null;
+      };
 
     if (!googleEventId && !eventId && (!eventTitle || !startDate)) {
       return NextResponse.json(

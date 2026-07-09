@@ -12,23 +12,14 @@ jest.mock('@/store/authStore', () => ({
   useAuthStore: () => ({ user: { id: 'user-123', email: 'test@example.com' } }),
 }));
 
-jest.mock('react-toastify', () => ({
-  toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-  },
-}));
-
 // Mock useQuery para controlar estados directamente
 const mockUseQuery = jest.fn();
-const mockUseMutation = jest.fn();
 
 jest.mock('@tanstack/react-query', () => {
   const original = jest.requireActual('@tanstack/react-query');
   return {
     ...original,
     useQuery: (...args: any[]) => mockUseQuery(...args),
-    useMutation: (...args: any[]) => mockUseMutation(...args),
   };
 });
 
@@ -47,14 +38,11 @@ describe('SubscriptionView', () => {
   const originalEnv = process.env;
 
   beforeAll(() => {
+    // Solo Lemon Squeezy con FREE, STARTER y PRO (sin MercadoPago ni Enterprise)
     process.env = {
       ...originalEnv,
-      NEXT_PUBLIC_MP_STARTER_MENSUAL_PLAN_ID: 'starter-month',
-      NEXT_PUBLIC_MP_STARTER_ANUAL_PLAN_ID: 'starter-year',
-      NEXT_PUBLIC_MP_PRO_MENSUAL_PLAN_ID: 'pro-month',
-      NEXT_PUBLIC_MP_PRO_ANUAL_PLAN_ID: 'pro-year',
-      // NEXT_PUBLIC_MP_ENTERPRISE_MENSUAL_PLAN_ID: 'enterprise-month',
-      // NEXT_PUBLIC_MP_ENTERPRISE_ANUAL_PLAN_ID: 'enterprise-year',
+      NEXT_PUBLIC_LEMON_STARTER_VARIANT_ID: 'starter-variant',
+      NEXT_PUBLIC_LEMON_PRO_VARIANT_ID: 'pro-variant',
     };
   });
 
@@ -64,7 +52,6 @@ describe('SubscriptionView', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUseMutation.mockReturnValue({ mutate: jest.fn(), isPending: false });
   });
 
   const renderComponent = () =>
@@ -97,14 +84,25 @@ describe('SubscriptionView', () => {
       if (options.queryKey[0] === 'subscription') {
         return { data: null, isLoading: false };
       }
-      if (options.queryKey[0] === 'subscription-details') {
-        return { data: null, isLoading: false };
+      if (options.queryKey[0] === 'plans') {
+        return {
+          data: {
+            lemon_squeezy: [
+              { provider: 'lemon_squeezy', external_id: 'starter-ext', plan_code: 'starter' },
+              { provider: 'lemon_squeezy', external_id: 'pro-ext', plan_code: 'pro' },
+            ],
+          },
+          isLoading: false,
+        };
       }
       if (options.queryKey[0] === 'plan') {
         return {
           data: {
-            reason: 'pro',
-            auto_recurring: { transaction_amount: 2000, frequency_type: 'months', frequency: 1 },
+            name: 'Plan PRO',
+            price: '$2,000 ARS',
+            description: 'Para usuarios avanzados',
+            hasFreeTrial: false,
+            trialDays: 0,
           },
           isLoading: false,
         };
@@ -127,22 +125,22 @@ describe('SubscriptionView', () => {
     const mockSub = {
       status: 'active',
       plan_tier: 'pro',
-      mercadopago_subscription_id: 'sub-123',
+      lemon_squeezy_subscription_id: 'sub-123',
       current_period_start: '2023-01-01',
       current_period_end: '2099-02-01',
     };
 
-    // Mock detalles MP
     const mockDetails = {
-      status: 'authorized',
+      id: 'sub-123',
+      status: 'active',
       statusLabel: 'Activa',
-      reason: 'Plan Pro',
-      nextPaymentDate: '2023-02-01T00:00:00.000Z',
-      amount: 2000,
-      currency: 'ARS',
-      chargedQuantity: 1,
-      totalChargedAmount: 2000,
-      pendingChargeQuantity: 0,
+      currentPeriodStart: '2023-01-01T00:00:00.000Z',
+      currentPeriodEnd: '2099-02-01T00:00:00.000Z',
+      cancelAtPeriodEnd: false,
+      variantName: 'pro',
+      customerPortalUrl: 'https://billing.lemonsqueezy.com/portal',
+      updatePaymentMethodUrl: 'https://billing.lemonsqueezy.com/payment-method',
+      updateSubscriptionUrl: 'https://billing.lemonsqueezy.com/subscription',
     };
 
     mockUseQuery.mockImplementation((options) => {
@@ -155,12 +153,11 @@ describe('SubscriptionView', () => {
       if (options.queryKey[0] === 'subscription') {
         return { data: mockSub, isLoading: false };
       }
-      if (options.queryKey[0] === 'subscription-details') {
+      if (options.queryKey[0] === 'lemon-subscription-details') {
         return {
           data: {
             details: mockDetails,
-            isPro: true,
-            internalPlanId: 'pro'
+            source: 'api'
           },
           isLoading: false
         };
@@ -168,8 +165,11 @@ describe('SubscriptionView', () => {
       if (options.queryKey[0] === 'plan') {
         return {
           data: {
-            reason: 'pro',
-            auto_recurring: { transaction_amount: 2000, frequency_type: 'months', frequency: 1 },
+            name: 'Plan PRO',
+            price: '$2,000 ARS',
+            description: 'Para usuarios avanzados',
+            hasFreeTrial: false,
+            trialDays: 0,
           },
           isLoading: false,
         };
@@ -179,9 +179,21 @@ describe('SubscriptionView', () => {
 
     renderComponent();
 
-    expect(screen.getByText('Plan Pro')).toBeInTheDocument();
+    expect(screen.getAllByText('Plan PRO').length).toBeGreaterThan(0);
     expect(screen.getByText('Activa')).toBeInTheDocument();
-    expect(screen.getAllByText('$2,000 ARS').length).toBeGreaterThan(0);
+    expect(screen.getByText('sub-123')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Cambiar plan en Lemon' })).toHaveAttribute(
+      'href',
+      'https://billing.lemonsqueezy.com/subscription',
+    );
+    expect(screen.getByRole('link', { name: 'Actualizar método de pago' })).toHaveAttribute(
+      'href',
+      'https://billing.lemonsqueezy.com/payment-method',
+    );
+    expect(screen.getByRole('link', { name: 'Abrir portal de facturación' })).toHaveAttribute(
+      'href',
+      'https://billing.lemonsqueezy.com/portal',
+    );
   });
 
   it('renders cancelled but still active subscription correctly', () => {
@@ -198,16 +210,13 @@ describe('SubscriptionView', () => {
     };
 
     const mockDetails = {
+      id: 'sub-123',
       status: 'cancelled',
       statusLabel: 'Cancelado',
-      reason: 'Plan Pro',
-      nextPaymentDate: null, // No next payment
-      amount: 2500,
-      currency: 'ARS',
-      chargedQuantity: 1,
-      totalChargedAmount: 2500,
-      pendingChargeQuantity: 0,
-      daysUntilNextPayment: null,
+      currentPeriodStart: new Date().toISOString(),
+      currentPeriodEnd: futureDate.toISOString(),
+      cancelAtPeriodEnd: true,
+      variantName: 'pro',
     };
 
     mockUseQuery.mockImplementation((options) => {
@@ -220,12 +229,11 @@ describe('SubscriptionView', () => {
       if (options.queryKey[0] === 'subscription') {
         return { data: mockSubscription, isLoading: false };
       }
-      if (options.queryKey[0] === 'subscription-details') {
+      if (options.queryKey[0] === 'lemon-subscription-details') {
         return {
           data: {
             details: mockDetails,
-            isPro: true, // Should be true for "Cancelled but Active" due to logic
-            internalPlanId: 'pro'
+            source: 'api'
           },
           isLoading: false
         };
@@ -233,8 +241,11 @@ describe('SubscriptionView', () => {
       if (options.queryKey[0] === 'plan') {
         return {
           data: {
-            reason: 'pro',
-            auto_recurring: { transaction_amount: 2000, frequency_type: 'months', frequency: 1 },
+            name: 'Plan PRO',
+            price: '$2,000 ARS',
+            description: 'Para usuarios avanzados',
+            hasFreeTrial: false,
+            trialDays: 0,
           },
           isLoading: false,
         };

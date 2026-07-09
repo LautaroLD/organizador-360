@@ -3,7 +3,7 @@
  * Tipos relacionados con tags de proyecto y formularios de tags
  */
 
-import type { MemberTag } from './member';
+import type { Member, MemberTag } from './member';
 
 export interface ProjectTag {
   id: number;
@@ -27,15 +27,7 @@ export interface ProjectTagsModalProps {
   isLoading: boolean;
 }
 
-export interface MemberTagsModalMember {
-  id: string;
-  user: {
-    name: string;
-  };
-  tags?: Array<{
-    tag: MemberTag;
-  }>;
-}
+export type MemberTagsModalMember = Pick<Member, 'id' | 'user' | 'tags'>;
 
 export interface MemberTagsModalProps {
   member: MemberTagsModalMember | null;

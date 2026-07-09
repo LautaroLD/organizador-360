@@ -33,6 +33,8 @@ export const CheckinsView: React.FC = () => {
   const queryClient = useQueryClient();
   const { currentProject } = useProjectStore();
   const { user } = useAuthStore();
+  const normalizedRole = currentProject?.userRole?.toLowerCase();
+  const isViewer = normalizedRole === 'viewer';
 
   const todayDate = toISODate(new Date());
   const [listDate, setListDate] = useState<string>(todayDate);
@@ -141,6 +143,9 @@ export const CheckinsView: React.FC = () => {
 
   const upsertMutation = useMutation({
     mutationFn: async (payload: UpsertCheckinDTO) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para registrar check-ins');
+      }
       const { error } = await supabase.from('project_checkins').upsert(payload, {
         onConflict: 'project_id,user_id,checkin_date',
       });
@@ -168,6 +173,10 @@ export const CheckinsView: React.FC = () => {
   });
 
   const handleSave = () => {
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar check-ins');
+      return;
+    }
     if (!currentProject?.id || !user?.id) {
       toast.error('No se pudo identificar el proyecto o usuario');
       return;
@@ -212,7 +221,12 @@ export const CheckinsView: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {hasTodayCheckin ? (
+          { isViewer && (
+            <div className="rounded-lg border border-[var(--text-secondary)]/30 bg-[var(--bg-primary)] p-3 text-sm text-[var(--text-secondary)]">
+              Modo solo lectura: con rol Viewer no puedes crear ni modificar check-ins.
+            </div>
+          ) }
+          { hasTodayCheckin ? (
             <div className="rounded-lg border border-[var(--accent-success)]/50 bg-[var(--accent-success)]/10 p-3 text-sm text-[var(--accent-success)]">
               Ya completaste tu check-in de hoy. Puedes modificarlo si hubo cambios.
             </div>
@@ -220,20 +234,21 @@ export const CheckinsView: React.FC = () => {
             <div className="rounded-lg border border-[var(--accent-warning)]/50 bg-[var(--accent-warning)]/10 p-3 text-sm text-[var(--accent-warning)]">
               Aún no completaste tu check-in de hoy.
             </div>
-          )}
+          ) }
 
           <div className="rounded-lg border border-[var(--text-secondary)]/30 bg-[var(--bg-secondary)] p-3 max-w-sm">
             <p className="text-xs text-[var(--text-secondary)]">Fecha fija del check-in</p>
-            <p className="text-sm font-semibold text-[var(--text-primary)]">{formatLocalDate(todayDate)}</p>
+            <p className="text-sm font-semibold text-[var(--text-primary)]">{ formatLocalDate(todayDate) }</p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <label className="space-y-2">
               <span className="text-sm font-medium text-[var(--text-primary)]">Ayer</span>
               <textarea
-                value={yesterday}
-                onChange={(e) => setYesterday(e.target.value)}
+                value={ yesterday }
+                onChange={ (e) => setYesterday(e.target.value) }
                 placeholder="¿Qué avanzaste ayer?"
+                disabled={ isViewer }
                 className="w-full min-h-28 rounded-lg border border-[var(--text-secondary)] bg-[var(--bg-primary)] p-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
               />
             </label>
@@ -241,9 +256,10 @@ export const CheckinsView: React.FC = () => {
             <label className="space-y-2">
               <span className="text-sm font-medium text-[var(--text-primary)]">Hoy</span>
               <textarea
-                value={today}
-                onChange={(e) => setToday(e.target.value)}
+                value={ today }
+                onChange={ (e) => setToday(e.target.value) }
                 placeholder="¿Qué vas a hacer hoy?"
+                disabled={ isViewer }
                 className="w-full min-h-28 rounded-lg border border-[var(--text-secondary)] bg-[var(--bg-primary)] p-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
               />
             </label>
@@ -251,9 +267,10 @@ export const CheckinsView: React.FC = () => {
             <label className="space-y-2">
               <span className="text-sm font-medium text-[var(--text-primary)]">Bloqueos</span>
               <textarea
-                value={blockers}
-                onChange={(e) => setBlockers(e.target.value)}
+                value={ blockers }
+                onChange={ (e) => setBlockers(e.target.value) }
                 placeholder="¿Qué te está bloqueando?"
+                disabled={ isViewer }
                 className="w-full min-h-28 rounded-lg border border-[var(--text-secondary)] bg-[var(--bg-primary)] p-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
               />
             </label>
@@ -265,12 +282,12 @@ export const CheckinsView: React.FC = () => {
             </p>
             <Button
               type="button"
-              onClick={handleSave}
-              disabled={upsertMutation.isPending}
+              onClick={ handleSave }
+              disabled={ upsertMutation.isPending || isViewer }
               className="gap-2"
             >
               <Save className="h-4 w-4" />
-              {upsertMutation.isPending ? 'Guardando...' : hasTodayCheckin ? 'Modificar check-in' : 'Guardar check-in'}
+              { upsertMutation.isPending ? 'Guardando...' : hasTodayCheckin ? 'Modificar check-in' : 'Guardar check-in' }
             </Button>
           </div>
         </CardContent>
@@ -280,90 +297,90 @@ export const CheckinsView: React.FC = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
-            {dateScope === 'all' ? 'Todos los check-ins' : `Check-ins del día ${formatLocalDate(listDate)}`}
+            { dateScope === 'all' ? 'Todos los check-ins' : `Check-ins del día ${formatLocalDate(listDate)}` }
           </CardTitle>
           <CardDescription className="flex items-center gap-3 flex-wrap">
-            <span>{checkins.length} enviados</span>
+            <span>{ checkins.length } enviados</span>
             <span className="inline-flex items-center gap-1 text-[var(--accent-warning)]">
               <AlertTriangle className="h-4 w-4" />
-              {blockersCount} con bloqueo
+              { blockersCount } con bloqueo
             </span>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
             <Button
-              variant={dateScope === 'date' ? 'primary' : 'secondary'}
+              variant={ dateScope === 'date' ? 'primary' : 'secondary' }
               size="sm"
-              onClick={() => setDateScope('date')}
+              onClick={ () => setDateScope('date') }
             >
               Por fecha
             </Button>
             <Button
-              variant={dateScope === 'all' ? 'primary' : 'secondary'}
+              variant={ dateScope === 'all' ? 'primary' : 'secondary' }
               size="sm"
-              onClick={() => setDateScope('all')}
+              onClick={ () => setDateScope('all') }
             >
               Todas las fechas
             </Button>
           </div>
 
-          {dateScope === 'date' && (
+          { dateScope === 'date' && (
             <div className="max-w-xs">
               <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">Filtrar por fecha</label>
               <DatePicker
-                value={parseDateValue(listDate) ?? undefined}
-                onChange={(date) => setListDate(date ? toISODate(date) : todayDate)}
+                value={ parseDateValue(listDate) ?? undefined }
+                onChange={ (date) => setListDate(date ? toISODate(date) : todayDate) }
               />
             </div>
-          )}
+          ) }
 
-          {dateScope === 'all' && (
+          { dateScope === 'all' && (
             <p className="text-xs text-[var(--text-secondary)]">
               Mostrando check-ins de todas las fechas.
             </p>
-          )}
+          ) }
 
           <div className="flex items-center gap-2 flex-wrap">
             <Filter className="h-4 w-4 text-[var(--text-secondary)]" />
             <Button
-              variant={filter === 'all' ? 'primary' : 'secondary'}
+              variant={ filter === 'all' ? 'primary' : 'secondary' }
               size="sm"
-              onClick={() => setFilter('all')}
+              onClick={ () => setFilter('all') }
             >
               Todos
             </Button>
             <Button
-              variant={filter === 'blockers' ? 'primary' : 'secondary'}
+              variant={ filter === 'blockers' ? 'primary' : 'secondary' }
               size="sm"
-              onClick={() => setFilter('blockers')}
+              onClick={ () => setFilter('blockers') }
             >
               Solo bloqueos
             </Button>
             <Button
-              variant={filter === 'mine' ? 'primary' : 'secondary'}
+              variant={ filter === 'mine' ? 'primary' : 'secondary' }
               size="sm"
-              onClick={() => setFilter('mine')}
+              onClick={ () => setFilter('mine') }
             >
               Solo yo
             </Button>
           </div>
 
-          {filter === 'mine' && !myCheckinInListDate && (
+          { filter === 'mine' && !myCheckinInListDate && (
             <p className="text-xs text-[var(--text-secondary)]">
-              {dateScope === 'all'
+              { dateScope === 'all'
                 ? 'No tienes check-ins cargados.'
-                : 'No tienes check-in cargado para la fecha seleccionada.'}
+                : 'No tienes check-in cargado para la fecha seleccionada.' }
             </p>
-          )}
+          ) }
 
-          {isLoading ? (
+          { isLoading ? (
             <p className="text-sm text-[var(--text-secondary)]">Cargando check-ins...</p>
           ) : filteredCheckins.length === 0 ? (
             <p className="text-sm text-[var(--text-secondary)]">No hay check-ins para este filtro.</p>
           ) : (
             <div className="space-y-3">
-              {filteredCheckins.map((entry) => {
+              { filteredCheckins.map((entry) => {
                 const displayName = memberNameByUserId.get(entry.user_id)
                   || entry.user?.name
                   || entry.user?.email
@@ -372,19 +389,19 @@ export const CheckinsView: React.FC = () => {
 
                 return (
                   <div
-                    key={entry.id}
+                    key={ entry.id }
                     className="rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] p-4"
                   >
                     <div className="flex items-center justify-between gap-2 mb-3">
-                      <p className="font-medium text-[var(--text-primary)]">{displayName}</p>
+                      <p className="font-medium text-[var(--text-primary)]">{ displayName }</p>
                       <div className="flex items-center gap-2">
-                        {hasBlockers && (
+                        { hasBlockers && (
                           <span className="text-xs px-2 py-1 rounded-full bg-[var(--accent-warning)]/20 text-[var(--accent-warning)]">
                             Bloqueado
                           </span>
-                        )}
+                        ) }
                         <span className="text-xs text-[var(--text-secondary)]">
-                          {formatDateTime(entry.updated_at)}
+                          { formatDateTime(entry.updated_at) }
                         </span>
                       </div>
                     </div>
@@ -393,27 +410,27 @@ export const CheckinsView: React.FC = () => {
                       <div className='bg-[var(--bg-primary)] p-3 rounded-lg'>
                         <p className="font-semibold text-[var(--text-primary)] mb-1">Ayer</p>
                         <p className="text-[var(--text-secondary)] whitespace-pre-wrap">
-                          {entry.yesterday?.trim() || '—'}
+                          { entry.yesterday?.trim() || '—' }
                         </p>
                       </div>
                       <div className='bg-[var(--bg-primary)] p-3 rounded-lg'>
                         <p className="font-semibold text-[var(--text-primary)] mb-1">Hoy</p>
                         <p className="text-[var(--text-secondary)] whitespace-pre-wrap">
-                          {entry.today?.trim() || '—'}
+                          { entry.today?.trim() || '—' }
                         </p>
                       </div>
                       <div className='bg-[var(--bg-primary)] p-3 rounded-lg'>
                         <p className="font-semibold text-[var(--text-primary)] mb-1">Bloqueos</p>
                         <p className="text-[var(--text-secondary)] whitespace-pre-wrap">
-                          {entry.blockers?.trim() || 'Sin bloqueos'}
+                          { entry.blockers?.trim() || 'Sin bloqueos' }
                         </p>
                       </div>
                     </div>
                   </div>
                 );
-              })}
+              }) }
             </div>
-          )}
+          ) }
         </CardContent>
       </Card>
     </main>

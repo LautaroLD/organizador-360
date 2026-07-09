@@ -28,6 +28,8 @@ import { createClient } from '@/lib/supabase/client';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 import CreateRoadmap from './CreateRoadmap';
 import { Epic, RoadmapPhase, Task } from '@/models';
+import { useProjectStore } from '@/store/projectStore';
+import { toast } from 'react-toastify';
 
 interface KanbanBoardProps {
   projectId: string;
@@ -97,6 +99,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   const { generateSuggestedTasks } = useGemini();
   const supabase = createClient();
   const [openPhaseStats, setOpenPhaseStats] = useState(false);
+  const { currentProject } = useProjectStore();
+  const normalizedRole = currentProject?.userRole?.toLowerCase();
+  const isViewer = normalizedRole === 'viewer';
   // Verificar si el usuario puede usar IA
   React.useEffect(() => {
     const checkPremium = async () => {
@@ -287,11 +292,17 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   }, [epics]);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
+    if (isViewer) {
+      return;
+    }
     setActiveId(event.active.id as string);
     setDragTasks(tasks || []);
-  }, [tasks]);
+  }, [isViewer, tasks]);
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
+    if (isViewer) {
+      return;
+    }
     const { active, over } = event;
 
     if (!over) {
@@ -332,7 +343,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
           : task
       );
     });
-  }, []);
+  }, [isViewer]);
 
   const handleDragCancel = useCallback(() => {
     setDragTasks(null);
@@ -340,6 +351,11 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   }, []);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
+    if (isViewer) {
+      setDragTasks(null);
+      setActiveId(null);
+      return;
+    }
     const { active, over } = event;
 
     if (!over) {
@@ -382,29 +398,44 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
 
     setDragTasks(null);
     setActiveId(null);
-  }, [dragTasks, persistedTasksById, tasks, updateTask]);
+  }, [dragTasks, isViewer, persistedTasksById, tasks, updateTask]);
 
   const activeTask = activeId ? tasksById[activeId] : null;
 
   const handleEditTask = useCallback((task: Task) => {
+    if (isViewer) {
+      return;
+    }
     setEditingTaskId(task.id);
     setIsModalOpen(true);
-  }, []);
+  }, [isViewer]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleCreateTask = (data: any) => {
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar el tablero');
+      return;
+    }
     createTask.mutate({ ...data, project_id: projectId });
     setIsModalOpen(false);
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleUpdateTask = (id: string, data: any) => {
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar el tablero');
+      return;
+    }
     updateTask.mutate({ id, data });
     setIsModalOpen(false);
     setEditingTaskId(null);
   };
 
   const handleDeleteTask = (id: string) => {
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar el tablero');
+      return;
+    }
     if (confirm('¿Estás seguro de que quieres eliminar esta tarea?')) {
       deleteTask.mutate(id);
       setIsModalOpen(false);
@@ -546,35 +577,42 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
           </div>
 
           <div className='flex gap-2.5 items-center md:self-start'>
-            <div className="relative group">
-              <Button
-                size='sm'
-                variant='outline'
-                className='text-[var(--accent-primary)] border-[var(--accent-primary)]/30 bg-[var(--bg-primary)]'
-                onClick={ () => generateSuggestions.mutate() }
-                disabled={ generateSuggestions.isPending || !isPremium }
-                title={ !isPremium ? 'Función disponible solo en Plan Pro' : '' }
-              >
-                <p className='hidden md:flex md:mr-2'>
-                  { generateSuggestions.isPending ? 'Generando...' : 'Sugerir tareas con IA' }
-                </p>
-                { <Sparkles size={ 20 } className={ generateSuggestions.isPending ? 'animate-pulse' : '' } /> }
-              </Button>
-              { !isPremium && (
-                <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
-                  <p>Función disponible solo en Plan Pro</p>
+            { !isViewer && (
+              <>
+                <div className="relative group">
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    className='text-[var(--accent-primary)] border-[var(--accent-primary)]/30 bg-[var(--bg-primary)]'
+                    onClick={ () => generateSuggestions.mutate() }
+                    disabled={ generateSuggestions.isPending || !isPremium }
+                    title={ !isPremium ? 'Función disponible solo en Plan Pro' : '' }
+                  >
+                    <p className='hidden md:flex md:mr-2'>
+                      { generateSuggestions.isPending ? 'Generando...' : 'Sugerir tareas con IA' }
+                    </p>
+                    { <Sparkles size={ 20 } className={ generateSuggestions.isPending ? 'animate-pulse' : '' } /> }
+                  </Button>
+                  { !isPremium && (
+                    <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
+                      <p>Función disponible solo en Plan Pro</p>
+                    </div>
+                  ) }
                 </div>
-              ) }
-            </div>
-            <Button size='sm' onClick={ () => { setEditingTaskId(null); setIsModalOpen(true); } }>
-              <Plus size={ 20 } />
-              <p className='hidden md:flex md:ml-1'>
-                Nueva Tarea
-              </p>
-            </Button>
-            <CreateRoadmap projectId={ projectId } />
+                <Button size='sm' onClick={ () => { setEditingTaskId(null); setIsModalOpen(true); } }>
+                  <Plus size={ 20 } />
+                  <p className='hidden md:flex md:ml-1'>
+                    Nueva Tarea
+                  </p>
+                </Button>
+                <CreateRoadmap projectId={ projectId } />
+              </>
+            ) }
           </div>
         </div>
+        { isViewer && (
+          <p className="mt-2 text-xs text-[var(--text-secondary)]">Modo solo lectura: tu rol Viewer no puede crear, editar, eliminar ni mover tareas.</p>
+        ) }
       </div>
 
       { phaseStats.length > 0 && (
@@ -627,6 +665,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             phaseLabels={ phaseLabels }
             epicLabels={ epicLabels }
             onEditTask={ handleEditTask }
+            isReadOnly={ isViewer }
           />
           <KanbanColumn
             id="in-progress"
@@ -635,6 +674,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             phaseLabels={ phaseLabels }
             epicLabels={ epicLabels }
             onEditTask={ handleEditTask }
+            isReadOnly={ isViewer }
           />
           <KanbanColumn
             id="done"
@@ -643,6 +683,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             phaseLabels={ phaseLabels }
             epicLabels={ epicLabels }
             onEditTask={ handleEditTask }
+            isReadOnly={ isViewer }
           />
         </div>
 

@@ -71,3 +71,5 @@ android
 ios
 # AI
 .continue
+.continueignore
+.scripts

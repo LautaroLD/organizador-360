@@ -40,9 +40,8 @@ interface UseGoogleCalendarTokensReturn {
 /**
  * Hook unificado para manejar tokens de Google Calendar.
  * 
- * Soporta dos métodos de conexión:
- * 1. Login con Google (automático): Los tokens vienen de la sesión de Supabase
- * 2. Vinculación manual: Para usuarios que se registraron con email/contraseña
+ * La conexión de Google Calendar se realiza únicamente mediante
+ * vinculación manual desde la vista de calendario.
  */
 export function useGoogleCalendarTokens(): UseGoogleCalendarTokensReturn {
   const supabase = createClient();
@@ -57,7 +56,7 @@ export function useGoogleCalendarTokens(): UseGoogleCalendarTokensReturn {
     return projectId ? `/projects/${projectId}/calendar` : '/dashboard';
   }, []);
 
-  // Cargar tokens al montar (prioriza sesión de Google, luego tabla manual)
+  // Cargar tokens al montar desde tabla de vinculación manual
   useEffect(() => {
     const loadTokens = async () => {
       if (authLoading) {
@@ -83,24 +82,7 @@ export function useGoogleCalendarTokens(): UseGoogleCalendarTokensReturn {
 
         setIsGoogleUser(userIsFromGoogle);
 
-        if (session?.provider_token && userIsFromGoogle) {
-          // Usuario autenticado con Google Y tiene provider_token - usar tokens de sesión
-          const sessionTokens: GoogleTokens = {
-            access_token: session.provider_token,
-            refresh_token: session.provider_refresh_token || undefined,
-            scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
-            token_type: 'Bearer',
-            expiry_date: null, // Supabase maneja la renovación
-          };
-
-          setTokens(sessionTokens, session.user.email || undefined);
-          setAuthMethod('google_login');
-          setNeedsReconnect(false);
-          setIsLoading(false);
-          return;
-        }
-
-        // 2. Si no hay tokens de sesión, buscar en tabla de vinculación manual
+        // Buscar en tabla de vinculación manual
         const { data, error } = await supabase
           .from('google_calendar_tokens')
           .select('*')
@@ -108,7 +90,7 @@ export function useGoogleCalendarTokens(): UseGoogleCalendarTokensReturn {
           .maybeSingle();
 
         if (error || !data) {
-          // Si es usuario de Google pero no tiene tokens, necesita reconectar
+          // Si es usuario de Google pero no tiene vinculación manual, necesita reconectar
           if (userIsFromGoogle) {
             setNeedsReconnect(true);
           }
@@ -139,6 +121,7 @@ export function useGoogleCalendarTokens(): UseGoogleCalendarTokensReturn {
 
         setTokens(manualTokens, data.user_email);
         setAuthMethod('manual_link');
+        setNeedsReconnect(false);
       } catch (error) {
         console.error('Error cargando tokens de Google:', error);
       } finally {
@@ -149,23 +132,16 @@ export function useGoogleCalendarTokens(): UseGoogleCalendarTokensReturn {
     loadTokens();
   }, [authLoading, user?.id, supabase, setTokens, disconnect]);
 
-  // Refrescar tokens desde la sesión (útil después de reconexión)
+  // Mantener compatibilidad de API del hook sin usar tokens de sesión
   const refreshTokensFromSession = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
-
-    if (session?.provider_token && session?.user?.app_metadata?.provider === 'google') {
-      const sessionTokens: GoogleTokens = {
-        access_token: session.provider_token,
-        refresh_token: session.provider_refresh_token || undefined,
-        scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
-        token_type: 'Bearer',
-        expiry_date: null,
-      };
-
-      setTokens(sessionTokens, session.user.email || undefined);
-      setAuthMethod('google_login');
-    }
-  }, [supabase, setTokens]);
+    const provider = session?.user?.app_metadata?.provider;
+    const identities = session?.user?.identities || [];
+    const hasGoogleIdentity = identities.some(
+      (identity: { provider?: string; }) => identity.provider === 'google',
+    );
+    setNeedsReconnect(provider === 'google' || hasGoogleIdentity);
+  }, [supabase]);
 
   // Conectar Google Calendar (para usuarios sin login con Google)
   const connectGoogleCalendar = useCallback(async (projectId?: string) => {

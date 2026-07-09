@@ -14,6 +14,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { EventModal } from '@/components/calendar/EventModal';
 import { EventList } from '@/components/calendar/EventList';
 import { generateRecurringEvents } from '@/lib/calendarUtils';
+import { getUserPlanTier } from '@/lib/subscriptionUtils';
+import Link from 'next/link';
 
 interface EventFormData {
   title: string;
@@ -127,10 +129,14 @@ export const CalendarView: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
   const [lastSyncSummary, setLastSyncSummary] = useState<SyncSummary | null>(null);
+  const [isProMember, setIsProMember] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const oauthProcessedRef = useRef(false);
+  const autoDisconnectHandledRef = useRef(false);
   const { user } = useAuthStore();
   const { currentProject } = useProjectStore();
+  const normalizedRole = currentProject?.userRole?.toLowerCase();
+  const isViewer = normalizedRole === 'viewer';
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -147,6 +153,7 @@ export const CalendarView: React.FC = () => {
     processOAuthCallback,
   } = useGoogleCalendarTokens();
   const userTimeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', []);
+  const canUseGoogleSync = isProMember && !isViewer;
 
   const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<EventFormData>({
     defaultValues: {
@@ -216,8 +223,58 @@ export const CalendarView: React.FC = () => {
     handleGoogleAuth();
   }, [currentProject?.id, processOAuthCallback, router, searchParams]);
 
+  useEffect(() => {
+    const loadPlan = async () => {
+      if (!user?.id) {
+        setIsProMember(false);
+        return;
+      }
+
+      try {
+        const tier = await getUserPlanTier(supabase, user.id);
+        setIsProMember(tier === 'pro');
+      } catch (error) {
+        console.error('Error al cargar plan para Google Calendar:', error);
+        setIsProMember(false);
+      }
+    };
+
+    loadPlan();
+  }, [supabase, user?.id]);
+
+  useEffect(() => {
+    if (isProMember) {
+      autoDisconnectHandledRef.current = false;
+      return;
+    }
+
+    if (!activeIsConnected || autoDisconnectHandledRef.current) {
+      return;
+    }
+
+    autoDisconnectHandledRef.current = true;
+
+    const disconnectForPlanDowngrade = async () => {
+      try {
+        await disconnectGoogle();
+      } catch (error) {
+        console.error('Error al desconectar Google Calendar por cambio de plan:', error);
+      }
+    };
+
+    disconnectForPlanDowngrade();
+  }, [activeIsConnected, disconnectGoogle, isProMember]);
+
   // Conectar con Google Calendar (usando hook unificado)
   const connectGoogleCalendar = async () => {
+    if (!isProMember) {
+      toast.error('La sincronización con Google Calendar está disponible solo para miembros PRO');
+      return;
+    }
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
+      return;
+    }
     try {
       await connectGoogle(currentProject?.id);
     } catch (error) {
@@ -228,6 +285,14 @@ export const CalendarView: React.FC = () => {
 
   // Desconectar Google Calendar (usando hook unificado)
   const disconnectGoogleCalendar = async () => {
+    if (!isProMember) {
+      toast.error('La sincronización con Google Calendar está disponible solo para miembros PRO');
+      return;
+    }
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
+      return;
+    }
     try {
       await disconnectGoogle();
       toast.info('Google Calendar desconectado');
@@ -239,6 +304,9 @@ export const CalendarView: React.FC = () => {
 
   // Sincronizar evento con Google Calendar
   const syncEventToGoogle = async (event: SyncPayloadEvent, checkDuplicate = false) => {
+    if (!isProMember) {
+      return { success: false, skipped: false, googleEventId: null };
+    }
     if (!activeTokens) {
       return { success: false, skipped: false };
     }
@@ -271,6 +339,15 @@ export const CalendarView: React.FC = () => {
   };
 
   const syncEventsBatchToGoogle = async (eventsBatch: SyncPayloadEvent[], checkDuplicate = false) => {
+    if (!isProMember) {
+      return {
+        created: 0,
+        updated: 0,
+        linked: 0,
+        skipped: 0,
+        errors: eventsBatch.length,
+      };
+    }
     if (!activeTokens) {
       return {
         created: 0,
@@ -321,6 +398,9 @@ export const CalendarView: React.FC = () => {
   // Eliminar evento de Google Calendar
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const deleteEventFromGoogle = async (event: any) => {
+    if (!isProMember) {
+      return;
+    }
     const projectId = event.project_id || currentProject?.id;
     const startDate = typeof event.start_date === 'string'
       ? event.start_date.split('T')[0]
@@ -356,6 +436,14 @@ export const CalendarView: React.FC = () => {
 
   // Sincronizar todos los eventos existentes
   const syncAllEventsToGoogle = async () => {
+    if (!isProMember) {
+      toast.error('La sincronización con Google Calendar está disponible solo para miembros PRO');
+      return;
+    }
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
+      return;
+    }
     if (!activeTokens || !events || events.length === 0) {
       toast.error('No hay eventos para sincronizar');
       return;
@@ -434,6 +522,9 @@ export const CalendarView: React.FC = () => {
   // Create event mutation
   const createEventMutation = useMutation({
     mutationFn: async (data: EventFormData) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para crear eventos');
+      }
       if (isEndBeforeStart(data)) {
         throw new Error('La hora de fin no puede ser menor que la hora de inicio');
       }
@@ -471,7 +562,7 @@ export const CalendarView: React.FC = () => {
       toast.success('Evento(s) creado(s) exitosamente');
 
       // Sincronizar con Google Calendar si está conectado
-      if (activeIsConnected && activeTokens) {
+      if (canUseGoogleSync && activeIsConnected && activeTokens) {
         const generatedEvents = generateRecurringEvents(variables);
         let syncFailures = 0;
 
@@ -553,6 +644,9 @@ export const CalendarView: React.FC = () => {
   // Delete event mutation
   const deleteEventMutation = useMutation({
     mutationFn: async (eventId: string) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para eliminar eventos');
+      }
       // Primero obtener el evento para tener su información
       const { data: eventData } = await supabase
         .from('events')
@@ -585,6 +679,10 @@ export const CalendarView: React.FC = () => {
   });
 
   const deleteEventsAndSync = async (eventIds: string[]) => {
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
+      return;
+    }
     const loadingToast = toast.loading(`Eliminando ${eventIds.length} evento(s)...`);
 
     try {
@@ -628,6 +726,10 @@ export const CalendarView: React.FC = () => {
 
   // Eliminar todos los eventos que ya pasaron
   const handleDeletePastEvents = async () => {
+    if (isViewer) {
+      toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
+      return;
+    }
     if (!events) return;
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -685,6 +787,9 @@ export const CalendarView: React.FC = () => {
                 <p className="text-sm text-[var(--text-secondary)]">
                   { events?.length || 0 } evento{ events?.length !== 1 ? 's' : '' } en total
                 </p>
+                { isViewer && (
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">Modo solo lectura: tu rol Viewer no puede crear, eliminar ni sincronizar eventos.</p>
+                ) }
                 { (() => {
                   const now = new Date();
                   now.setHours(0, 0, 0, 0);
@@ -704,6 +809,14 @@ export const CalendarView: React.FC = () => {
 
             {/* Google Calendar Integration */ }
             <div className="flex flex-col gap-2">
+              { !isProMember && (
+                <div className="text-xs text-center sm:text-right bg-[var(--accent-primary)]/10 border border-[var(--accent-primary)]/30 text-[var(--text-primary)] px-2 py-1 rounded">
+                  Sincronizar Google Calendar es exclusivo del plan PRO.{ ' ' }
+                  <Link href="/settings/subscription" className="underline font-semibold">
+                    Ver planes
+                  </Link>
+                </div>
+              ) }
               { activeIsConnected && activeUserEmail && (
                 <div className="text-xs text-[var(--text-secondary)] text-center sm:text-right flex items-center justify-center sm:justify-end gap-1">
                   { authMethod === 'google_login' && (
@@ -716,24 +829,26 @@ export const CalendarView: React.FC = () => {
               ) }
 
               {/* Mensaje para usuarios de Google que necesitan reconectar */ }
-              { isGoogleUser && needsReconnect && !activeIsConnected && (
+              { isProMember && isGoogleUser && needsReconnect && !activeIsConnected && (
                 <div className="text-xs text-amber-600 dark:text-amber-400 text-center sm:text-right bg-amber-500/10 px-2 py-1 rounded">
                   Tu sesión de Google Calendar expiró. Reconecta para sincronizar.
                 </div>
               ) }
 
               <div className="flex flex-col sm:flex-row gap-2">
-                { activeIsConnected ? (
+                { canUseGoogleSync && activeIsConnected ? (
                   <>
-                    <Button
-                      onClick={ syncAllEventsToGoogle }
-                      variant="secondary"
-                      disabled={ isSyncing || !events || events.length === 0 }
-                    >
-                      <RefreshCw className={ `h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}` } />
-                      { isSyncing ? `Sincronizando (${syncProgress.current}/${syncProgress.total})` : 'Sincronizar Todos' }
-                    </Button>
-                    { authMethod !== 'google_login' && (
+                    { !isViewer && (
+                      <Button
+                        onClick={ syncAllEventsToGoogle }
+                        variant="secondary"
+                        disabled={ isSyncing || !events || events.length === 0 }
+                      >
+                        <RefreshCw className={ `h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}` } />
+                        { isSyncing ? `Sincronizando (${syncProgress.current}/${syncProgress.total})` : 'Sincronizar Todos' }
+                      </Button>
+                    ) }
+                    { !isViewer && authMethod !== 'google_login' && (
                       <Button
                         onClick={ disconnectGoogleCalendar }
                         variant="secondary"
@@ -743,26 +858,30 @@ export const CalendarView: React.FC = () => {
                     ) }
                   </>
                 ) : (
+                  canUseGoogleSync && (
+                    <Button
+                      onClick={ connectGoogleCalendar }
+                      variant="secondary"
+                      disabled={ isGoogleLoading }
+                    >
+                      { isGoogleUser && needsReconnect ? '🔄 Reconectar Calendar' : '📅 Conectar Google Calendar' }
+                    </Button>
+                  )
+                ) }
+                { !isViewer && (
                   <Button
-                    onClick={ connectGoogleCalendar }
-                    variant="secondary"
-                    disabled={ isGoogleLoading }
+                    onClick={ () => {
+                      setIsModalOpen(true);
+                      reset();
+                      setSelectedDays([]);
+                      setShowRecurrenceOptions(false);
+                    } }
                   >
-                    { isGoogleUser && needsReconnect ? '🔄 Reconectar Calendar' : '📅 Conectar Google Calendar' }
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nuevo Evento
                   </Button>
                 ) }
-                <Button
-                  onClick={ () => {
-                    setIsModalOpen(true);
-                    reset();
-                    setSelectedDays([]);
-                    setShowRecurrenceOptions(false);
-                  } }
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nuevo Evento
-                </Button>
-                { events && events.some(e => new Date(e.start_date) < (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })()) && (
+                { !isViewer && events && events.some(e => new Date(e.start_date) < (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })()) && (
                   <Button
                     variant="secondary"
                     onClick={ handleDeletePastEvents }
@@ -774,7 +893,7 @@ export const CalendarView: React.FC = () => {
                 ) }
               </div>
 
-              { activeIsConnected && (
+              { canUseGoogleSync && activeIsConnected && (
                 <div className="rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] p-2.5">
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="text-[var(--text-secondary)]">Estado de sincronización</span>
@@ -827,6 +946,7 @@ export const CalendarView: React.FC = () => {
             <EventList
               groupedEvents={ groupedAndSortedEvents }
               sortedDates={ sortedDates }
+              canManage={ !isViewer }
               onDeleteEvent={ (eventId) => deleteEventMutation.mutate(eventId) }
               onDeleteAllEventsFromDate={ handleDeleteAllEventsFromDate }
               onDeleteMultipleEvents={ handleDeleteMultipleEvents }
@@ -842,50 +962,54 @@ export const CalendarView: React.FC = () => {
                 <p className="text-sm text-[var(--text-secondary)] mb-6">
                   Crea tu primer evento para comenzar a organizar
                 </p>
-                <Button
-                  onClick={ () => setIsModalOpen(true) }
-                  size="lg"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Crear Evento
-                </Button>
+                { !isViewer && (
+                  <Button
+                    onClick={ () => setIsModalOpen(true) }
+                    size="lg"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Crear Evento
+                  </Button>
+                ) }
               </div>
             </div>
           ) }
         </div>
 
         {/* Create Event Modal */ }
-        <EventModal
-          isOpen={ isModalOpen }
-          onClose={ () => {
-            setIsModalOpen(false);
-            setShowRecurrenceOptions(false);
-            setSelectedDays([]);
-          } }
-          onSubmit={ (data) => {
-            const formData = {
-              ...data,
-              selected_days: data.recurrence_type !== 'none' ? selectedDays : [],
-            };
+        { !isViewer && (
+          <EventModal
+            isOpen={ isModalOpen }
+            onClose={ () => {
+              setIsModalOpen(false);
+              setShowRecurrenceOptions(false);
+              setSelectedDays([]);
+            } }
+            onSubmit={ (data) => {
+              const formData = {
+                ...data,
+                selected_days: data.recurrence_type !== 'none' ? selectedDays : [],
+              };
 
-            if (isEndBeforeStart(formData)) {
-              toast.error('La hora de fin no puede ser menor que la hora de inicio');
-              return;
-            }
+              if (isEndBeforeStart(formData)) {
+                toast.error('La hora de fin no puede ser menor que la hora de inicio');
+                return;
+              }
 
-            createEventMutation.mutate(formData);
-          } }
-          handleSubmit={ handleSubmit }
-          register={ register }
-          errors={ errors }
-          watch={ watch }
-          setValue={ setValue }
-          selectedDays={ selectedDays }
-          setSelectedDays={ setSelectedDays }
-          showRecurrenceOptions={ showRecurrenceOptions }
-          setShowRecurrenceOptions={ setShowRecurrenceOptions }
-          isLoading={ createEventMutation.isPending }
-        />
+              createEventMutation.mutate(formData);
+            } }
+            handleSubmit={ handleSubmit }
+            register={ register }
+            errors={ errors }
+            watch={ watch }
+            setValue={ setValue }
+            selectedDays={ selectedDays }
+            setSelectedDays={ setSelectedDays }
+            showRecurrenceOptions={ showRecurrenceOptions }
+            setShowRecurrenceOptions={ setShowRecurrenceOptions }
+            isLoading={ createEventMutation.isPending }
+          />
+        ) }
       </div>
 
       {/* Botón Scroll to Top */ }
