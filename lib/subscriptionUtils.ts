@@ -257,38 +257,7 @@ export async function getUserPlanTier(
       return tier;
     }
 
-    // Fallback defensivo: si el RPC devuelve free por datos desfasados,
-    // evaluamos la última suscripción visible del usuario.
-    const { data: subscription, error: subscriptionError } = await supabase
-      .from('subscriptions')
-      .select('plan_tier, status, cancel_at_period_end, current_period_end')
-      .eq('user_id', userId)
-      .order('created', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (subscriptionError || !subscription) {
-      if (subscriptionError) {
-        console.error(
-          'Error reading fallback subscription tier:',
-          subscriptionError,
-        );
-      }
-      return 'free';
-    }
-
-    const fallbackTier = normalizeTier(subscription.plan_tier);
-    if (fallbackTier === 'free') {
-      return 'free';
-    }
-
-    const fallbackHasAccess = hasPaidAccess({
-      status: subscription.status,
-      cancel_at_period_end: subscription.cancel_at_period_end,
-      current_period_end: subscription.current_period_end,
-    });
-
-    return fallbackHasAccess ? fallbackTier : 'free';
+    return 'free';
   } catch (error) {
     console.error('Error getting user plan:', error);
     return 'free';
@@ -307,8 +276,21 @@ export async function canUseAIFeatures(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<boolean> {
-  const tier = await getUserPlanTier(supabase, userId);
-  return tier === 'pro';
+  try {
+    const { data, error } = await supabase.rpc('can_use_ai_features', {
+      p_user_id: userId,
+    });
+
+    if (error) {
+      console.error('Error checking AI feature access:', error);
+      return false;
+    }
+
+    return data === true;
+  } catch (error) {
+    console.error('Error checking AI feature access:', error);
+    return false;
+  }
 }
 
 /**
@@ -351,45 +333,28 @@ export async function canAddMemberToProject(
   plan?: PlanTier;
 }> {
   try {
-    // Try to use the database function first (more efficient)
-    try {
-      const { data, error } = await supabase.rpc('can_add_member_to_project', {
-        p_project_id: projectId,
-        p_owner_id: ownerId,
-      });
+    const { data, error } = await supabase.rpc('can_add_member_to_project', {
+      p_project_id: projectId,
+      p_owner_id: ownerId,
+    });
 
-      if (!error && data) {
-        return {
-          canAdd: data.can_add,
-          reason: data.reason,
-          currentCount: data.current_count,
-          limit: data.limit,
-        };
+    if (error || !data) {
+      if (error) {
+        console.error('Error checking member limits with RPC:', error);
       }
-    } catch {
-      // Database function not available, using fallback logic
-    }
-
-    // Fallback to client-side logic
-    // Verificar si el dueño es premium
-    const tier = await getUserPlanTier(supabase, ownerId);
-    const limits = getPlanLimits(tier);
-    const limit = limits.MAX_MEMBERS_PER_PROJECT;
-
-    // Verificar el límite
-    const currentCount = await getProjectMemberCount(supabase, projectId);
-
-    if (limit !== null && currentCount >= limit) {
       return {
         canAdd: false,
-        reason: `Has alcanzado el límite de ${limit} miembros para el plan ${tier.toUpperCase()}.`,
-        currentCount,
-        limit,
-        plan: tier,
+        reason: 'No se pudo validar el límite de miembros',
       };
     }
 
-    return { canAdd: true, currentCount, limit, plan: tier };
+    return {
+      canAdd: data.can_add,
+      reason: data.reason,
+      currentCount: data.current_count,
+      limit: data.limit,
+      plan: normalizeTier(data.plan_tier),
+    };
   } catch (error) {
     console.error('Error checking if can add member:', error);
     return {

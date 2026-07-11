@@ -70,15 +70,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const projectTier =
-      typeof project.plan_tier === 'string'
-        ? project.plan_tier.toLowerCase()
-        : 'free';
-    const analyticsEnabledByPlan = projectTier === 'pro';
-    const canUseAnalytics =
-      typeof analyticsEnabledByDb === 'boolean'
-        ? analyticsEnabledByDb
-        : analyticsEnabledByPlan;
+    const canUseAnalytics = analyticsEnabledByDb === true;
 
     if (!canUseAnalytics) {
       return NextResponse.json(

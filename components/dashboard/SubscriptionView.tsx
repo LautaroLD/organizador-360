@@ -3,8 +3,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, HardDrive, Lock, Star, Users } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { hasPaidAccess } from '@/lib/subscriptionUtils';
 import { cn, formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import { buttonVariants } from '@/components/ui/Button';
@@ -27,15 +25,6 @@ interface ProviderPlan {
 interface PlansByProvidersResponse {
   lemon_squeezy?: ProviderPlan[];
   [key: string]: ProviderPlan[] | undefined;
-}
-
-interface SubscriptionRow {
-  status: string | null;
-  plan_tier: string | null;
-  cancel_at_period_end: boolean | null;
-  current_period_start: string | null;
-  current_period_end: string | null;
-  lemon_squeezy_subscription_id: string | null;
 }
 
 interface PlanContextResponse {
@@ -67,6 +56,13 @@ interface LemonSqueezyDetails {
   customerPortalUrl?: string | null;
   updatePaymentMethodUrl?: string | null;
   updateSubscriptionUrl?: string | null;
+}
+
+interface SubscriptionDetailsResponse {
+  hasSubscription?: boolean;
+  source?: 'lemon_squeezy' | 'database' | null;
+  planContext?: PlanContextResponse;
+  details?: LemonSqueezyDetails | null;
 }
 
 function normalizeTier(value?: string | null): PlanTier {
@@ -113,54 +109,7 @@ function formatSubscriptionDate(dateValue?: string | null): string {
 }
 
 export const SubscriptionView: React.FC = () => {
-  const supabase = createClient();
   const { user } = useAuthStore();
-
-  const { data: planContext, isLoading: planContextLoading } = useQuery({
-    queryKey: ['plan-context', user?.id],
-    queryFn: async () => {
-      if (!user?.id) {
-        return {
-          plan_tier: 'free',
-          source: 'free',
-          expires_at: null,
-        } satisfies PlanContextResponse;
-      }
-
-      const { data } = await supabase.rpc('get_user_plan_context', {
-        p_user_id: user.id,
-      });
-
-      return (data ?? {
-        plan_tier: 'free',
-        source: 'free',
-        expires_at: null,
-      }) as PlanContextResponse;
-    },
-    enabled: !!user?.id,
-  });
-
-  const { data: subscription, isLoading: subscriptionLoading } = useQuery({
-    queryKey: ['subscription', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-
-      const { data, error } = await supabase
-        .from('subscriptions')
-        .select(
-          'status, plan_tier, cancel_at_period_end, current_period_start, current_period_end, lemon_squeezy_subscription_id'
-        )
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (error) {
-        throw new Error(error.message || 'Error obteniendo suscripción');
-      }
-
-      return (data ?? null) as SubscriptionRow | null;
-    },
-    enabled: !!user?.id,
-  });
 
   const { data: plansGroupByProviders, isLoading: plansGroupByProvidersLoading } = useQuery<PlansByProvidersResponse>({
     queryKey: ['plans'],
@@ -173,16 +122,12 @@ export const SubscriptionView: React.FC = () => {
     gcTime: 30 * 60 * 1000,
   });
 
-  const { data: lemonData } = useQuery({
+  const { data: lemonData, isLoading: lemonDataLoading } = useQuery({
     queryKey: ['lemon-subscription-details', user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<SubscriptionDetailsResponse | null> => {
       const response = await fetch('/api/lemon-squeezy/subscription-details');
       if (!response.ok) return null;
-      const data = await response.json();
-      return {
-        details: (data.details ?? null) as LemonSqueezyDetails | null,
-        source: (data.source ?? null) as string | null,
-      };
+      return (await response.json()) as SubscriptionDetailsResponse;
     },
     enabled: !!user?.id,
     staleTime: 60_000,
@@ -216,44 +161,35 @@ export const SubscriptionView: React.FC = () => {
 
   const lsPlans = orderByTier(plansGroupByProviders?.lemon_squeezy ?? []);
   const lemonDetails = lemonData?.details;
+  const planContext = lemonData?.planContext ?? {
+    plan_tier: 'free',
+    source: 'free',
+    expires_at: null,
+  };
   const contextTier = normalizeTier(planContext?.plan_tier);
   const currentPlanTier: PlanTier = contextTier;
   const isManualAccess = planContext?.source === 'manual';
-
-  const paidAccessFromSubscription = hasPaidAccess(
-    {
-      status: subscription?.status,
-      cancel_at_period_end: subscription?.cancel_at_period_end,
-      current_period_end: subscription?.current_period_end,
-    },
-    undefined,
-  );
-
+  const periodEndDate = lemonDetails?.currentPeriodEnd ?? null;
   const hasFuturePeriodEnd = Boolean(
-    subscription?.current_period_end &&
-    new Date(subscription.current_period_end) > new Date()
+    periodEndDate && new Date(periodEndDate) > new Date(),
   );
-
-  const isPaid = currentPlanTier !== 'free' && (isManualAccess || paidAccessFromSubscription);
+  const isPaid = currentPlanTier !== 'free';
 
   const isCanceled = Boolean(
     isPaid &&
     !isManualAccess &&
     hasFuturePeriodEnd &&
     (
-      subscription?.cancel_at_period_end ||
       lemonDetails?.cancelAtPeriodEnd ||
-      subscription?.status === 'canceled' ||
-      subscription?.status === 'cancelled'
+      lemonDetails?.status?.toLowerCase() === 'canceled' ||
+      lemonDetails?.status?.toLowerCase() === 'cancelled'
     )
   );
 
   const lemonTrialDaysRemaining = calculateDaysRemaining(lemonDetails?.trialEndsAt);
-  const subscriptionDaysRemaining = calculateDaysRemaining(
-    lemonDetails?.currentPeriodEnd ?? subscription?.current_period_end
-  );
+  const subscriptionDaysRemaining = calculateDaysRemaining(periodEndDate);
 
-  if (subscriptionLoading || planContextLoading || plansGroupByProvidersLoading) {
+  if (plansGroupByProvidersLoading || lemonDataLoading) {
     return (
       <div className='flex items-center justify-center h-full p-12'>
         <div className='text-center'>
@@ -272,7 +208,7 @@ export const SubscriptionView: React.FC = () => {
         </p>
       </div>
 
-      { isPaid && (subscription || isManualAccess) && (
+      { isPaid && (
         <Card className='mb-8 border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/5'>
           <CardHeader>
             <div className='flex items-center justify-between gap-4'>
@@ -296,7 +232,7 @@ export const SubscriptionView: React.FC = () => {
                     </span>
                   ) : (
                     <span className='inline-flex items-center gap-2 text-[var(--text-secondary)]'>
-                      { lemonDetails?.statusLabel ?? subscription?.status ?? 'Activa' }
+                      { lemonDetails?.statusLabel ?? 'Activa' }
                       <span className='text-xs bg-[var(--bg-secondary)] text-[var(--text-secondary)] px-2 py-0.5 rounded border border-[var(--border-primary)]'>
                         Lemon Squeezy
                       </span>
@@ -326,8 +262,8 @@ export const SubscriptionView: React.FC = () => {
                 <div className='text-lg font-semibold text-[var(--text-primary)]'>
                   { isManualAccess
                     ? (planContext?.expires_at ? formatSubscriptionDate(planContext.expires_at) : 'Sin vencimiento')
-                    : (lemonDetails?.currentPeriodEnd || subscription?.current_period_end
-                      ? formatSubscriptionDate(lemonDetails?.currentPeriodEnd ?? subscription?.current_period_end)
+                    : (lemonDetails?.currentPeriodEnd
+                      ? formatSubscriptionDate(lemonDetails.currentPeriodEnd)
                       : 'N/A') }
                 </div>
               </div>
@@ -336,7 +272,7 @@ export const SubscriptionView: React.FC = () => {
 
           <CardContent>
             <div className='flex flex-col gap-4'>
-              { !isManualAccess && subscription && (
+              { !isManualAccess && (
                 <div className='grid grid-cols-2 md:grid-cols-4 gap-4 text-sm'>
                   <div>
                     <span className='text-[var(--text-secondary)] block'>Procesador de pago</span>
@@ -347,14 +283,14 @@ export const SubscriptionView: React.FC = () => {
                     <span className='font-medium text-[var(--text-primary)] uppercase'>
                       { lemonDetails?.variantName && lemonDetails.variantName !== 'Default'
                         ? lemonDetails.variantName
-                        : (subscription.plan_tier ?? currentPlanTier) }
+                        : currentPlanTier }
                     </span>
                   </div>
-                  { (lemonDetails?.id || subscription.lemon_squeezy_subscription_id) && (
+                  { lemonDetails?.id && (
                     <div>
                       <span className='text-[var(--text-secondary)] block'>ID suscripción</span>
                       <span className='font-medium text-[var(--text-primary)] font-mono text-xs'>
-                        { lemonDetails?.id || subscription.lemon_squeezy_subscription_id }
+                        { lemonDetails.id }
                       </span>
                     </div>
                   ) }
@@ -370,16 +306,16 @@ export const SubscriptionView: React.FC = () => {
               ) }
 
               <div className='flex items-center gap-4 text-sm border-t border-[var(--border-primary)] pt-4'>
-                { subscription?.current_period_start && subscription?.current_period_end && (
+                { lemonDetails?.currentPeriodStart && lemonDetails?.currentPeriodEnd && (
                   <div>
                     <span className='text-[var(--text-secondary)]'>
-                      Período actual: { formatSubscriptionDate(subscription.current_period_start) } a{ ' ' }
-                      { formatSubscriptionDate(subscription.current_period_end) }
+                      Período actual: { formatSubscriptionDate(lemonDetails.currentPeriodStart) } a{ ' ' }
+                      { formatSubscriptionDate(lemonDetails.currentPeriodEnd) }
                     </span>
                   </div>
                 ) }
 
-                { !isManualAccess && subscription?.cancel_at_period_end && (
+                { !isManualAccess && lemonDetails?.cancelAtPeriodEnd && (
                   <div className='px-3 py-1 bg-[var(--accent-danger)]/10 border border-[var(--accent-danger)]/30 rounded text-[var(--accent-danger)] text-xs font-medium'>
                     Cancelada al final del período
                   </div>

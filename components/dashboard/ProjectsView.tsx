@@ -26,9 +26,16 @@ import { formatDate } from '@/lib/utils';
 import type { ProjectFormData, Project } from '@/models';
 import { InviteMemberModal } from '@/components/members/InviteMemberModal';
 import { StorageIndicator } from './StorageIndicator';
-import { getPlanLimits, getUserPlanTier } from '@/lib/subscriptionUtils';
+import { getPlanLimits } from '@/lib/subscriptionUtils';
 import { MessageContent } from '@/components/ui/MessageContent';
 import clsx from 'clsx';
+
+type ProjectLimitStatus = {
+  can_enable: boolean;
+  enabled_count: number;
+  max_limit: number | null;
+  is_premium: boolean;
+};
 
 export const ProjectsView: React.FC = () => {
   const supabase = createClient();
@@ -92,20 +99,26 @@ export const ProjectsView: React.FC = () => {
     enabled: !!user?.id,
   });
 
-  // Check plan tier
-  const { data: planTier } = useQuery({
-    queryKey: ['plan-tier', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return 'free';
-      return getUserPlanTier(supabase, user.id);
+  const { data: projectLimitStatus } = useQuery({
+    queryKey: ['project-limit-status', user?.id],
+    queryFn: async (): Promise<ProjectLimitStatus | null> => {
+      if (!user?.id) return null;
+
+      const response = await fetch('/api/projects/limit', {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return response.json() as Promise<ProjectLimitStatus>;
     },
     enabled: !!user?.id,
   });
 
   // Calculate disabled projects count
   const disabledProjectsCount = projects?.filter(p => !p.enabled && p.userRole === 'Owner').length || 0;
-  const currentTier = planTier ?? 'free';
-  const currentLimits = getPlanLimits(currentTier);
 
   const getProjectTier = (project: Project) => {
     const tier = (project as Project & { plan_tier?: string; }).plan_tier;
@@ -118,31 +131,26 @@ export const ProjectsView: React.FC = () => {
   // Create project mutation
   const createProjectMutation = useMutation({
     mutationFn: async (data: ProjectFormData) => {
-      // 1. OBTENER ESTADO DE SUSCRIPCIÓN Y CONTEO ACTUAL
-      // Consultamos los proyectos habilitados del usuario y su estado premium en paralelo
-      const [projectsCountRes, tierRes] = await Promise.all([
-        supabase
-          .from('projects')
-          .select('*', { count: 'exact', head: true })
-          .eq('owner_id', user!.id)
-          .eq('enabled', true), // Solo contar proyectos habilitados
-        getUserPlanTier(supabase, user!.id)
-      ]);
+      const limitResponse = await fetch('/api/projects/limit', {
+        method: 'GET',
+      });
 
-      // Validar errores en las queries
-      if (projectsCountRes.error) {
-        throw new Error(`Error al verificar proyectos: ${projectsCountRes.error.message}`);
-      }
-      const tier = tierRes ?? 'free';
-      const enabledProjects = projectsCountRes.count || 0;
-
-      // 2. LÓGICA DE NEGOCIO: Límite de proyectos habilitados según plan
-      const maxProjects = getPlanLimits(tier).MAX_PROJECTS;
-      if (maxProjects !== null && enabledProjects >= maxProjects) {
-        throw new Error(`Has alcanzado el límite de ${maxProjects} proyectos habilitados. Actualiza tu plan o desactiva proyectos para crear más.`);
+      if (!limitResponse.ok) {
+        throw new Error('No se pudo validar el límite de proyectos');
       }
 
-      // 3. PROCESO DE CREACIÓN (Tu código anterior corregido)
+      const limitStatus = (await limitResponse.json()) as ProjectLimitStatus;
+
+      if (!limitStatus.can_enable) {
+        const maxLabel =
+          limitStatus.max_limit === null
+            ? 'sin límite'
+            : String(limitStatus.max_limit);
+        throw new Error(
+          `Has alcanzado el límite de ${maxLabel} proyectos habilitados. Actualiza tu plan o desactiva proyectos para crear más.`,
+        );
+      }
+
       const { data: project, error: projectError } = await supabase
         .from('projects')
         .insert({
@@ -240,9 +248,9 @@ export const ProjectsView: React.FC = () => {
                 { disabledProjectsCount } proyecto{ disabledProjectsCount > 1 ? 's' : '' } deshabilitado{ disabledProjectsCount > 1 ? 's' : '' }
               </h3>
               <p className='text-xs text-amber-600/80 dark:text-amber-400/80'>
-                { currentLimits.MAX_PROJECTS === null
+                { projectLimitStatus?.max_limit === null
                   ? 'Tu plan permite proyectos ilimitados.'
-                  : `Tu plan ${currentTier.toUpperCase()} permite hasta ${currentLimits.MAX_PROJECTS} proyectos habilitados.` }
+                  : `Tu plan permite hasta ${projectLimitStatus?.max_limit ?? 3} proyectos habilitados.` }
               </p>
             </div>
           </div>

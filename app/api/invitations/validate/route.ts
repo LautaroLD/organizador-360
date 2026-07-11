@@ -67,6 +67,8 @@ export async function POST(request: NextRequest) {
           reason: validation.reason,
           currentCount: validation.currentCount,
           limit: validation.limit,
+          planTier: validation.plan ?? 'free',
+          isPremium: (validation.plan ?? 'free') !== 'free',
         },
         { status: 200 },
       );
@@ -77,6 +79,8 @@ export async function POST(request: NextRequest) {
         canAdd: true,
         currentCount: validation.currentCount,
         limit: validation.limit,
+        planTier: validation.plan ?? 'free',
+        isPremium: (validation.plan ?? 'free') !== 'free',
       },
       { status: 200 },
     );

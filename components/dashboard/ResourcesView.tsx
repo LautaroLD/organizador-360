@@ -14,7 +14,7 @@ import { AddLinkModal } from '@/components/resources/AddLinkModal';
 import { UploadFileModal } from '@/components/resources/UploadFileModal';
 import { AnalyzeResourceModal } from '@/components/resources/AnalyzeResourceModal';
 import type { LinkFormData, ResourceTab, Resource } from '@/models';
-import { checkStorageLimit, getPlanLimits } from '@/lib/subscriptionUtils';
+import { checkStorageLimit, getUserPlanTier } from '@/lib/subscriptionUtils';
 import { StorageIndicator } from './StorageIndicator';
 
 type StoragePolicyResponse = {
@@ -66,11 +66,16 @@ export const ResourcesView: React.FC = () => {
   const normalizedRole = currentProject?.userRole?.toLowerCase();
   const isViewer = normalizedRole === 'viewer';
 
-  const projectTier = currentProject?.plan_tier === 'starter' || currentProject?.plan_tier === 'pro'
-    ? currentProject.plan_tier
-    : (currentProject?.is_premium ? 'pro' : 'free');
-  const projectLimits = getPlanLimits(projectTier ?? 'free');
-  const canUseAI = projectTier === 'pro';
+  const { data: userPlanTier } = useQuery({
+    queryKey: ['plan-tier', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return 'free';
+      return getUserPlanTier(supabase, user.id);
+    },
+    enabled: !!user?.id,
+  });
+
+  const canUseAI = userPlanTier === 'pro';
 
   const { data: storagePolicy } = useQuery({
     queryKey: ['resource-storage-policy', currentProject?.id, currentProject?.storage_used],
@@ -549,7 +554,7 @@ export const ResourcesView: React.FC = () => {
             <div>
               <StorageIndicator
                 used={ currentProject.storage_used || 0 }
-                limit={ projectLimits.MAX_STORAGE_BYTES }
+                limit={ storagePolicy?.limit ?? 100 * 1024 * 1024 }
               />
               { isResourceWriteLocked && (
                 <div className='mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200'>
