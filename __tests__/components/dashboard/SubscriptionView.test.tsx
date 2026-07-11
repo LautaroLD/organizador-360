@@ -62,7 +62,7 @@ describe('SubscriptionView', () => {
     );
 
   it('renders loading state initially', () => {
-    // Primera llamada (suscripción): loading
+    // Primera llamada (subscription-details): loading
     mockUseQuery.mockReturnValue({
       data: undefined,
       isLoading: true,
@@ -73,17 +73,7 @@ describe('SubscriptionView', () => {
   });
 
   it('renders plans when no subscription is active', () => {
-    // Mockear useQuery para devolver null (no subscription)
     mockUseQuery.mockImplementation((options) => {
-      if (options.queryKey[0] === 'plan-context') {
-        return {
-          data: { plan_tier: 'free', source: 'free', expires_at: null },
-          isLoading: false,
-        };
-      }
-      if (options.queryKey[0] === 'subscription') {
-        return { data: null, isLoading: false };
-      }
       if (options.queryKey[0] === 'plans') {
         return {
           data: {
@@ -95,14 +85,13 @@ describe('SubscriptionView', () => {
           isLoading: false,
         };
       }
-      if (options.queryKey[0] === 'plan') {
+      if (options.queryKey[0] === 'lemon-subscription-details') {
         return {
           data: {
-            name: 'Plan PRO',
-            price: '$2,000 ARS',
-            description: 'Para usuarios avanzados',
-            hasFreeTrial: false,
-            trialDays: 0,
+            hasSubscription: false,
+            source: null,
+            planContext: { plan_tier: 'free', source: 'free', expires_at: null },
+            details: null,
           },
           isLoading: false,
         };
@@ -123,15 +112,7 @@ describe('SubscriptionView', () => {
   it('renders active subscription details correctly', () => {
     // Mock suscripción activa
     const mockSub = {
-      status: 'active',
-      plan_tier: 'pro',
       lemon_squeezy_subscription_id: 'sub-123',
-      current_period_start: '2023-01-01',
-      current_period_end: '2099-02-01',
-    };
-
-    const mockDetails = {
-      id: 'sub-123',
       status: 'active',
       statusLabel: 'Activa',
       currentPeriodStart: '2023-01-01T00:00:00.000Z',
@@ -144,34 +125,15 @@ describe('SubscriptionView', () => {
     };
 
     mockUseQuery.mockImplementation((options) => {
-      if (options.queryKey[0] === 'plan-context') {
-        return {
-          data: { plan_tier: 'pro', source: 'subscription', expires_at: null },
-          isLoading: false,
-        };
-      }
-      if (options.queryKey[0] === 'subscription') {
-        return { data: mockSub, isLoading: false };
-      }
       if (options.queryKey[0] === 'lemon-subscription-details') {
         return {
           data: {
-            details: mockDetails,
-            source: 'api'
+            hasSubscription: true,
+            source: 'lemon_squeezy',
+            planContext: { plan_tier: 'pro', source: 'subscription', expires_at: null },
+            details: mockSub,
           },
           isLoading: false
-        };
-      }
-      if (options.queryKey[0] === 'plan') {
-        return {
-          data: {
-            name: 'Plan PRO',
-            price: '$2,000 ARS',
-            description: 'Para usuarios avanzados',
-            hasFreeTrial: false,
-            trialDays: 0,
-          },
-          isLoading: false,
         };
       }
       return { data: null, isLoading: false };
@@ -202,15 +164,6 @@ describe('SubscriptionView', () => {
     futureDate.setDate(futureDate.getDate() + 10); // 10 days from now
 
     const mockSubscription = {
-      status: 'canceled', // Canceled status
-      plan_tier: 'pro',
-      cancel_at_period_end: true,
-      plan_id: 'pro',
-      current_period_end: futureDate.toISOString(), // But still valid period
-    };
-
-    const mockDetails = {
-      id: 'sub-123',
       status: 'cancelled',
       statusLabel: 'Cancelado',
       currentPeriodStart: new Date().toISOString(),
@@ -220,34 +173,15 @@ describe('SubscriptionView', () => {
     };
 
     mockUseQuery.mockImplementation((options) => {
-      if (options.queryKey[0] === 'plan-context') {
-        return {
-          data: { plan_tier: 'pro', source: 'subscription', expires_at: null },
-          isLoading: false,
-        };
-      }
-      if (options.queryKey[0] === 'subscription') {
-        return { data: mockSubscription, isLoading: false };
-      }
       if (options.queryKey[0] === 'lemon-subscription-details') {
         return {
           data: {
-            details: mockDetails,
-            source: 'api'
+            hasSubscription: true,
+            source: 'lemon_squeezy',
+            planContext: { plan_tier: 'pro', source: 'subscription', expires_at: null },
+            details: mockSubscription,
           },
           isLoading: false
-        };
-      }
-      if (options.queryKey[0] === 'plan') {
-        return {
-          data: {
-            name: 'Plan PRO',
-            price: '$2,000 ARS',
-            description: 'Para usuarios avanzados',
-            hasFreeTrial: false,
-            trialDays: 0,
-          },
-          isLoading: false,
         };
       }
       return { data: null, isLoading: false };

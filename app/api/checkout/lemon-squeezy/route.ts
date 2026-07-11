@@ -52,17 +52,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const baseUrl = getBaseAppUrl(request);
-    const successUrl = `${baseUrl}/dashboard?subscription=success&provider=lemon_squeezy`;
-    const cancelUrl = `${baseUrl}/dashboard?subscription=cancelled&provider=lemon_squeezy`;
-
     const checkoutUrl = new URL(checkoutBaseUrl);
 
     checkoutUrl.searchParams.set('checkout[email]', user.email ?? '');
     checkoutUrl.searchParams.set('checkout[custom][user_id]', user.id);
+    checkoutUrl.searchParams.set(
+      'checkout[custom][user_email]',
+      user.email ?? '',
+    );
     checkoutUrl.searchParams.set('checkout[custom][plan_tier]', planTier);
-    checkoutUrl.searchParams.set('checkout[success_url]', successUrl);
-    checkoutUrl.searchParams.set('checkout[cancel_url]', cancelUrl);
 
     return NextResponse.json({ url: checkoutUrl.toString() });
   } catch (error: unknown) {

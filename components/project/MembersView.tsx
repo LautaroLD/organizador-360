@@ -16,7 +16,15 @@ import { MemberTagsModal } from '@/components/members/MemberTagsModal';
 import { ProjectTagsModal } from '@/components/members/ProjectTagsModal';
 import type { TagFormData, Member, ProjectTag } from '@/models';
 import { PostgrestSingleResponse } from '@supabase/supabase-js';
-import { getPlanLimits } from '@/lib/subscriptionUtils';
+
+type InvitationValidationResponse = {
+  canAdd: boolean;
+  reason?: string;
+  currentCount?: number;
+  limit?: number | null;
+  planTier?: 'free' | 'starter' | 'pro';
+  isPremium?: boolean;
+};
 
 export const MembersView: React.FC = () => {
   const supabase = createClient();
@@ -24,9 +32,8 @@ export const MembersView: React.FC = () => {
   const { currentProject, setCurrentProject } = useProjectStore();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
-  const projectTier = currentProject?.plan_tier === 'starter' || currentProject?.plan_tier === 'pro'
-    ? currentProject.plan_tier
-    : (currentProject?.is_premium ? 'pro' : 'free');
+  const canManageMembers =
+    currentProject?.userRole === 'Owner' || currentProject?.userRole === 'Admin';
 
   // State for modals
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -87,6 +94,29 @@ export const MembersView: React.FC = () => {
       return data as ProjectTag[];
     },
     enabled: !!currentProject?.id,
+  });
+
+  const { data: memberValidation, refetch: refetchMemberValidation } = useQuery({
+    queryKey: ['member-limit-validation', currentProject?.id],
+    queryFn: async (): Promise<InvitationValidationResponse | null> => {
+      if (!currentProject?.id || !canManageMembers) {
+        return null;
+      }
+
+      const response = await fetch('/api/invitations/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: currentProject.id }),
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return response.json() as Promise<InvitationValidationResponse>;
+    },
+    enabled: !!currentProject?.id && canManageMembers,
+    staleTime: 30_000,
   });
 
   // Change role mutation
@@ -255,9 +285,6 @@ export const MembersView: React.FC = () => {
     },
   });
 
-  const canManageMembers =
-    currentProject?.userRole === 'Owner' || currentProject?.userRole === 'Admin';
-
   const leaveProjectMutation = useMutation({
     mutationFn: async () => {
       if (!currentProject?.id || !user?.id) throw new Error('Proyecto o usuario no válidos');
@@ -293,13 +320,12 @@ export const MembersView: React.FC = () => {
     if (!currentProject?.id) return;
 
     try {
-      const response = await fetch('/api/invitations/validate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: currentProject.id }),
-      });
+      const { data: result } = await refetchMemberValidation();
 
-      const result = await response.json();
+      if (!result) {
+        toast.error('No se pudo validar el límite de miembros');
+        return;
+      }
 
       if (!result.canAdd) {
         toast.error(result.reason || 'No se puede agregar más miembros');
@@ -335,18 +361,16 @@ export const MembersView: React.FC = () => {
             </h2>
             <p className='text-sm md:text-base text-[var(--text-secondary)] mt-1'>
               { members?.length || 0 } miembro(s) en el equipo
-              { (() => {
-                const tier = currentProject?.plan_tier === 'starter' || currentProject?.plan_tier === 'pro'
-                  ? currentProject.plan_tier
-                  : (currentProject?.is_premium ? 'pro' : 'free');
-                const limit = getPlanLimits(tier).MAX_MEMBERS_PER_PROJECT;
-
-                return (
-                  <span className={ `ml-2 text-xs font-medium ${tier === 'free' ? 'text-orange-500' : 'text-[var(--accent-primary)]'}` }>
-                    { `Plan ${tier.toUpperCase()}: máx. ${limit} miembros` }
-                  </span>
-                );
-              })() }
+              { memberValidation?.limit !== undefined && memberValidation?.limit !== null && (
+                <span
+                  className={ `ml-2 text-xs font-medium ${(memberValidation.planTier ?? 'free') === 'free'
+                      ? 'text-orange-500'
+                      : 'text-[var(--accent-primary)]'
+                    }` }
+                >
+                  { `Plan ${(memberValidation.planTier ?? 'free').toUpperCase()}: máx. ${memberValidation.limit} miembros` }
+                </span>
+              ) }
             </p>
           </div>
           <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
@@ -424,12 +448,9 @@ export const MembersView: React.FC = () => {
         projectId={ currentProject?.id ?? null }
         projectName={ currentProject?.name }
         currentMemberCount={ members?.length }
-        memberLimit={ (() => {
-          const limit = getPlanLimits(projectTier ?? 'free').MAX_MEMBERS_PER_PROJECT;
-          return limit === null ? undefined : limit;
-        })() }
-        isPremium={ projectTier !== 'free' }
-        planTier={ projectTier }
+        memberLimit={ memberValidation?.limit ?? undefined }
+        isPremium={ memberValidation?.isPremium ?? false }
+        planTier={ memberValidation?.planTier ?? 'free' }
         onSuccess={ () => queryClient.invalidateQueries({ queryKey: ['project-members'] }) }
       />
 

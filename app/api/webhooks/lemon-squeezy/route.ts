@@ -12,6 +12,7 @@ type LemonWebhookPayload = {
     event_name?: string;
     custom_data?: {
       user_id?: string;
+      user_email?: string;
       plan_tier?: string;
     };
   };
@@ -93,11 +94,83 @@ async function parseTier(
 
 function parseUserId(payload: LemonWebhookPayload): string | null {
   const userId = payload.meta?.custom_data?.user_id;
-  if (typeof userId === 'string' && userId.length > 10) {
+  if (
+    typeof userId === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      userId.trim(),
+    )
+  ) {
     return userId;
   }
   return null;
 }
+
+function parseEmailCandidate(payload: LemonWebhookPayload): string | null {
+  const customUserId = payload.meta?.custom_data?.user_id;
+  const customEmail = payload.meta?.custom_data?.user_email;
+  const attributeEmail = payload.data?.attributes?.user_email;
+
+  const candidate = [customEmail, attributeEmail, customUserId].find(
+    (value) => {
+      if (typeof value !== 'string') return false;
+      const trimmed = value.trim();
+      return trimmed.includes('@');
+    },
+  );
+
+  return typeof candidate === 'string' ? candidate.trim().toLowerCase() : null;
+}
+
+async function resolveUserIdByEmail(email: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from('users')
+    .select('id')
+    .ilike('email', email)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error resolving user_id by email:', error);
+    return null;
+  }
+
+  return data?.id ?? null;
+}
+
+async function resolveUserIdWithFallback(
+  payload: LemonWebhookPayload,
+): Promise<string | null> {
+  const userId = parseUserId(payload);
+  if (userId) {
+    return userId;
+  }
+
+  const emailCandidate = parseEmailCandidate(payload);
+  if (emailCandidate) {
+    const resolvedByEmail = await resolveUserIdByEmail(emailCandidate);
+    if (resolvedByEmail) {
+      return resolvedByEmail;
+    }
+  }
+
+  const lemonSubscriptionId = payload.data?.id;
+  if (!lemonSubscriptionId) {
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('subscriptions')
+    .select('user_id')
+    .eq('lemon_squeezy_subscription_id', String(lemonSubscriptionId))
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error resolving user_id by Lemon subscription id:', error);
+    return null;
+  }
+
+  return data?.user_id ?? null;
+}
+
 async function getPlanIdByCode(code: string): Promise<string | null> {
   // 🦄 Ponytail: Naive cache-less lookup. Upgrade to Redis/LRU if hit rate is high.
   const { data, error } = await supabaseAdmin
@@ -142,7 +215,7 @@ export async function POST(req: NextRequest) {
 
   const data = JSON.parse(body) as LemonWebhookPayload;
   const eventName = data.meta?.event_name || 'unknown_event';
-  const userId = parseUserId(data);
+  const userId = await resolveUserIdWithFallback(data);
   const lemonSubscriptionId = data.data?.id;
   const attributes = data.data?.attributes;
 
@@ -160,7 +233,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json(
             {
               error:
-                'Webhook sin user_id o subscription_id. Configura custom_data.user_id en checkout.',
+                'Webhook sin user_id resoluble o subscription_id. Configura custom_data.user_id en checkout.',
             },
             { status: 400 },
           );

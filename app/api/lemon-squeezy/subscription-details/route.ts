@@ -31,6 +31,12 @@ type LemonSubscriptionResponse = {
   };
 };
 
+type PlanContextResponse = {
+  plan_tier?: 'free' | 'starter' | 'pro';
+  source?: 'manual' | 'subscription' | 'free';
+  expires_at?: string | null;
+};
+
 function getLemonStatusLabel(status?: string): string {
   switch ((status || '').toLowerCase()) {
     case 'active':
@@ -89,11 +95,29 @@ export async function GET() {
         hasSubscription: false,
         source: null,
         details: null,
+        planContext: {
+          plan_tier: 'free',
+          source: 'free',
+          expires_at: null,
+        } satisfies PlanContextResponse,
       });
     }
 
+    const { data: planContextRaw } = await supabase.rpc(
+      'get_user_plan_context',
+      {
+        p_user_id: user.id,
+      },
+    );
+
+    const planContext = (planContextRaw ?? {
+      plan_tier: 'free',
+      source: 'free',
+      expires_at: null,
+    }) as PlanContextResponse;
+
     const internalPlanId = resolveEffectivePlanTier({
-      planTier: subscription.plan_tier,
+      planTier: planContext.plan_tier ?? subscription.plan_tier,
     });
 
     const apiKey = process.env.LEMON_SQUEEZY_API_KEY;
@@ -104,6 +128,7 @@ export async function GET() {
         isPro: internalPlanId === 'pro',
         internalPlanId,
         source: 'database',
+        planContext,
         details: {
           id: subscription.lemon_squeezy_subscription_id,
           status: subscription.status,
@@ -186,6 +211,7 @@ export async function GET() {
         isPro: internalPlanId === 'pro',
         internalPlanId,
         source: 'lemon_squeezy',
+        planContext,
         details,
       });
     } catch (lemonError) {
@@ -201,6 +227,7 @@ export async function GET() {
         isPro: internalPlanId === 'pro',
         internalPlanId,
         source: 'database',
+        planContext,
         details: {
           id: subscription.lemon_squeezy_subscription_id,
           status: subscription.status,
