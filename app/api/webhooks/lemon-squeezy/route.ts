@@ -38,18 +38,17 @@ function safePeriodEnd(
   renewsAt?: string | null,
   endsAt?: string | null,
   trialEndsAt?: string | null,
+  fallback?: string | null,
 ): string {
-  const candidate = renewsAt ?? endsAt ?? trialEndsAt;
+  const candidate = renewsAt ?? endsAt ?? trialEndsAt ?? fallback;
   if (candidate) {
     const parsed = new Date(candidate);
-    if (!Number.isNaN(parsed.getTime()) && parsed.getTime() > Date.now()) {
+    if (!Number.isNaN(parsed.getTime())) {
       return parsed.toISOString();
     }
   }
 
-  const fallback = new Date();
-  fallback.setMonth(fallback.getMonth() + 1);
-  return fallback.toISOString();
+  return new Date().toISOString();
 }
 
 function parseDateOrNow(value?: string | null): string {
@@ -167,28 +166,45 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        const dbStatus = mapLemonStatusToDbStatus(attributes.status);
+        const dbStatus =
+          eventName === 'subscription_expired'
+            ? 'cancelled'
+            : mapLemonStatusToDbStatus(attributes.status);
         const planTier = await parseTier(data);
         console.log(planTier);
         const planId = await getPlanIdByCode(planTier);
         console.log(planId, 'plan_id');
 
-        const currentPeriodStart = parseDateOrNow(attributes.updated_at);
-        const currentPeriodEnd = safePeriodEnd(
-          attributes.renews_at,
-          attributes.ends_at,
-          attributes.trial_ends_at,
-        );
-
-        const cancelAtPeriodEnd =
-          attributes.cancelled === true ||
-          eventName === 'subscription_cancelled';
-
         const { data: existingSubscription } = await supabaseAdmin
           .from('subscriptions')
-          .select('status, payment_provider, current_period_start')
+          .select(
+            'status, payment_provider, current_period_start, current_period_end',
+          )
           .eq('user_id', userId)
           .maybeSingle();
+
+        const currentPeriodStart = parseDateOrNow(attributes.updated_at);
+        const currentPeriodEnd =
+          eventName === 'subscription_expired'
+            ? parseDateOrNow(
+                attributes.ends_at ??
+                  attributes.renews_at ??
+                  attributes.trial_ends_at ??
+                  attributes.updated_at ??
+                  attributes.created_at,
+              )
+            : safePeriodEnd(
+                attributes.renews_at,
+                attributes.ends_at,
+                attributes.trial_ends_at,
+                existingSubscription?.current_period_end ?? null,
+              );
+
+        const cancelAtPeriodEnd =
+          eventName === 'subscription_expired'
+            ? false
+            : attributes.cancelled === true ||
+              eventName === 'subscription_cancelled';
 
         const incomingTimestamp = new Date(
           attributes.created_at ?? attributes.updated_at ?? Date.now(),
