@@ -217,8 +217,7 @@ export const SubscriptionView: React.FC = () => {
   const lsPlans = orderByTier(plansGroupByProviders?.lemon_squeezy ?? []);
   const lemonDetails = lemonData?.details;
   const contextTier = normalizeTier(planContext?.plan_tier);
-  const subscriptionTier = normalizeTier(subscription?.plan_tier);
-  const currentPlanTier: PlanTier = contextTier !== 'free' ? contextTier : subscriptionTier;
+  const currentPlanTier: PlanTier = contextTier;
   const isManualAccess = planContext?.source === 'manual';
 
   const paidAccessFromSubscription = hasPaidAccess(
