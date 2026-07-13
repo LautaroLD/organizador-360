@@ -12,7 +12,7 @@ import { Calendar as CalendarIcon, Plus, ArrowUp, RefreshCw, CheckCircle2, Alert
 import { useGoogleCalendarTokens } from '@/hooks/useGoogleCalendarTokens';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { EventModal } from '@/components/calendar/EventModal';
-import { EventList } from '@/components/calendar/EventList';
+import { EventList, type CalendarListEvent } from '@/components/calendar/EventList';
 import { generateRecurringEvents } from '@/lib/calendarUtils';
 import { getUserPlanTier } from '@/lib/subscriptionUtils';
 import Link from 'next/link';
@@ -734,33 +734,51 @@ export const CalendarView: React.FC = () => {
     },
   });
 
-  const handleEditEvent = (event: Event) => {
-    const startParts = event.start_date.includes('T')
-      ? event.start_date.split('T')
-      : [event.start_date, '00:00:00'];
-    const endParts = event.end_date.includes('T')
-      ? event.end_date.split('T')
-      : [event.end_date, '23:59:00'];
+  const handleEditEvent = (event: CalendarListEvent) => {
+    const normalizedEvent: Event = {
+      id: event.id,
+      google_event_id: event.google_event_id || null,
+      title: event.title,
+      description: event.description || '',
+      start_date: event.start_date,
+      end_date: event.end_date,
+      project_id: event.project_id || currentProject?.id || '',
+      created_by: event.created_by || user?.id || '',
+      recurrence_rule: event.recurrence_rule || null,
+      recurrence_days: Array.isArray(event.recurrence_days)
+        ? event.recurrence_days
+        : null,
+      recurrence_end_date: event.recurrence_end_date || null,
+      is_recurring: event.is_recurring || false,
+      creator: event.creator,
+    };
 
-    const recurrenceType = event.is_recurring
-      ? ((event.recurrence_rule as EventFormData['recurrence_type']) || 'weekly')
+    const startParts = normalizedEvent.start_date.includes('T')
+      ? normalizedEvent.start_date.split('T')
+      : [normalizedEvent.start_date, '00:00:00'];
+    const endParts = normalizedEvent.end_date.includes('T')
+      ? normalizedEvent.end_date.split('T')
+      : [normalizedEvent.end_date, '23:59:00'];
+
+    const recurrenceType = normalizedEvent.is_recurring
+      ? ((normalizedEvent.recurrence_rule as EventFormData['recurrence_type']) || 'weekly')
       : 'none';
 
-    setEditingEvent(event);
+    setEditingEvent(normalizedEvent);
     setEditScope('single');
-    setSelectedDays(Array.isArray(event.recurrence_days) ? event.recurrence_days : []);
-    setShowRecurrenceOptions(event.is_recurring);
+    setSelectedDays(Array.isArray(normalizedEvent.recurrence_days) ? normalizedEvent.recurrence_days : []);
+    setShowRecurrenceOptions(normalizedEvent.is_recurring);
 
     reset({
-      title: event.title || '',
-      description: event.description || '',
+      title: normalizedEvent.title || '',
+      description: normalizedEvent.description || '',
       start_date: startParts[0],
       start_time: startParts[1].slice(0, 5),
       end_date: endParts[0],
       end_time: endParts[1].slice(0, 5),
       recurrence_type: recurrenceType,
-      selected_days: Array.isArray(event.recurrence_days) ? event.recurrence_days : [],
-      recurrence_end_date: event.recurrence_end_date || undefined,
+      selected_days: Array.isArray(normalizedEvent.recurrence_days) ? normalizedEvent.recurrence_days : [],
+      recurrence_end_date: normalizedEvent.recurrence_end_date || undefined,
     });
 
     setIsModalOpen(true);

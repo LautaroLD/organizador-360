@@ -5,14 +5,19 @@ import { CalendarClock, ChevronDown, ChevronRight, Clock, History, Pencil, Repea
 import { Button } from '../ui/Button';
 import { DateRangePicker } from '../ui/DateRangePicker';
 
-interface Event {
+export interface CalendarListEvent {
   id: string;
   title: string;
   description?: string;
   start_date: string;
   end_date: string;
+  google_event_id?: string | null;
+  project_id?: string;
+  created_by?: string;
   is_recurring?: boolean;
   recurrence_rule?: string;
+  recurrence_days?: string[] | null;
+  recurrence_end_date?: string | null;
   creator?: {
     name: string;
     email: string;
@@ -20,11 +25,11 @@ interface Event {
 }
 
 interface EventListProps {
-  groupedEvents: Record<string, { events: Event[]; timestamp: number; }>;
+  groupedEvents: Record<string, { events: CalendarListEvent[]; timestamp: number; }>;
   sortedDates: string[];
   canManage?: boolean;
   onDeleteEvent: (eventId: string) => void;
-  onEditEvent?: (event: Event) => void;
+  onEditEvent?: (event: CalendarListEvent) => void;
   onDeleteAllEventsFromDate?: (dateKey: string, eventIds: string[]) => void;
   onDeleteMultipleEvents?: (eventIds: string[]) => void;
   onDeletePastEvents?: () => void;

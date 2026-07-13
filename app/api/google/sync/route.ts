@@ -912,7 +912,7 @@ export async function PATCH(request: NextRequest) {
           ...changes,
         };
 
-        if (scope !== 'single' && requestedStartDate) {
+        if (requestedStartDate) {
           rowUpdateChanges.start_date = addDaysToIsoDate(
             isoDateOnly(row.start_date),
             dateShiftDays,
@@ -920,7 +920,6 @@ export async function PATCH(request: NextRequest) {
         }
 
         if (
-          scope !== 'single' &&
           Object.prototype.hasOwnProperty.call(changes, 'end_date') &&
           changes.end_date
         ) {
