@@ -73,6 +73,10 @@ class SelectQuery {
     return Promise.resolve({ data: rows, error: null });
   }
 
+  limit(_count: number) {
+    return this;
+  }
+
   maybeSingle() {
     const rows = this.resolveRows();
     return Promise.resolve({ data: rows[0] || null, error: null });
@@ -196,13 +200,41 @@ jest.mock('@/lib/subscriptionUtils', () => ({
   canUseAIFeatures: jest.fn(async () => true),
 }));
 
+const mockGoogleService = {
+  createEvent: jest.fn(),
+  updateEvent: jest.fn(),
+  getEvent: jest.fn(),
+  listEventInstances: jest.fn(),
+  patchEvent: jest.fn(),
+  findEventByPrivateProperty: jest.fn(),
+  getEvents: jest.fn(),
+  deleteEvent: jest.fn(),
+  verifyTokens: jest.fn(),
+};
+
 jest.mock('@/lib/googleCalendar', () => ({
-  GoogleCalendarService: jest.fn(),
+  GoogleCalendarService: jest.fn().mockImplementation(() => mockGoogleService),
 }));
 
 describe('PATCH /api/google/sync (scopes recurrentes)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+
+    mockGoogleService.createEvent.mockResolvedValue({ id: 'gcal-new-1' });
+    mockGoogleService.updateEvent.mockResolvedValue({ id: 'gcal-instance-1' });
+    mockGoogleService.getEvent.mockResolvedValue({
+      id: 'gcal-master-1',
+      recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20260831T235959Z'],
+    });
+    mockGoogleService.listEventInstances.mockResolvedValue([
+      {
+        id: 'gcal-master-1_20260727T090000Z',
+        originalStartTime: { dateTime: '2026-07-27T09:00:00Z' },
+        start: { dateTime: '2026-07-27T09:00:00Z' },
+      },
+    ]);
+    mockGoogleService.patchEvent.mockResolvedValue({ id: 'gcal-master-1' });
+    mockGoogleService.findEventByPrivateProperty.mockResolvedValue(null);
 
     dbState = {
       projects: [
@@ -221,7 +253,7 @@ describe('PATCH /api/google/sync (scopes recurrentes)', () => {
           description: 'Serie diaria',
           start_date: '2026-07-20T09:00:00',
           end_date: '2026-07-20T10:00:00',
-          google_event_id: null,
+          google_event_id: 'gcal-master-1',
           is_recurring: true,
           recurrence_rule: 'weekly',
           recurrence_days: ['monday'],
@@ -398,5 +430,173 @@ describe('PATCH /api/google/sync (scopes recurrentes)', () => {
 
     expect(res.status).toBe(400);
     expect(data.error).toContain('serie recurrente');
+  });
+
+  it('scope=single sincroniza la instancia de Google sin crear serie nueva', async () => {
+    dbState.google_calendar_tokens = [
+      {
+        user_id: 'user-1',
+        access_token: 'access',
+        refresh_token: 'refresh',
+        scope: 'https://www.googleapis.com/auth/calendar',
+        token_type: 'Bearer',
+        expires_at: new Date(Date.now() + 3600_000).toISOString(),
+      },
+    ];
+
+    const req = {
+      json: async () => ({
+        eventId: 'event-2',
+        projectId: 'project-1',
+        scope: 'single',
+        applyToGoogle: true,
+        changes: {
+          title: 'Solo este',
+          start_time: '11:00',
+          end_time: '12:00',
+          time_zone: 'UTC',
+        },
+      }),
+    } as unknown as NextRequest;
+
+    const res = await PATCH(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(data.google.attempted).toBe(true);
+    expect(data.google.updated).toBe(1);
+    expect(data.google.created).toBe(0);
+
+    expect(mockGoogleService.listEventInstances).toHaveBeenCalledWith(
+      'gcal-master-1',
+      expect.objectContaining({
+        timeMin: '2026-07-27T00:00:00Z',
+      }),
+    );
+    expect(mockGoogleService.updateEvent).toHaveBeenCalledWith(
+      'gcal-master-1_20260727T090000Z',
+      expect.objectContaining({
+        summary: 'Solo este',
+      }),
+    );
+    expect(mockGoogleService.updateEvent.mock.calls[0][1].recurrence).toBeUndefined();
+    expect(mockGoogleService.createEvent).not.toHaveBeenCalled();
+
+    const edited = dbState.events.find((event) => event.id === 'event-2');
+    expect(edited?.title).toBe('Solo este');
+    expect(edited?.is_exception).toBe(true);
+    expect(edited?.google_event_id).toBe('gcal-instance-1');
+
+    const master = dbState.events.find((event) => event.id === 'event-1');
+    expect(master?.google_event_id).toBe('gcal-master-1');
+    expect(master?.title).toBe('Daily');
+  });
+
+  it('scope=this_and_following trunca la serie vieja y crea una nueva en Google', async () => {
+    dbState.google_calendar_tokens = [
+      {
+        user_id: 'user-1',
+        access_token: 'access',
+        refresh_token: 'refresh',
+        scope: 'https://www.googleapis.com/auth/calendar',
+        token_type: 'Bearer',
+        expires_at: new Date(Date.now() + 3600_000).toISOString(),
+      },
+    ];
+
+    const req = {
+      json: async () => ({
+        eventId: 'event-2',
+        projectId: 'project-1',
+        scope: 'this_and_following',
+        applyToGoogle: true,
+        changes: {
+          title: 'Nueva serie',
+          start_time: '15:00',
+          end_time: '16:00',
+          time_zone: 'UTC',
+        },
+      }),
+    } as unknown as NextRequest;
+
+    const res = await PATCH(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(data.google.attempted).toBe(true);
+    expect(data.google.created).toBe(1);
+    expect(data.google.updated).toBe(0);
+
+    expect(mockGoogleService.getEvent).toHaveBeenCalledWith('gcal-master-1');
+    expect(mockGoogleService.patchEvent).toHaveBeenCalledWith(
+      'gcal-master-1',
+      expect.objectContaining({
+        recurrence: [
+          expect.stringMatching(/RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20260726T235959Z/),
+        ],
+      }),
+    );
+    expect(mockGoogleService.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        summary: 'Nueva serie',
+        recurrence: [expect.stringContaining('RRULE:FREQ=WEEKLY')],
+      }),
+    );
+
+    const oldMaster = dbState.events.find((event) => event.id === 'event-1');
+    expect(oldMaster?.google_event_id).toBe('gcal-master-1');
+    expect(oldMaster?.recurrence_end_date).toBe('2026-07-26');
+
+    const newMaster = dbState.events.find((event) => event.id === 'event-2');
+    expect(newMaster?.google_event_id).toBe('gcal-new-1');
+    expect(newMaster?.series_id).not.toBe('series-1');
+  });
+
+  it('scope=all actualiza el master de Google resolviendo google_event_id', async () => {
+    dbState.google_calendar_tokens = [
+      {
+        user_id: 'user-1',
+        access_token: 'access',
+        refresh_token: 'refresh',
+        scope: 'https://www.googleapis.com/auth/calendar',
+        token_type: 'Bearer',
+        expires_at: new Date(Date.now() + 3600_000).toISOString(),
+      },
+    ];
+
+    mockGoogleService.updateEvent.mockResolvedValue({ id: 'gcal-master-1' });
+
+    const req = {
+      json: async () => ({
+        eventId: 'event-2',
+        projectId: 'project-1',
+        scope: 'all',
+        applyToGoogle: true,
+        changes: {
+          title: 'Serie completa',
+          start_time: '08:00',
+          end_time: '09:00',
+          time_zone: 'UTC',
+        },
+      }),
+    } as unknown as NextRequest;
+
+    const res = await PATCH(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(data.google.updated).toBe(1);
+    expect(data.google.created).toBe(0);
+    expect(mockGoogleService.createEvent).not.toHaveBeenCalled();
+    expect(mockGoogleService.updateEvent).toHaveBeenCalledWith(
+      'gcal-master-1',
+      expect.objectContaining({
+        summary: 'Serie completa',
+        recurrence: [expect.stringContaining('RRULE:FREQ=WEEKLY')],
+      }),
+    );
   });
 });

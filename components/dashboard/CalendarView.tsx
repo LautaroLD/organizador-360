@@ -796,7 +796,7 @@ export const CalendarView: React.FC = () => {
       : 'none';
 
     setEditingEvent(normalizedEvent);
-    setEditScope(normalizedEvent.is_recurring ? 'all' : 'single');
+    setEditScope('single');
     setSelectedDays(Array.isArray(normalizedEvent.recurrence_days) ? normalizedEvent.recurrence_days : []);
     setShowRecurrenceOptions(normalizedEvent.is_recurring);
 
@@ -1185,11 +1185,6 @@ export const CalendarView: React.FC = () => {
               }
 
               if (editingEvent) {
-                if (editingEvent.is_recurring && editScope === 'single' && !editingEvent.google_event_id) {
-                  toast.info('Para eventos recurrentes, usa "Toda la serie" o "Este y siguientes" para sincronizar correctamente con Google.');
-                  return;
-                }
-
                 if (editingEvent.is_recurring && editScope !== 'single') {
                   const scopeLabel = editScope === 'all'
                     ? 'toda la serie'

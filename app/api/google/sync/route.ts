@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleCalendarService } from '@/lib/googleCalendar';
 import {
+  applyUntilToRecurrence,
   attachGoogleEventLinkMetadata,
   formatEventForGoogle,
   GOOGLE_EVENT_PRIVATE_PROPERTIES,
@@ -457,6 +458,7 @@ const getLocalEventLink = async (
 const buildLinkedGoogleEvent = (
   event: SyncEventPayload,
   localEvent: LocalEventLink | null,
+  options?: { asException?: boolean },
 ) => {
   const linkedEvent = {
     ...event,
@@ -466,7 +468,9 @@ const buildLinkedGoogleEvent = (
   };
 
   return attachGoogleEventLinkMetadata(
-    formatEventForGoogle(linkedEvent),
+    formatEventForGoogle(linkedEvent, {
+      asException: options?.asException,
+    }),
     linkedEvent,
   );
 };
@@ -485,6 +489,154 @@ const persistGoogleEventId = async (
 
   if (error) throw error;
   localEvent.google_event_id = googleEventId;
+};
+
+const loadSeriesEvents = async (
+  projectId: string,
+  seriesId: string,
+): Promise<EditableEventRow[]> => {
+  const { data, error } = await supabaseAdmin
+    .from('events')
+    .select(EVENT_EDITABLE_SELECT)
+    .eq('project_id', projectId)
+    .eq('series_id', seriesId)
+    .order('start_date', { ascending: true });
+
+  if (error) throw error;
+  return (data || []) as EditableEventRow[];
+};
+
+/** Resuelve el google_event_id del master de la serie (u otra fila que ya lo tenga). */
+const resolveSeriesGoogleMaster = async (
+  event: EditableEventRow,
+): Promise<EditableEventRow | null> => {
+  const seriesId = event.series_id || event.id;
+  const seriesEvents = await loadSeriesEvents(event.project_id, seriesId);
+  if (seriesEvents.length === 0) {
+    return event.google_event_id ? event : null;
+  }
+
+  const master = pickSeriesMaster(seriesEvents);
+  if (master?.google_event_id) return master;
+
+  const linked = seriesEvents.find((row) => Boolean(row.google_event_id));
+  return linked || master || null;
+};
+
+const matchGoogleInstanceByOriginalDate = (
+  instances: calendar_v3.Schema$Event[],
+  originalStartDate: string,
+) => {
+  const targetDate = isoDateOnly(originalStartDate);
+
+  return (
+    instances.find((instance) => {
+      const candidate =
+        instance.originalStartTime?.dateTime ||
+        instance.originalStartTime?.date ||
+        instance.start?.dateTime ||
+        instance.start?.date ||
+        null;
+      return candidate ? isoDateOnly(candidate) === targetDate : false;
+    }) || null
+  );
+};
+
+const findRecurringInstanceForLocalEvent = async (
+  calendarService: GoogleCalendarService,
+  recurringEventId: string,
+  originalStartDate: string,
+) => {
+  const dateOnly = isoDateOnly(originalStartDate);
+  const timeMin = `${dateOnly}T00:00:00Z`;
+  const timeMax = `${addDaysToIsoDate(dateOnly, 1)}T00:00:00Z`;
+
+  const instances = await calendarService.listEventInstances(recurringEventId, {
+    timeMin,
+    timeMax,
+    maxResults: 20,
+  });
+
+  return matchGoogleInstanceByOriginalDate(instances, originalStartDate);
+};
+
+const truncateGoogleRecurringSeries = async (
+  calendarService: GoogleCalendarService,
+  recurringEventId: string,
+  untilDate: string,
+  timeZone: string,
+) => {
+  const existing = await calendarService.getEvent(recurringEventId);
+  const recurrence = applyUntilToRecurrence(
+    existing.recurrence,
+    untilDate,
+    timeZone,
+  );
+
+  return calendarService.patchEvent(recurringEventId, { recurrence });
+};
+
+const syncSingleOccurrenceToGoogle = async ({
+  calendarService,
+  event,
+  originalStartDate,
+  seriesMasterGoogleEventId,
+  seriesMasterLocalId,
+  userId,
+}: {
+  calendarService: GoogleCalendarService;
+  event: EditableEventRow;
+  originalStartDate: string;
+  seriesMasterGoogleEventId: string | null;
+  seriesMasterLocalId: string | null;
+  userId: string;
+}): Promise<SyncGoogleResult | null> => {
+  const localEvent = await getLocalEventLink(toSyncPayloadFromEvent(event), userId);
+  const payload = toSyncPayloadFromEvent(event);
+  const exceptionBody = buildLinkedGoogleEvent(payload, localEvent, {
+    asException: true,
+  });
+
+  const ownGoogleId = localEvent?.google_event_id || event.google_event_id;
+  const isSeriesMasterRow =
+    Boolean(seriesMasterLocalId) && localEvent?.id === seriesMasterLocalId;
+  const isOwnExceptionInstance =
+    Boolean(ownGoogleId) &&
+    ownGoogleId !== seriesMasterGoogleEventId &&
+    !isSeriesMasterRow;
+
+  if (isOwnExceptionInstance && ownGoogleId) {
+    const updated = await calendarService.updateEvent(
+      ownGoogleId,
+      exceptionBody,
+    );
+    await persistGoogleEventId(localEvent, updated.id || ownGoogleId);
+    return { action: 'updated', data: updated };
+  }
+
+  if (!seriesMasterGoogleEventId) {
+    return null;
+  }
+
+  const instance = await findRecurringInstanceForLocalEvent(
+    calendarService,
+    seriesMasterGoogleEventId,
+    originalStartDate,
+  );
+
+  if (!instance?.id) {
+    return null;
+  }
+
+  const updated = await calendarService.updateEvent(instance.id, exceptionBody);
+
+  // Nunca sobrescribir el google_event_id del master de la serie con el de una
+  // instancia; solo persistir el id de excepción en ocurrencias no-master.
+  if (!isSeriesMasterRow) {
+    await persistGoogleEventId(localEvent, updated.id || instance.id);
+  }
+
+  return { action: 'updated', data: updated };
 };
 
 const syncEventWithGoogle = async ({
@@ -832,6 +984,12 @@ export async function PATCH(request: NextRequest) {
     }
 
     let updatedEvents: EditableEventRow[] = [];
+    let splitFromSeriesId: string | null = null;
+    let splitPivotDateOnly: string | null = null;
+    let oldSeriesGoogleEventId: string | null = null;
+    const originalStartForSingle =
+      currentEvent.original_start_date || currentEvent.start_date;
+    const editTimeZone = changes.time_zone || 'UTC';
 
     if (scope === 'single') {
       const updatePayload = buildEventUpdateFromChanges(
@@ -863,15 +1021,7 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      const { data: seriesRows, error: seriesError } = await supabaseAdmin
-        .from('events')
-        .select(EVENT_EDITABLE_SELECT)
-        .eq('project_id', projectId)
-        .eq('series_id', baseSeriesId)
-        .order('start_date', { ascending: true });
-
-      if (seriesError) throw seriesError;
-      const fullSeries = (seriesRows || []) as EditableEventRow[];
+      const fullSeries = await loadSeriesEvents(projectId, baseSeriesId);
 
       if (fullSeries.length === 0) {
         return NextResponse.json(
@@ -879,6 +1029,13 @@ export async function PATCH(request: NextRequest) {
           { status: 404 },
         );
       }
+
+      const oldSeriesMaster = pickSeriesMaster(fullSeries);
+      oldSeriesGoogleEventId =
+        oldSeriesMaster?.google_event_id ||
+        fullSeries.find((row) => Boolean(row.google_event_id))
+          ?.google_event_id ||
+        null;
 
       const targetEvents =
         scope === 'all'
@@ -903,6 +1060,8 @@ export async function PATCH(request: NextRequest) {
 
       if (scope === 'this_and_following') {
         nextSeriesId = crypto.randomUUID();
+        splitFromSeriesId = baseSeriesId;
+        splitPivotDateOnly = pivotDateOnly;
       }
 
       const updatedBatch: EditableEventRow[] = [];
@@ -1059,33 +1218,146 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Evita crear series duplicadas en Google al editar una sola ocurrencia
-    // recurrente que no tiene vínculo directo con google_event_id.
+    const buildGoogleStats = (result: SyncGoogleResult | null, attempted: boolean) => ({
+      attempted,
+      updated: result?.action === 'updated' ? 1 : 0,
+      linked: result?.action === 'linked' ? 1 : 0,
+      created: result?.action === 'created' ? 1 : 0,
+      errors: 0,
+    });
+
+    // --- scope=single: excepción de una sola ocurrencia en Google ---
     if (
       scope === 'single' &&
-      eventForGoogle.is_recurring &&
-      !eventForGoogle.google_event_id
+      Boolean(currentEvent.is_recurring) &&
+      Boolean(currentEvent.series_id || currentEvent.is_recurring)
     ) {
+      const seriesMaster = await resolveSeriesGoogleMaster(currentEvent);
+      const masterGoogleId =
+        seriesMaster?.google_event_id ||
+        (currentEvent.google_event_id && currentEvent.is_series_master
+          ? currentEvent.google_event_id
+          : null);
+
+      const singleResult = await syncSingleOccurrenceToGoogle({
+        calendarService,
+        event: eventForGoogle,
+        originalStartDate: originalStartForSingle,
+        seriesMasterGoogleEventId: masterGoogleId,
+        seriesMasterLocalId: seriesMaster?.id || null,
+        userId: user.id,
+      });
+
+      if (!singleResult) {
+        return NextResponse.json({
+          success: true,
+          scope,
+          updatedEventIds: updatedEvents.map((event) => event.id),
+          affectedSeriesId,
+          google: buildGoogleStats(null, false),
+          message:
+            'Evento actualizado en Veenzo. No se encontró la instancia en Google Calendar para sincronizar solo esta ocurrencia.',
+        });
+      }
+
       return NextResponse.json({
         success: true,
         scope,
+        action: singleResult.action,
         updatedEventIds: updatedEvents.map((event) => event.id),
         affectedSeriesId,
-        google: {
-          attempted: false,
-          updated: 0,
-          linked: 0,
-          created: 0,
-          errors: 0,
-        },
-        message:
-          'Evento recurrente actualizado en Veenzo. Para sincronizar con Google sin crear una serie nueva, usa alcance "Toda la serie" o "Este y siguientes".',
+        google_event_id:
+          singleResult.data?.id || eventForGoogle.google_event_id || null,
+        google: buildGoogleStats(singleResult, true),
       });
+    }
+
+    // --- scope=this_and_following: truncar serie vieja + crear serie nueva ---
+    if (
+      scope === 'this_and_following' &&
+      splitFromSeriesId &&
+      splitPivotDateOnly
+    ) {
+      const remainingOldSeries = await loadSeriesEvents(
+        projectId,
+        splitFromSeriesId,
+      );
+      const hasPreviousOccurrences = remainingOldSeries.length > 0;
+
+      if (hasPreviousOccurrences && oldSeriesGoogleEventId) {
+        const untilDate = addDaysToIsoDate(splitPivotDateOnly, -1);
+        await truncateGoogleRecurringSeries(
+          calendarService,
+          oldSeriesGoogleEventId,
+          untilDate,
+          editTimeZone,
+        );
+      }
+
+      const newMasterPayload = toSyncPayloadFromEvent(eventForGoogle);
+
+      // Si el corte fue desde el primer evento, el master conserva el google_event_id
+      // y syncEventWithGoogle actualiza la serie existente. Si hubo corte real,
+      // el nuevo master no tiene id → se crea una serie nueva (la vieja ya truncada).
+      if (hasPreviousOccurrences) {
+        newMasterPayload.google_event_id = null;
+      } else if (oldSeriesGoogleEventId && !newMasterPayload.google_event_id) {
+        newMasterPayload.google_event_id = oldSeriesGoogleEventId;
+      }
+
+      if (editTimeZone) {
+        newMasterPayload.time_zone = editTimeZone;
+      }
+
+      const splitResult = await syncEventWithGoogle({
+        calendarService,
+        event: newMasterPayload,
+        userId: user.id,
+        checkDuplicate: false,
+      });
+
+      return NextResponse.json({
+        success: true,
+        scope,
+        action: splitResult.action,
+        updatedEventIds: updatedEvents.map((event) => event.id),
+        affectedSeriesId,
+        google_event_id:
+          splitResult.data?.id || eventForGoogle.google_event_id || null,
+        google: buildGoogleStats(splitResult, true),
+      });
+    }
+
+    // --- scope=all (o single no recurrente): actualizar master resolviendo google_event_id ---
+    const seriesMasterForSync =
+      scope === 'all'
+        ? await resolveSeriesGoogleMaster({
+            ...eventForGoogle,
+            series_id:
+              eventForGoogle.series_id ||
+              currentEvent.series_id ||
+              eventForGoogle.id,
+          })
+        : null;
+
+    const resolvedGoogleEventId =
+      eventForGoogle.google_event_id ||
+      seriesMasterForSync?.google_event_id ||
+      null;
+
+    const syncPayload = toSyncPayloadFromEvent({
+      ...eventForGoogle,
+      id: seriesMasterForSync?.id || eventForGoogle.id,
+      google_event_id: resolvedGoogleEventId,
+    });
+
+    if (editTimeZone) {
+      syncPayload.time_zone = editTimeZone;
     }
 
     const result = await syncEventWithGoogle({
       calendarService,
-      event: toSyncPayloadFromEvent(eventForGoogle),
+      event: syncPayload,
       userId: user.id,
       checkDuplicate: false,
     });
@@ -1096,15 +1368,8 @@ export async function PATCH(request: NextRequest) {
       action: result.action,
       updatedEventIds: updatedEvents.map((event) => event.id),
       affectedSeriesId,
-      google_event_id:
-        result.data?.id || eventForGoogle.google_event_id || null,
-      google: {
-        attempted: true,
-        updated: result.action === 'updated' ? 1 : 0,
-        linked: result.action === 'linked' ? 1 : 0,
-        created: result.action === 'created' ? 1 : 0,
-        errors: result.action === 'skipped' ? 0 : 0,
-      },
+      google_event_id: result.data?.id || resolvedGoogleEventId || null,
+      google: buildGoogleStats(result, true),
     });
   } catch (error: unknown) {
     console.error('Error al editar evento:', error);
