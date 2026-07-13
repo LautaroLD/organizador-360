@@ -23,6 +23,8 @@ interface EventFormData {
   recurrence_end_date?: string;
 }
 
+type EventEditScope = 'single' | 'all' | 'this_and_following';
+
 const WEEKDAYS = [
   { id: 'monday', label: 'Lunes', short: 'L' },
   { id: 'tuesday', label: 'Martes', short: 'M' },
@@ -74,6 +76,10 @@ interface EventModalProps {
   showRecurrenceOptions: boolean;
   setShowRecurrenceOptions: (show: boolean) => void;
   isLoading: boolean;
+  mode?: 'create' | 'edit';
+  editScope?: EventEditScope;
+  setEditScope?: (scope: EventEditScope) => void;
+  isEditingRecurring?: boolean;
 }
 
 export const EventModal: React.FC<EventModalProps> = ({
@@ -90,6 +96,10 @@ export const EventModal: React.FC<EventModalProps> = ({
   showRecurrenceOptions,
   setShowRecurrenceOptions,
   isLoading,
+  mode = 'create',
+  editScope = 'single',
+  setEditScope,
+  isEditingRecurring = false,
 }) => {
   const recurrenceType = watch('recurrence_type');
   const startDate = watch('start_date');
@@ -127,7 +137,12 @@ export const EventModal: React.FC<EventModalProps> = ({
   };
 
   return (
-    <Modal isOpen={ isOpen } onClose={ onClose } title="Crear Nuevo Evento" size="lg">
+    <Modal
+      isOpen={ isOpen }
+      onClose={ onClose }
+      title={ mode === 'edit' ? 'Editar Evento' : 'Crear Nuevo Evento' }
+      size="lg"
+    >
       <form onSubmit={ handleSubmit(onSubmit) } className="space-y-5">
         <div className="rounded-xl border border-[var(--accent-primary)]/20 bg-[var(--accent-primary)]/5 p-3">
           <p className="flex items-center gap-2 text-xs font-medium text-[var(--accent-primary)]">
@@ -142,6 +157,26 @@ export const EventModal: React.FC<EventModalProps> = ({
           error={ errors.title?.message }
           placeholder="Reunión de equipo"
         />
+
+        { mode === 'edit' && isEditingRecurring && setEditScope && (
+          <div className="space-y-2 rounded-xl border border-blue-500/20 bg-blue-500/5 p-3">
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">
+              Alcance de edición
+            </label>
+            <div className="relative">
+              <select
+                value={ editScope }
+                onChange={ (e) => setEditScope(e.target.value as EventEditScope) }
+                className="flex h-10 w-full appearance-none rounded-lg border border-blue-500/30 bg-[var(--bg-primary)] px-3 py-2 pr-9 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="single">Solo este evento</option>
+                <option value="all">Toda la serie</option>
+                <option value="this_and_following">Este y siguientes</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
+            </div>
+          </div>
+        ) }
 
         <div>
           <label className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
@@ -319,7 +354,13 @@ export const EventModal: React.FC<EventModalProps> = ({
             type="submit"
             disabled={ isLoading || (recurrenceType === 'weekly' && selectedDays.length === 0) }
           >
-            { isLoading ? 'Creando...' : 'Crear Evento(s)' }
+            { isLoading
+              ? mode === 'edit'
+                ? 'Guardando...'
+                : 'Creando...'
+              : mode === 'edit'
+                ? 'Guardar cambios'
+                : 'Crear Evento(s)' }
           </Button>
         </div>
       </form>

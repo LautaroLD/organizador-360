@@ -29,6 +29,8 @@ interface EventFormData {
   recurrence_end_date?: string;
 }
 
+type EventEditScope = 'single' | 'all' | 'this_and_following';
+
 interface Event {
   id: string;
   google_event_id: string | null;
@@ -130,6 +132,8 @@ export const CalendarView: React.FC = () => {
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
   const [lastSyncSummary, setLastSyncSummary] = useState<SyncSummary | null>(null);
   const [isProMember, setIsProMember] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [editScope, setEditScope] = useState<EventEditScope>('single');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const oauthProcessedRef = useRef(false);
   const autoDisconnectHandledRef = useRef(false);
@@ -641,6 +645,139 @@ export const CalendarView: React.FC = () => {
     },
   });
 
+  const updateEventMutation = useMutation({
+    mutationFn: async ({
+      event,
+      data,
+      scope,
+    }: {
+      event: Event;
+      data: EventFormData;
+      scope: EventEditScope;
+    }) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para editar eventos');
+      }
+      if (!currentProject?.id) {
+        throw new Error('No hay proyecto seleccionado');
+      }
+      if (isEndBeforeStart(data)) {
+        throw new Error('La hora de fin no puede ser menor que la hora de inicio');
+      }
+
+      const recurrenceRule = data.recurrence_type === 'none'
+        ? 'none'
+        : data.recurrence_type;
+
+      const response = await fetch('/api/google/sync', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventId: event.id,
+          projectId: currentProject.id,
+          scope,
+          applyToGoogle: canUseGoogleSync && activeIsConnected,
+          changes: {
+            title: data.title,
+            description: data.description,
+            start_date: data.start_date,
+            start_time: data.start_time,
+            end_date: data.end_date,
+            end_time: data.end_time,
+            is_recurring: data.recurrence_type !== 'none',
+            recurrence_rule: recurrenceRule,
+            recurrence_days: data.recurrence_type !== 'none' ? (data.selected_days || []) : [],
+            recurrence_end_date:
+              data.recurrence_type !== 'none'
+                ? (data.recurrence_end_date || null)
+                : null,
+            time_zone: userTimeZone,
+          },
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Error al editar evento');
+      }
+
+      return payload;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      const scopeLabel =
+        result.scope === 'all'
+          ? 'toda la serie'
+          : result.scope === 'this_and_following'
+            ? 'este y siguientes'
+            : 'solo este evento';
+
+      toast.success(`Evento actualizado (${scopeLabel})`);
+      if (result.message) {
+        toast.info(result.message);
+      }
+
+      setIsModalOpen(false);
+      setEditingEvent(null);
+      setEditScope('single');
+      reset({
+        recurrence_type: 'none',
+        selected_days: [],
+      });
+      setSelectedDays([]);
+      setShowRecurrenceOptions(false);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Error al editar evento');
+    },
+  });
+
+  const handleEditEvent = (event: Event) => {
+    const startParts = event.start_date.includes('T')
+      ? event.start_date.split('T')
+      : [event.start_date, '00:00:00'];
+    const endParts = event.end_date.includes('T')
+      ? event.end_date.split('T')
+      : [event.end_date, '23:59:00'];
+
+    const recurrenceType = event.is_recurring
+      ? ((event.recurrence_rule as EventFormData['recurrence_type']) || 'weekly')
+      : 'none';
+
+    setEditingEvent(event);
+    setEditScope('single');
+    setSelectedDays(Array.isArray(event.recurrence_days) ? event.recurrence_days : []);
+    setShowRecurrenceOptions(event.is_recurring);
+
+    reset({
+      title: event.title || '',
+      description: event.description || '',
+      start_date: startParts[0],
+      start_time: startParts[1].slice(0, 5),
+      end_date: endParts[0],
+      end_time: endParts[1].slice(0, 5),
+      recurrence_type: recurrenceType,
+      selected_days: Array.isArray(event.recurrence_days) ? event.recurrence_days : [],
+      recurrence_end_date: event.recurrence_end_date || undefined,
+    });
+
+    setIsModalOpen(true);
+  };
+
+  const closeEventModal = () => {
+    setIsModalOpen(false);
+    setEditingEvent(null);
+    setEditScope('single');
+    setShowRecurrenceOptions(false);
+    setSelectedDays([]);
+    reset({
+      recurrence_type: 'none',
+      selected_days: [],
+    });
+  };
+
   // Delete event mutation
   const deleteEventMutation = useMutation({
     mutationFn: async (eventId: string) => {
@@ -871,8 +1008,13 @@ export const CalendarView: React.FC = () => {
                 { !isViewer && (
                   <Button
                     onClick={ () => {
+                      setEditingEvent(null);
+                      setEditScope('single');
                       setIsModalOpen(true);
-                      reset();
+                      reset({
+                        recurrence_type: 'none',
+                        selected_days: [],
+                      });
                       setSelectedDays([]);
                       setShowRecurrenceOptions(false);
                     } }
@@ -948,6 +1090,7 @@ export const CalendarView: React.FC = () => {
               sortedDates={ sortedDates }
               canManage={ !isViewer }
               onDeleteEvent={ (eventId) => deleteEventMutation.mutate(eventId) }
+              onEditEvent={ handleEditEvent }
               onDeleteAllEventsFromDate={ handleDeleteAllEventsFromDate }
               onDeleteMultipleEvents={ handleDeleteMultipleEvents }
               onDeletePastEvents={ handleDeletePastEvents }
@@ -980,11 +1123,7 @@ export const CalendarView: React.FC = () => {
         { !isViewer && (
           <EventModal
             isOpen={ isModalOpen }
-            onClose={ () => {
-              setIsModalOpen(false);
-              setShowRecurrenceOptions(false);
-              setSelectedDays([]);
-            } }
+            onClose={ closeEventModal }
             onSubmit={ (data) => {
               const formData = {
                 ...data,
@@ -993,6 +1132,27 @@ export const CalendarView: React.FC = () => {
 
               if (isEndBeforeStart(formData)) {
                 toast.error('La hora de fin no puede ser menor que la hora de inicio');
+                return;
+              }
+
+              if (editingEvent) {
+                if (editingEvent.is_recurring && editScope !== 'single') {
+                  const scopeLabel = editScope === 'all'
+                    ? 'toda la serie'
+                    : 'este y los siguientes';
+                  const confirmEdit = confirm(
+                    `Vas a editar ${scopeLabel}. ¿Deseas continuar?`,
+                  );
+                  if (!confirmEdit) {
+                    return;
+                  }
+                }
+
+                updateEventMutation.mutate({
+                  event: editingEvent,
+                  data: formData,
+                  scope: editingEvent.is_recurring ? editScope : 'single',
+                });
                 return;
               }
 
@@ -1007,7 +1167,11 @@ export const CalendarView: React.FC = () => {
             setSelectedDays={ setSelectedDays }
             showRecurrenceOptions={ showRecurrenceOptions }
             setShowRecurrenceOptions={ setShowRecurrenceOptions }
-            isLoading={ createEventMutation.isPending }
+            isLoading={ createEventMutation.isPending || updateEventMutation.isPending }
+            mode={ editingEvent ? 'edit' : 'create' }
+            editScope={ editScope }
+            setEditScope={ setEditScope }
+            isEditingRecurring={ !!editingEvent?.is_recurring }
           />
         ) }
       </div>

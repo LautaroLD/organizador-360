@@ -9,6 +9,10 @@ import {
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
+import {
+  EditCalendarEventRequest,
+  EventEditableFields,
+} from '@/types/calendarEventEditing';
 
 import { calendar_v3 } from 'googleapis';
 
@@ -53,6 +57,24 @@ interface SyncEventPayload {
   [key: string]: unknown;
 }
 
+type EditableEventRow = {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  start_date: string;
+  end_date: string;
+  google_event_id: string | null;
+  is_recurring: boolean | null;
+  recurrence_rule: string | null;
+  recurrence_days: unknown;
+  recurrence_end_date: string | null;
+  series_id?: string | null;
+  is_series_master?: boolean;
+  is_exception?: boolean;
+  original_start_date?: string | null;
+};
+
 type LocalEventLink = {
   id: string;
   project_id: string;
@@ -92,6 +114,139 @@ const buildEventSignature = (title: string, startDate: string) => {
 
 const getPayloadStartDate = (event: SyncEventPayload) => {
   return event.start_date.split('T')[0] || event.start_date;
+};
+
+const splitDateAndTime = (value: string, fallbackTime: string) => {
+  const [datePart, timePartRaw] = value.includes('T')
+    ? value.split('T')
+    : [value, fallbackTime];
+
+  const timePart = (timePartRaw || fallbackTime).slice(0, 5);
+  return {
+    date: datePart,
+    time: /^\d{2}:\d{2}$/.test(timePart) ? timePart : fallbackTime,
+  };
+};
+
+const buildDateTimeString = (date: string, time: string) =>
+  `${date}T${time}:00`;
+
+const EVENT_EDITABLE_SELECT =
+  'id, project_id, title, description, start_date, end_date, google_event_id, is_recurring, recurrence_rule, recurrence_days, recurrence_end_date, series_id, is_series_master, is_exception, original_start_date';
+
+const extractRecurrenceDays = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter((day): day is string => typeof day === 'string');
+};
+
+const isoDateOnly = (value: string) => value.split('T')[0] || value;
+
+const addDaysToIsoDate = (isoDate: string, days: number) => {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().split('T')[0] || isoDate;
+};
+
+const daysDiffBetweenIsoDates = (fromDate: string, toDate: string) => {
+  const from = new Date(`${fromDate}T00:00:00Z`).getTime();
+  const to = new Date(`${toDate}T00:00:00Z`).getTime();
+  return Math.round((to - from) / 86400000);
+};
+
+const buildEventUpdateFromChanges = (
+  currentEvent: EditableEventRow,
+  changes: EventEditableFields,
+  scope: 'single' | 'all' | 'this_and_following',
+) => {
+  const currentStart = splitDateAndTime(currentEvent.start_date, '00:00');
+  const currentEnd = splitDateAndTime(currentEvent.end_date, '23:59');
+
+  const nextStartDate = changes.start_date || currentStart.date;
+  const nextStartTime = changes.start_time || currentStart.time;
+  const nextEndDate = changes.end_date || currentEnd.date;
+  const nextEndTime = changes.end_time || currentEnd.time;
+
+  const nextIsRecurring =
+    typeof changes.is_recurring === 'boolean'
+      ? changes.is_recurring
+      : currentEvent.is_recurring || false;
+
+  const recurrenceRuleChanged = Object.prototype.hasOwnProperty.call(
+    changes,
+    'recurrence_rule',
+  );
+
+  const recurrenceRule = recurrenceRuleChanged
+    ? changes.recurrence_rule === 'none'
+      ? null
+      : changes.recurrence_rule || null
+    : currentEvent.recurrence_rule;
+
+  const recurrenceDays = Array.isArray(changes.recurrence_days)
+    ? changes.recurrence_days
+    : currentEvent.recurrence_days;
+
+  const recurrenceEndDate = Object.prototype.hasOwnProperty.call(
+    changes,
+    'recurrence_end_date',
+  )
+    ? changes.recurrence_end_date || null
+    : currentEvent.recurrence_end_date;
+
+  const shouldMarkException =
+    scope === 'single' &&
+    Boolean(currentEvent.series_id) &&
+    currentEvent.is_series_master !== true;
+
+  return {
+    title: changes.title ?? currentEvent.title,
+    description: changes.description ?? currentEvent.description,
+    start_date: buildDateTimeString(nextStartDate, nextStartTime),
+    end_date: buildDateTimeString(nextEndDate, nextEndTime),
+    is_recurring: nextIsRecurring,
+    recurrence_rule: nextIsRecurring ? recurrenceRule : null,
+    recurrence_days: nextIsRecurring ? recurrenceDays : null,
+    recurrence_end_date: nextIsRecurring ? recurrenceEndDate : null,
+    is_exception: shouldMarkException ? true : currentEvent.is_exception,
+    original_start_date:
+      currentEvent.original_start_date || currentEvent.start_date || null,
+  };
+};
+
+const toSyncPayloadFromEvent = (event: EditableEventRow): SyncEventPayload => {
+  const start = splitDateAndTime(event.start_date, '00:00');
+  const end = splitDateAndTime(event.end_date, '23:59');
+
+  return {
+    id: event.id,
+    project_id: event.project_id,
+    google_event_id: event.google_event_id,
+    title: event.title,
+    description: event.description || '',
+    start_date: start.date,
+    start_time: start.time,
+    end_date: end.date,
+    end_time: end.time,
+    is_recurring: event.is_recurring || false,
+    recurrence_rule: event.recurrence_rule,
+    selected_days: extractRecurrenceDays(event.recurrence_days),
+    recurrence_end_date: event.recurrence_end_date || undefined,
+  };
+};
+
+const pickSeriesMaster = (events: EditableEventRow[]) => {
+  if (events.length === 0) return null;
+  const explicitMaster = events.find((event) => event.is_series_master);
+  if (explicitMaster) return explicitMaster;
+
+  const sorted = [...events].sort((a, b) => {
+    if (a.start_date === b.start_date) {
+      return a.id.localeCompare(b.id);
+    }
+    return a.start_date.localeCompare(b.start_date);
+  });
+
+  return sorted[0] || null;
 };
 
 const findDuplicateGoogleEvent = (
@@ -240,6 +395,36 @@ const userHasProjectAccess = async (projectId: string, userId: string) => {
 
   if (!project) return false;
   return project.owner_id === userId || Boolean(membership);
+};
+
+const userCanEditProjectEvents = async (projectId: string, userId: string) => {
+  const [
+    { data: project, error: projectError },
+    { data: membership, error: memberError },
+  ] = await Promise.all([
+    supabaseAdmin
+      .from('projects')
+      .select('owner_id')
+      .eq('id', projectId)
+      .maybeSingle(),
+    supabaseAdmin
+      .from('project_members')
+      .select('role')
+      .eq('project_id', projectId)
+      .eq('user_id', userId)
+      .maybeSingle(),
+  ]);
+
+  if (projectError) throw projectError;
+  if (memberError && memberError.code !== 'PGRST116') throw memberError;
+  if (!project) return false;
+
+  if (project.owner_id === userId) return true;
+
+  const role =
+    typeof membership?.role === 'string' ? membership.role.toLowerCase() : null;
+
+  return role === 'owner' || role === 'admin';
 };
 
 const getLocalEventLink = async (
@@ -588,6 +773,320 @@ export async function POST(request: NextRequest) {
     console.error('Error al sincronizar evento:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Error al sincronizar evento';
+    const status = error instanceof HttpError ? error.status : 500;
+    return NextResponse.json({ error: errorMessage }, { status });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const { supabase, user, session } = await getAuthenticatedUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = (await request.json()) as EditCalendarEventRequest;
+    const { eventId, projectId, scope, changes, applyToGoogle = true } = body;
+
+    if (!eventId || !projectId || !scope || !changes) {
+      return NextResponse.json(
+        { error: 'Missing eventId, projectId, scope or changes' },
+        { status: 400 },
+      );
+    }
+
+    if (!['single', 'all', 'this_and_following'].includes(scope)) {
+      return NextResponse.json({ error: 'Scope inválido' }, { status: 400 });
+    }
+
+    const canEdit = await userCanEditProjectEvents(projectId, user.id);
+    if (!canEdit) {
+      return NextResponse.json(
+        { error: 'Forbidden: solo Owner/Admin puede editar eventos' },
+        { status: 403 },
+      );
+    }
+
+    const { data: foundEvent, error: findEventError } = await supabaseAdmin
+      .from('events')
+      .select(EVENT_EDITABLE_SELECT)
+      .eq('id', eventId)
+      .maybeSingle();
+
+    if (findEventError) throw findEventError;
+    if (!foundEvent) {
+      return NextResponse.json(
+        { error: 'Evento no encontrado' },
+        { status: 404 },
+      );
+    }
+
+    const currentEvent = foundEvent as EditableEventRow;
+
+    if (currentEvent.project_id !== projectId) {
+      return NextResponse.json(
+        { error: 'eventId no pertenece al projectId indicado' },
+        { status: 400 },
+      );
+    }
+
+    let updatedEvents: EditableEventRow[] = [];
+
+    if (scope === 'single') {
+      const updatePayload = buildEventUpdateFromChanges(
+        currentEvent,
+        changes,
+        scope,
+      );
+
+      const { data: updatedEventData, error: updateError } = await supabaseAdmin
+        .from('events')
+        .update(updatePayload)
+        .eq('id', eventId)
+        .select(EVENT_EDITABLE_SELECT)
+        .single();
+
+      if (updateError) throw updateError;
+      updatedEvents = [updatedEventData as EditableEventRow];
+    } else {
+      const baseSeriesId = currentEvent.series_id || currentEvent.id;
+      const pivotStartDate = currentEvent.start_date;
+
+      if (!currentEvent.is_recurring || !baseSeriesId) {
+        return NextResponse.json(
+          {
+            error:
+              'El scope solicitado requiere una serie recurrente existente.',
+          },
+          { status: 400 },
+        );
+      }
+
+      const { data: seriesRows, error: seriesError } = await supabaseAdmin
+        .from('events')
+        .select(EVENT_EDITABLE_SELECT)
+        .eq('project_id', projectId)
+        .eq('series_id', baseSeriesId)
+        .order('start_date', { ascending: true });
+
+      if (seriesError) throw seriesError;
+      const fullSeries = (seriesRows || []) as EditableEventRow[];
+
+      if (fullSeries.length === 0) {
+        return NextResponse.json(
+          { error: 'No se encontraron eventos de la serie' },
+          { status: 404 },
+        );
+      }
+
+      const targetEvents =
+        scope === 'all'
+          ? fullSeries
+          : fullSeries.filter((row) => row.start_date >= pivotStartDate);
+
+      if (targetEvents.length === 0) {
+        return NextResponse.json(
+          { error: 'No hay ocurrencias para actualizar con el scope elegido' },
+          { status: 400 },
+        );
+      }
+
+      let nextSeriesId = baseSeriesId;
+      const pivotDateOnly = isoDateOnly(pivotStartDate);
+      const requestedStartDate = changes.start_date
+        ? isoDateOnly(changes.start_date)
+        : null;
+      const dateShiftDays = requestedStartDate
+        ? daysDiffBetweenIsoDates(pivotDateOnly, requestedStartDate)
+        : 0;
+
+      if (scope === 'this_and_following') {
+        nextSeriesId = crypto.randomUUID();
+      }
+
+      const updatedBatch: EditableEventRow[] = [];
+
+      for (const row of targetEvents) {
+        const rowUpdateChanges: EventEditableFields = {
+          ...changes,
+        };
+
+        if (scope !== 'single' && requestedStartDate) {
+          rowUpdateChanges.start_date = addDaysToIsoDate(
+            isoDateOnly(row.start_date),
+            dateShiftDays,
+          );
+        }
+
+        if (
+          scope !== 'single' &&
+          Object.prototype.hasOwnProperty.call(changes, 'end_date') &&
+          changes.end_date
+        ) {
+          const requestedEndDate = isoDateOnly(changes.end_date);
+          const endShift = daysDiffBetweenIsoDates(
+            pivotDateOnly,
+            requestedEndDate,
+          );
+          rowUpdateChanges.end_date = addDaysToIsoDate(
+            isoDateOnly(row.end_date),
+            endShift,
+          );
+        }
+
+        const updatePayload = buildEventUpdateFromChanges(
+          row,
+          rowUpdateChanges,
+          scope,
+        );
+        const scopedPayload = {
+          ...updatePayload,
+          series_id: nextSeriesId,
+          is_series_master: false,
+          is_exception: false,
+        };
+
+        const { data: updatedRowData, error: updateRowError } =
+          await supabaseAdmin
+            .from('events')
+            .update(scopedPayload)
+            .eq('id', row.id)
+            .select(EVENT_EDITABLE_SELECT)
+            .single();
+
+        if (updateRowError) throw updateRowError;
+        updatedBatch.push(updatedRowData as EditableEventRow);
+      }
+
+      const newMaster = pickSeriesMaster(updatedBatch);
+      if (newMaster) {
+        const { error: resetMasterError } = await supabaseAdmin
+          .from('events')
+          .update({ is_series_master: false })
+          .eq('project_id', projectId)
+          .eq('series_id', nextSeriesId);
+
+        if (resetMasterError) throw resetMasterError;
+
+        const { error: setMasterError } = await supabaseAdmin
+          .from('events')
+          .update({ is_series_master: true })
+          .eq('id', newMaster.id);
+
+        if (setMasterError) throw setMasterError;
+      }
+
+      if (scope === 'this_and_following') {
+        const previousDate = addDaysToIsoDate(pivotDateOnly, -1);
+        const { error: oldSeriesBoundError } = await supabaseAdmin
+          .from('events')
+          .update({ recurrence_end_date: previousDate })
+          .eq('project_id', projectId)
+          .eq('series_id', baseSeriesId)
+          .lt('start_date', pivotStartDate);
+
+        if (oldSeriesBoundError) throw oldSeriesBoundError;
+      }
+
+      const { data: refreshedEvents, error: refreshedError } =
+        await supabaseAdmin
+          .from('events')
+          .select(EVENT_EDITABLE_SELECT)
+          .in(
+            'id',
+            updatedBatch.map((row) => row.id),
+          );
+
+      if (refreshedError) throw refreshedError;
+      updatedEvents = (refreshedEvents || []) as EditableEventRow[];
+    }
+
+    const affectedSeriesId =
+      updatedEvents[0]?.series_id || currentEvent.series_id || null;
+
+    if (!applyToGoogle) {
+      return NextResponse.json({
+        success: true,
+        scope,
+        updatedEventIds: updatedEvents.map((event) => event.id),
+        affectedSeriesId,
+        google: {
+          attempted: false,
+          updated: 0,
+          linked: 0,
+          created: 0,
+          errors: 0,
+        },
+      });
+    }
+
+    await ensureProGoogleAccess(supabase, user.id);
+
+    const storedTokens = await getUserGoogleTokens(user.id);
+    const sessionTokens = getSessionGoogleTokens(
+      (session as AuthSessionLike | null) || null,
+    );
+    const tokens = storedTokens || sessionTokens;
+
+    if (!tokens) {
+      return NextResponse.json({
+        success: true,
+        scope,
+        updatedEventIds: updatedEvents.map((event) => event.id),
+        affectedSeriesId,
+        google: {
+          attempted: false,
+          updated: 0,
+          linked: 0,
+          created: 0,
+          errors: 1,
+        },
+        message:
+          'Evento actualizado en Veenzo, pero Google Calendar no está conectado.',
+      });
+    }
+
+    const calendarService = new GoogleCalendarService(tokens);
+    const eventForGoogle =
+      scope === 'single'
+        ? updatedEvents[0]
+        : pickSeriesMaster(updatedEvents) || updatedEvents[0];
+
+    if (!eventForGoogle) {
+      throw new HttpError(
+        500,
+        'No se pudo resolver el evento para sincronizar',
+      );
+    }
+
+    const result = await syncEventWithGoogle({
+      calendarService,
+      event: toSyncPayloadFromEvent(eventForGoogle),
+      userId: user.id,
+      checkDuplicate: false,
+    });
+
+    return NextResponse.json({
+      success: true,
+      scope,
+      action: result.action,
+      updatedEventIds: updatedEvents.map((event) => event.id),
+      affectedSeriesId,
+      google_event_id:
+        result.data?.id || eventForGoogle.google_event_id || null,
+      google: {
+        attempted: true,
+        updated: result.action === 'updated' ? 1 : 0,
+        linked: result.action === 'linked' ? 1 : 0,
+        created: result.action === 'created' ? 1 : 0,
+        errors: result.action === 'skipped' ? 0 : 0,
+      },
+    });
+  } catch (error: unknown) {
+    console.error('Error al editar evento:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Error al editar evento';
     const status = error instanceof HttpError ? error.status : 500;
     return NextResponse.json({ error: errorMessage }, { status });
   }
