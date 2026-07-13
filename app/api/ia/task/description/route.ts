@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
           text: 'Genera una descripcion breve y un checklist para la siguiente tarea del proyecto.',
         },
         {
-          text: `Proyecto: {nombre: ${project.name}, descripcion: ${project.description}}`,
+          text: `Proyecto: ${JSON.stringify({ nombre: project.name, descripcion: project.description })}`,
         },
         { text: `Titulo de la tarea: ${title_task}` },
         {

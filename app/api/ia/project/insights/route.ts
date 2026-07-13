@@ -213,7 +213,18 @@ export async function POST(req: NextRequest) {
             .join('\n')}`
         : '';
 
+    const msToDay = (ms: number) =>
+      ms > 0 ? `${(ms / 86_400_000).toFixed(1)} días` : '< 1 día';
+
+    const estimateDeltaText =
+      avgEstimateDeltaMs > 0
+        ? `+${msToDay(avgEstimateDeltaMs)} (retraso promedio)`
+        : avgEstimateDeltaMs < 0
+          ? `${msToDay(Math.abs(avgEstimateDeltaMs))} antes de lo estimado`
+          : 'En plazo';
+
     const summaryText = `
+Fecha de análisis: ${new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 Proyecto: ${project.name}
 Descripción: ${project.description || 'Sin descripción'}
 
@@ -223,12 +234,12 @@ Métricas:
 - En progreso: ${inProgress}
 - Por hacer: ${todo}
 - Avance: ${progress}%
-- Duración promedio (ms): ${Math.round(avgDurationMs)}
-- Duración mediana (ms): ${Math.round(medianDurationMs)}
-- Desvio promedio cierre estimado (ms): ${avgEstimateDeltaMs}
+- Duración promedio de cierre: ${msToDay(avgDurationMs)}
+- Duración mediana de cierre: ${msToDay(medianDurationMs)}
+- Desvío promedio estimado vs real: ${estimateDeltaText}
 - En plazo (estimado vs real): ${onTimeCount}
 - Con retraso (estimado vs real): ${lateCount}
-- Tareas con estimacion completadas: ${estimatedDoneDeltas.length}
+- Tareas con estimación completadas: ${estimatedDoneDeltas.length}
 ${phaseSummaryText}
 
 Tareas por miembro:
@@ -277,7 +288,14 @@ ${tasks
     const deltaMs =
       new Date(t.done_at as string).getTime() -
       new Date(t.done_estimated_at as string).getTime();
-    return `- ${t.title}: Estimado ${estimatedAt} | Real ${doneAt} | Delta(ms) ${deltaMs}`;
+    const deltaDays = (deltaMs / 86_400_000).toFixed(1);
+    const deltaLabel =
+      deltaMs > 0
+        ? `+${deltaDays} días (tarde)`
+        : deltaMs < 0
+          ? `${deltaDays} días (antes)`
+          : 'En plazo';
+    return `- ${t.title}: Estimado ${estimatedAt} | Real ${doneAt} | ${deltaLabel}`;
   })
   .join('\n')}
 `;
@@ -286,11 +304,23 @@ ${tasks
       model: 'gemini-3.1-flash-lite',
       contents: [{ role: 'user', parts: [{ text: summaryText }] }],
       config: {
-        systemInstruction: `Eres un analista de proyectos. Resume el estado actual y da 3-5 recomendaciones accionables.
-Responde en español con:
-1) Estado actual (breve)
-2) Riesgos/alertas
-3) Recomendaciones (bullets)
+        systemInstruction: `Eres un analista senior de proyectos ágiles. Se te proporciona un snapshot del estado del proyecto con métricas reales de rendimiento del equipo.
+
+Analiza los datos y responde en español con exactamente estas secciones en Markdown:
+
+## Estado actual
+(2-3 frases: progreso general, velocidad del equipo y carga de trabajo)
+
+## Riesgos y alertas
+(Bullets concisos. Incluye: tareas vencidas, miembros sobrecargados, retrasos sistemáticos en estimaciones, backlog alto)
+
+## Recomendaciones
+(3-5 bullets accionables y específicos basados en los datos. Menciona nombres de miembros o tareas concretas cuando sea relevante)
+
+NOTAS DE INTERPRETACIÓN:
+- Un desvío estimado positivo significa retraso (se terminó después de lo estimado).
+- Un desvío negativo significa que se terminó antes de lo estimado.
+- Un ratio alto de tareas en progreso vs backlog puede indicar dispersión del equipo.
 `,
       },
     });

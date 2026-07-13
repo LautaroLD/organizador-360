@@ -56,6 +56,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Obtener datos del proyecto al que pertenece el recurso
+    const { data: project } = resource.project_id
+      ? await supabase
+          .from('projects')
+          .select('name, description')
+          .eq('id', resource.project_id)
+          .single()
+      : { data: null };
+
     // Nivel 2: análisis de documento/recurso
     await consumeAICredits(supabase, {
       userId: user.id,
@@ -88,11 +97,14 @@ export async function POST(req: NextRequest) {
       fileResponse.headers.get('content-type') || 'application/pdf'; // Fallback común
 
     // 3. Enviar a Gemini
+    const projectContext = project
+      ? `El archivo pertenece al proyecto "${project.name}"${project.description ? ` (${project.description})` : ''}.`
+      : '';
+
     const response = await ai.models.generateContent({
       model: 'gemini-3.1-flash-lite',
       config: {
-        systemInstruction:
-          'Eres un analista experto. Tu tarea es leer el archivo adjunto y generar un resumen conciso y útil para el equipo.',
+        systemInstruction: `Eres un analista experto en documentación de equipos de trabajo. Tu tarea es leer el archivo adjunto y generar un resumen conciso, claro y útil para los miembros del equipo. ${projectContext} Adapta el nivel técnico del resumen al tipo de documento: si es técnico, mantén los términos; si es de negocio, enfócate en decisiones e impacto.`,
       },
       contents: [
         {
@@ -110,7 +122,7 @@ export async function POST(req: NextRequest) {
               Genera una respuesta en Markdown con la siguiente estructura:
               1. **Resumen Ejecutivo:** (2-3 frases)
               2. **Puntos Clave:** (Lista de bullets)
-              3. **Conclusión/Acciones Sugeridas:** (Si aplica)
+              3. **Conclusión/Acciones Sugeridas:** (Pasos concretos que el equipo podría tomar en el contexto del proyecto)
               
               Mantén el tono profesional y responde en español.`,
             },

@@ -375,18 +375,15 @@ export async function POST(req: NextRequest) {
         {
           text: `Estado actual del tablero: ${JSON.stringify(projectStateSummary)}`,
         },
-        {
-          text: 'No repitas tareas existentes ni variantes semanticas muy parecidas. Prioriza desbloqueo, riesgo y avance de hitos cercanos.',
-        },
       ],
       config: {
         systemInstruction: [
-          'Eres un PM tecnico senior y sugieres tareas accionables para el siguiente sprint.',
+          'Eres un PM técnico senior especializado en gestión ágil. Tu objetivo es sugerir las tareas de mayor impacto para el equipo según el estado actual del tablero, priorizando: (1) desbloqueo de tareas bloqueadas, (2) reducción de riesgos activos, (3) avance de hitos próximos con fecha definida.',
           'Debes basarte en el estado real del proyecto (backlog, progreso, prioridades, vencimientos, fases y epicas).',
-          'Evita tareas genericas o abstractas sin accion concreta.',
-          'Cada sugerencia debe ser un titulo concreto y ejecutable, no una categoria.',
+          'Evita tareas genéricas o abstractas sin acción concreta.',
+          'Cada sugerencia debe ser un título concreto y ejecutable, no una categoría.',
           'Responde solo en español.',
-          'Cada tarea debe ser un titulo breve (idealmente entre 5 y 12 palabras).',
+          'Cada tarea debe ser un título breve (idealmente entre 5 y 12 palabras).',
           'Devuelve la respuesta en formato JSON como un array de strings.',
           'No agregues texto adicional fuera de la estructura solicitada. No uses bloques de codigo.',
           'No repitas tareas existentes, ni tareas hechas, ni duplicados entre sugerencias.',
