@@ -1059,6 +1059,30 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Evita crear series duplicadas en Google al editar una sola ocurrencia
+    // recurrente que no tiene vínculo directo con google_event_id.
+    if (
+      scope === 'single' &&
+      eventForGoogle.is_recurring &&
+      !eventForGoogle.google_event_id
+    ) {
+      return NextResponse.json({
+        success: true,
+        scope,
+        updatedEventIds: updatedEvents.map((event) => event.id),
+        affectedSeriesId,
+        google: {
+          attempted: false,
+          updated: 0,
+          linked: 0,
+          created: 0,
+          errors: 0,
+        },
+        message:
+          'Evento recurrente actualizado en Veenzo. Para sincronizar con Google sin crear una serie nueva, usa alcance "Toda la serie" o "Este y siguientes".',
+      });
+    }
+
     const result = await syncEventWithGoogle({
       calendarService,
       event: toSyncPayloadFromEvent(eventForGoogle),
