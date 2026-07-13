@@ -40,6 +40,10 @@ interface Event {
   end_date: string;
   project_id: string;
   created_by: string;
+  series_id?: string | null;
+  is_series_master?: boolean;
+  is_exception?: boolean;
+  original_start_date?: string | null;
   recurrence_rule: string | null;
   recurrence_days: string[] | null;
   recurrence_end_date: string | null;
@@ -120,6 +124,44 @@ const toSyncPayloadEvent = (event: Event, userTimeZone: string): SyncPayloadEven
     recurrence_end_date: event.recurrence_end_date || undefined,
     timeZone: userTimeZone,
   };
+};
+
+const pickRecurringSeriesRepresentatives = (events: Event[]) => {
+  const nonRecurring = events.filter((event) => !event.is_recurring);
+  const recurring = events.filter((event) => event.is_recurring);
+
+  const bySeries = new Map<string, Event[]>();
+  for (const event of recurring) {
+    const key = event.series_id || event.id;
+    const bucket = bySeries.get(key) || [];
+    bucket.push(event);
+    bySeries.set(key, bucket);
+  }
+
+  const recurringRepresentatives: Event[] = [];
+  bySeries.forEach((seriesEvents) => {
+    const explicitMaster = seriesEvents.find((event) => event.is_series_master);
+    if (explicitMaster) {
+      recurringRepresentatives.push(explicitMaster);
+      return;
+    }
+
+    const fallback = [...seriesEvents].sort((a, b) => {
+      if (a.start_date === b.start_date) {
+        return a.id.localeCompare(b.id);
+      }
+      return a.start_date.localeCompare(b.start_date);
+    })[0];
+
+    if (fallback) recurringRepresentatives.push(fallback);
+  });
+
+  return [...nonRecurring, ...recurringRepresentatives].sort((a, b) => {
+    if (a.start_date === b.start_date) {
+      return a.id.localeCompare(b.id);
+    }
+    return a.start_date.localeCompare(b.start_date);
+  });
 };
 
 export const CalendarView: React.FC = () => {
@@ -453,9 +495,16 @@ export const CalendarView: React.FC = () => {
       return;
     }
 
+    const eventsToSync = pickRecurringSeriesRepresentatives(events as Event[]);
+
+    if (eventsToSync.length === 0) {
+      toast.error('No hay eventos para sincronizar');
+      return;
+    }
+
     setIsSyncing(true);
-    setSyncProgress({ current: 0, total: events.length });
-    const loadingToast = toast.loading(`Sincronizando ${events.length} evento(s)...`);
+    setSyncProgress({ current: 0, total: eventsToSync.length });
+    const loadingToast = toast.loading(`Sincronizando ${eventsToSync.length} evento(s)...`);
     let createdCount = 0;
     let updatedCount = 0;
     let linkedCount = 0;
@@ -463,7 +512,7 @@ export const CalendarView: React.FC = () => {
     let errorCount = 0;
 
     try {
-      const payloadEvents = events.map((event) => toSyncPayloadEvent(event, userTimeZone));
+      const payloadEvents = eventsToSync.map((event) => toSyncPayloadEvent(event, userTimeZone));
 
       for (let index = 0; index < payloadEvents.length; index += SYNC_BATCH_SIZE) {
         const batch = payloadEvents.slice(index, index + SYNC_BATCH_SIZE);
