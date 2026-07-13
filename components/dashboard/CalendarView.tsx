@@ -178,7 +178,6 @@ export const CalendarView: React.FC = () => {
   const [editScope, setEditScope] = useState<EventEditScope>('single');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const oauthProcessedRef = useRef(false);
-  const autoDisconnectHandledRef = useRef(false);
   const { user } = useAuthStore();
   const { currentProject } = useProjectStore();
   const normalizedRole = currentProject?.userRole?.toLowerCase();
@@ -287,29 +286,6 @@ export const CalendarView: React.FC = () => {
 
     loadPlan();
   }, [supabase, user?.id]);
-
-  useEffect(() => {
-    if (isProMember) {
-      autoDisconnectHandledRef.current = false;
-      return;
-    }
-
-    if (!activeIsConnected || autoDisconnectHandledRef.current) {
-      return;
-    }
-
-    autoDisconnectHandledRef.current = true;
-
-    const disconnectForPlanDowngrade = async () => {
-      try {
-        await disconnectGoogle();
-      } catch (error) {
-        console.error('Error al desconectar Google Calendar por cambio de plan:', error);
-      }
-    };
-
-    disconnectForPlanDowngrade();
-  }, [activeIsConnected, disconnectGoogle, isProMember]);
 
   // Conectar con Google Calendar (usando hook unificado)
   const connectGoogleCalendar = async () => {
@@ -820,7 +796,7 @@ export const CalendarView: React.FC = () => {
       : 'none';
 
     setEditingEvent(normalizedEvent);
-    setEditScope('single');
+    setEditScope(normalizedEvent.is_recurring ? 'all' : 'single');
     setSelectedDays(Array.isArray(normalizedEvent.recurrence_days) ? normalizedEvent.recurrence_days : []);
     setShowRecurrenceOptions(normalizedEvent.is_recurring);
 
@@ -1209,6 +1185,11 @@ export const CalendarView: React.FC = () => {
               }
 
               if (editingEvent) {
+                if (editingEvent.is_recurring && editScope === 'single' && !editingEvent.google_event_id) {
+                  toast.info('Para eventos recurrentes, usa "Toda la serie" o "Este y siguientes" para sincronizar correctamente con Google.');
+                  return;
+                }
+
                 if (editingEvent.is_recurring && editScope !== 'single') {
                   const scopeLabel = editScope === 'all'
                     ? 'toda la serie'
