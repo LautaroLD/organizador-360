@@ -535,9 +535,11 @@ export const CalendarView: React.FC = () => {
 
       const events = generateRecurringEvents(data);
       const createdEvents: Event[] = [];
+      const isRecurring = data.recurrence_type !== 'none';
+      const seriesId = isRecurring ? crypto.randomUUID() : null;
 
       // Crear múltiples eventos si es recurrente
-      for (const event of events) {
+      for (const [index, event] of events.entries()) {
         const { data: createdEvent, error } = await supabase
           .from('events')
           .insert({
@@ -547,9 +549,13 @@ export const CalendarView: React.FC = () => {
             start_date: event.start,
             end_date: event.end,
             recurrence_rule: data.recurrence_type === 'none' ? null : data.recurrence_type,
-            is_recurring: data.recurrence_type !== 'none',
+            is_recurring: isRecurring,
             recurrence_days: data.selected_days,
             recurrence_end_date: data.recurrence_end_date,
+            series_id: seriesId,
+            is_series_master: isRecurring ? index === 0 : false,
+            is_exception: false,
+            original_start_date: event.start,
             created_by: user!.id,
           })
           .select('*')
