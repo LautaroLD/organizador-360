@@ -284,20 +284,62 @@ const resolveGoogleTimeZone = (
   fallback ||
   'UTC';
 
+const googleInstantDateInTimeZone = (
+  value: string,
+  timeZone: string,
+): string => {
+  // date-only already
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+
+  const hasOffset = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value);
+  if (!hasOffset) {
+    return isoDateOnly(value);
+  }
+
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) {
+    return isoDateOnly(value);
+  }
+
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(instant);
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+    if (year && month && day) return `${year}-${month}-${day}`;
+  } catch {
+    // fallback below
+  }
+
+  return isoDateOnly(value);
+};
+
 const matchGoogleInstanceByOriginalDate = (
   instances: calendar_v3.Schema$Event[],
   originalStartDate: string,
+  timeZone: string,
 ) => {
   const targetDate = isoDateOnly(originalStartDate);
+
   return (
     instances.find((instance) => {
-      const candidate =
-        instance.originalStartTime?.dateTime ||
-        instance.originalStartTime?.date ||
-        instance.start?.dateTime ||
-        instance.start?.date ||
-        null;
-      return candidate ? isoDateOnly(candidate) === targetDate : false;
+      const candidates = [
+        instance.originalStartTime?.date,
+        instance.originalStartTime?.dateTime,
+        instance.start?.date,
+        instance.start?.dateTime,
+      ].filter((value): value is string => Boolean(value));
+
+      return candidates.some((candidate) => {
+        const asLocalDate = googleInstantDateInTimeZone(candidate, timeZone);
+        const asRawDate = isoDateOnly(candidate);
+        return asLocalDate === targetDate || asRawDate === targetDate;
+      });
     }) || null
   );
 };
@@ -306,14 +348,20 @@ const findRecurringInstanceForLocalEvent = async (
   calendarService: GoogleCalendarService,
   recurringEventId: string,
   originalStartDate: string,
+  timeZone: string,
 ) => {
   const dateOnly = isoDateOnly(originalStartDate);
+  // Ventana ±1 día para absorber desfases UTC vs zona del evento
   const instances = await calendarService.listEventInstances(recurringEventId, {
-    timeMin: `${dateOnly}T00:00:00Z`,
-    timeMax: `${addDaysToIsoDate(dateOnly, 1)}T00:00:00Z`,
-    maxResults: 20,
+    timeMin: `${addDaysToIsoDate(dateOnly, -1)}T00:00:00Z`,
+    timeMax: `${addDaysToIsoDate(dateOnly, 2)}T00:00:00Z`,
+    maxResults: 40,
   });
-  return matchGoogleInstanceByOriginalDate(instances, originalStartDate);
+  return matchGoogleInstanceByOriginalDate(
+    instances,
+    originalStartDate,
+    timeZone,
+  );
 };
 
 const syncSingleOccurrenceToGoogle = async ({
@@ -324,6 +372,7 @@ const syncSingleOccurrenceToGoogle = async ({
   userId,
   timesChanged,
   timeZone,
+  matchTimeZone,
 }: {
   calendarService: GoogleCalendarService;
   event: EditableEventRow;
@@ -331,50 +380,45 @@ const syncSingleOccurrenceToGoogle = async ({
   seriesMasterGoogleEventId: string | null;
   userId: string;
   timesChanged: boolean;
+  /** Zona wall-clock para escribir start/end */
   timeZone: string;
+  /** Zona para matchear la instancia en Google */
+  matchTimeZone?: string;
 }): Promise<SyncGoogleResult | null> => {
   const localEvent = await getLocalEventLink(toSyncPayloadFromEvent(event), userId);
   const payload = { ...toSyncPayloadFromEvent(event), time_zone: timeZone };
   const exceptionBody = buildLinkedGoogleEvent(payload, localEvent, {
     asException: true,
   });
+  const instanceMatchTz = matchTimeZone || timeZone;
 
   const ownGoogleId = localEvent?.google_event_id || event.google_event_id;
   const isOwnExceptionInstance =
     Boolean(ownGoogleId) && ownGoogleId !== seriesMasterGoogleEventId;
 
-  const buildExceptionPatch = (
-    googleSource?: calendar_v3.Schema$Event | null,
-  ) => {
+  const buildExceptionPatch = () => {
     const patch: calendar_v3.Schema$Event = {
       summary: exceptionBody.summary,
       description: exceptionBody.description,
       extendedProperties: exceptionBody.extendedProperties,
     };
     if (timesChanged) {
-      const tz = resolveGoogleTimeZone(googleSource, timeZone);
       patch.start = {
         dateTime: exceptionBody.start.dateTime,
-        timeZone: tz,
+        timeZone,
       };
       patch.end = {
         dateTime: exceptionBody.end.dateTime,
-        timeZone: tz,
+        timeZone,
       };
     }
     return patch;
   };
 
   if (isOwnExceptionInstance && ownGoogleId) {
-    let existing: calendar_v3.Schema$Event | null = null;
-    try {
-      existing = await calendarService.getEvent(ownGoogleId);
-    } catch (error) {
-      if (!isGoogleNotFoundError(error)) throw error;
-    }
     const updated = await calendarService.patchEvent(
       ownGoogleId,
-      buildExceptionPatch(existing),
+      buildExceptionPatch(),
     );
     await persistGoogleEventId(localEvent, updated.id || ownGoogleId);
     return { action: 'updated', data: updated };
@@ -386,12 +430,13 @@ const syncSingleOccurrenceToGoogle = async ({
     calendarService,
     seriesMasterGoogleEventId,
     originalStartDate,
+    instanceMatchTz,
   );
   if (!instance?.id) return null;
 
   const updated = await calendarService.patchEvent(
     instance.id,
-    buildExceptionPatch(instance),
+    buildExceptionPatch(),
   );
   await persistGoogleEventId(localEvent, updated.id || instance.id);
   return { action: 'updated', data: updated };
@@ -585,18 +630,20 @@ export async function PATCH(request: NextRequest) {
     }
 
     const calendarService = new GoogleCalendarService(tokens);
+    // Zona del usuario (wall-clock de la app). La TZ de Google solo se usa
+    // para matchear instancias, no para reescribir horas.
     const editTimeZone = changes.time_zone || 'UTC';
 
     // --- single: excepción de instancia ---
     if (effectiveScope === 'single' && resolved.master.is_recurring) {
-      let googleTimeZone = editTimeZone;
+      let matchTimeZone = editTimeZone;
       const masterGoogleId =
         editContext.oldMasterGoogleEventId || resolved.master.google_event_id;
       if (masterGoogleId) {
         try {
           const masterGoogleEvent =
             await calendarService.getEvent(masterGoogleId);
-          googleTimeZone = resolveGoogleTimeZone(masterGoogleEvent, editTimeZone);
+          matchTimeZone = resolveGoogleTimeZone(masterGoogleEvent, editTimeZone);
         } catch (error) {
           if (!isGoogleNotFoundError(error)) throw error;
         }
@@ -609,7 +656,8 @@ export async function PATCH(request: NextRequest) {
         seriesMasterGoogleEventId: masterGoogleId,
         userId: user.id,
         timesChanged: editContext.timesChanged,
-        timeZone: googleTimeZone,
+        timeZone: editTimeZone,
+        matchTimeZone,
       });
 
       if (!singleResult) {
@@ -637,19 +685,22 @@ export async function PATCH(request: NextRequest) {
 
     // --- this_and_following con serie nueva: truncar + crear ---
     if (effectiveScope === 'this_and_following' && editContext.createdNewSeries) {
-      let googleTimeZone = editTimeZone;
+      let truncateTimeZone = editTimeZone;
       if (editContext.oldMasterGoogleEventId) {
         try {
           const masterGoogleEvent = await calendarService.getEvent(
             editContext.oldMasterGoogleEventId,
           );
-          googleTimeZone = resolveGoogleTimeZone(masterGoogleEvent, editTimeZone);
+          truncateTimeZone = resolveGoogleTimeZone(
+            masterGoogleEvent,
+            editTimeZone,
+          );
           if (editContext.splitPivotDateOnly) {
             await truncateGoogleRecurringSeries(
               calendarService,
               editContext.oldMasterGoogleEventId,
               addDaysToIsoDate(editContext.splitPivotDateOnly, -1),
-              googleTimeZone,
+              truncateTimeZone,
             );
           }
         } catch (error) {
@@ -659,7 +710,7 @@ export async function PATCH(request: NextRequest) {
 
       const newMasterPayload = toSyncPayloadFromEvent(editContext.master);
       newMasterPayload.google_event_id = null;
-      newMasterPayload.time_zone = googleTimeZone;
+      newMasterPayload.time_zone = editTimeZone;
 
       const splitResult = await syncEventWithGoogle({
         calendarService,
@@ -680,42 +731,55 @@ export async function PATCH(request: NextRequest) {
 
     // --- all (o single one-off / this_and_following desde el primero) ---
     const master = editContext.master;
-    let googleTimeZone = editTimeZone;
-    let existingMaster: calendar_v3.Schema$Event | null = null;
-
-    if (master.google_event_id) {
-      try {
-        existingMaster = await calendarService.getEvent(master.google_event_id);
-        googleTimeZone = resolveGoogleTimeZone(existingMaster, editTimeZone);
-      } catch (error) {
-        if (!isGoogleNotFoundError(error)) throw error;
-      }
-    }
 
     const syncPayload = toSyncPayloadFromEvent(master);
-    syncPayload.time_zone = googleTimeZone;
+    syncPayload.time_zone = editTimeZone;
 
-    if (master.google_event_id && !editContext.timesChanged) {
+    if (master.google_event_id) {
       const googleEvent = buildLinkedGoogleEvent(syncPayload, {
         id: master.id,
         project_id: master.project_id,
         google_event_id: master.google_event_id,
       });
-      const patched = await calendarService.patchEvent(master.google_event_id, {
+
+      // Preferir patch: evita reescribir start/end cuando no cambió la hora
+      // (fuente típica de desfases) y no borrar RRULE si no se pudo reconstruir.
+      const patchBody: calendar_v3.Schema$Event = {
         summary: googleEvent.summary,
         description: googleEvent.description,
-        recurrence: googleEvent.recurrence,
         extendedProperties: googleEvent.extendedProperties,
-      });
-      return NextResponse.json({
-        success: true,
-        scope: effectiveScope,
-        action: 'updated',
-        updatedEventIds: editContext.updatedEvents.map((e) => e.id),
-        affectedSeriesId,
-        google_event_id: patched.id || master.google_event_id,
-        google: buildGoogleStats({ action: 'updated', data: patched }, true),
-      });
+      };
+      if (googleEvent.recurrence) {
+        patchBody.recurrence = googleEvent.recurrence;
+      }
+      if (editContext.timesChanged) {
+        patchBody.start = {
+          dateTime: googleEvent.start.dateTime,
+          timeZone: editTimeZone,
+        };
+        patchBody.end = {
+          dateTime: googleEvent.end.dateTime,
+          timeZone: editTimeZone,
+        };
+      }
+
+      try {
+        const patched = await calendarService.patchEvent(
+          master.google_event_id,
+          patchBody,
+        );
+        return NextResponse.json({
+          success: true,
+          scope: effectiveScope,
+          action: 'updated',
+          updatedEventIds: editContext.updatedEvents.map((e) => e.id),
+          affectedSeriesId,
+          google_event_id: patched.id || master.google_event_id,
+          google: buildGoogleStats({ action: 'updated', data: patched }, true),
+        });
+      } catch (error) {
+        if (!isGoogleNotFoundError(error)) throw error;
+      }
     }
 
     const result = await syncEventWithGoogle({

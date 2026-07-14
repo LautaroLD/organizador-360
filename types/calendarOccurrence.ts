@@ -16,7 +16,7 @@ export interface CalendarEventRow {
   is_cancelled?: boolean | null;
   original_start_date?: string | null;
   recurrence_rule: string | null;
-  recurrence_days: string[] | null;
+  recurrence_days: string[] | null | unknown;
   recurrence_end_date: string | null;
   is_recurring: boolean | null;
   creator?: {

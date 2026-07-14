@@ -53,6 +53,26 @@ describe('calendarUtils Option 3 expansion', () => {
     expect(occurrences[1]?.source_event_id).toBe('m1');
   });
 
+  it('expands with default horizon when recurrence_end_date is missing', () => {
+    const openEnded: CalendarEventRow = {
+      ...master,
+      recurrence_end_date: null,
+    };
+    const occurrences = expandSeriesOccurrences(openEnded, []);
+    // Sin fin → horizonte 180 días → varios lunes
+    expect(occurrences.length).toBeGreaterThan(3);
+    expect(occurrences[0]?.id).toBe('m1::2026-07-20');
+  });
+
+  it('expands when recurrence_days arrives as JSON string', () => {
+    const asString: CalendarEventRow = {
+      ...master,
+      recurrence_days: '["monday"]',
+    };
+    const occurrences = expandSeriesOccurrences(asString, []);
+    expect(occurrences).toHaveLength(3);
+  });
+
   it('applies exception override and skips cancelled', () => {
     const exception: CalendarEventRow = {
       ...master,

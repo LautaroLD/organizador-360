@@ -28,13 +28,24 @@ export type EditableEventRow = {
 export const EVENT_EDITABLE_SELECT =
   'id, project_id, title, description, start_date, end_date, google_event_id, is_recurring, recurrence_rule, recurrence_days, recurrence_end_date, series_id, is_series_master, is_exception, is_cancelled, original_start_date, created_by';
 
+/**
+ * Parsea fecha/hora "wall-clock" sin convertir zonas.
+ * Evita desfases cuando Postgres/Google devuelven sufijos Z / +00:00 / .sss.
+ */
 export const splitDateAndTime = (value: string, fallbackTime: string) => {
-  const [datePart, timePartRaw] = value.includes('T')
-    ? value.split('T')
-    : [value, fallbackTime];
-  const timePart = (timePartRaw || fallbackTime).slice(0, 5);
+  const raw = (value || '').trim();
+  const [datePartRaw, timePartRaw = ''] = raw.includes('T')
+    ? raw.split('T')
+    : [raw, fallbackTime];
+
+  const datePart = (datePartRaw || '').slice(0, 10);
+  const cleanedTime = timePartRaw
+    .replace(/\.\d+/, '')
+    .replace(/(Z|[+-]\d{2}:?\d{2})$/i, '');
+  const timePart = cleanedTime.slice(0, 5);
+
   return {
-    date: datePart,
+    date: /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : datePartRaw,
     time: /^\d{2}:\d{2}$/.test(timePart) ? timePart : fallbackTime,
   };
 };
@@ -51,8 +62,24 @@ export const addDaysToIsoDate = (isoDate: string, days: number) => {
 };
 
 export const extractRecurrenceDays = (value: unknown): string[] => {
-  if (!Array.isArray(value)) return [];
-  return value.filter((day): day is string => typeof day === 'string');
+  if (Array.isArray(value)) {
+    return value.filter((day): day is string => typeof day === 'string');
+  }
+  // Postgres/JSON a veces serializa el array como string
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((day): day is string => typeof day === 'string');
+      }
+    } catch {
+      return value
+        .split(',')
+        .map((day) => day.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
 };
 
 export const pickSeriesMaster = (events: EditableEventRow[]) => {
@@ -409,6 +436,26 @@ export async function applySeriesEditLocally(params: {
     if (error) throw error;
     const updated = data as EditableEventRow;
 
+    // Propagar título/descripcion a excepciones no canceladas para que la UI
+    // no quede desfasada respecto de Google al editar "toda la serie".
+    const seriesId = master.series_id || master.id;
+    const exceptionSync: { title?: string; description?: string | null } = {};
+    if (Object.prototype.hasOwnProperty.call(changes, 'title')) {
+      exceptionSync.title = updateFields.title;
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'description')) {
+      exceptionSync.description = updateFields.description;
+    }
+    if (Object.keys(exceptionSync).length > 0) {
+      await supabaseAdmin
+        .from('events')
+        .update(exceptionSync)
+        .eq('project_id', projectId)
+        .eq('series_id', seriesId)
+        .eq('is_exception', true)
+        .eq('is_cancelled', false);
+    }
+
     return {
       scope,
       master: updated,
@@ -446,6 +493,25 @@ export async function applySeriesEditLocally(params: {
       .single();
     if (error) throw error;
     const updated = data as EditableEventRow;
+
+    const seriesId = master.series_id || master.id;
+    const exceptionSync: { title?: string; description?: string | null } = {};
+    if (Object.prototype.hasOwnProperty.call(changes, 'title')) {
+      exceptionSync.title = updateFields.title;
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'description')) {
+      exceptionSync.description = updateFields.description;
+    }
+    if (Object.keys(exceptionSync).length > 0) {
+      await supabaseAdmin
+        .from('events')
+        .update(exceptionSync)
+        .eq('project_id', projectId)
+        .eq('series_id', seriesId)
+        .eq('is_exception', true)
+        .eq('is_cancelled', false);
+    }
+
     return {
       scope: 'all',
       master: updated,

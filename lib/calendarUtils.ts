@@ -39,19 +39,57 @@ const getDayOfWeek = (dateStr: string): number => {
 const isoDateOnly = (value: string) => value.split('T')[0] || value;
 
 const splitDateAndTime = (value: string, fallbackTime: string) => {
-  const [datePart, timePartRaw] = value.includes('T')
-    ? value.split('T')
-    : [value, fallbackTime];
-  const timePart = (timePartRaw || fallbackTime).slice(0, 5);
+  const raw = (value || '').trim();
+  const [datePartRaw, timePartRaw = ''] = raw.includes('T')
+    ? raw.split('T')
+    : [raw, fallbackTime];
+
+  const datePart = (datePartRaw || '').slice(0, 10);
+  const cleanedTime = timePartRaw
+    .replace(/\.\d+/, '')
+    .replace(/(Z|[+-]\d{2}:?\d{2})$/i, '');
+  const timePart = cleanedTime.slice(0, 5);
+
   return {
-    date: datePart,
+    date: /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : datePartRaw,
     time: /^\d{2}:\d{2}$/.test(timePart) ? timePart : fallbackTime,
   };
 };
 
 const extractRecurrenceDays = (value: unknown): string[] => {
-  if (!Array.isArray(value)) return [];
-  return value.filter((day): day is string => typeof day === 'string');
+  if (Array.isArray(value)) {
+    return value.filter((day): day is string => typeof day === 'string');
+  }
+  // Postgres/JSON a veces serializa el array como string
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((day): day is string => typeof day === 'string');
+      }
+    } catch {
+      return value
+        .split(',')
+        .map((day) => day.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
+};
+
+/** Horizonte por defecto si la serie no tiene fecha de fin (Google puede ser infinita). */
+export const DEFAULT_RECURRENCE_HORIZON_DAYS = 180;
+
+export const resolveRecurrenceEndDate = (
+  startDate: string,
+  endDate?: string | null,
+): string => {
+  const start = startDate.split('T')[0] || startDate;
+  if (endDate) {
+    const end = endDate.split('T')[0] || endDate;
+    if (end >= start) return end;
+  }
+  return addDays(start, DEFAULT_RECURRENCE_HORIZON_DAYS);
 };
 
 export const generateRecurringEvents = (data: EventFormData): GeneratedEvent[] => {
@@ -84,7 +122,10 @@ export const generateRecurringEvents = (data: EventFormData): GeneratedEvent[] =
 
   const events: GeneratedEvent[] = [];
   let current = data.start_date;
-  const recurrenceEnd = data.recurrence_end_date || data.start_date;
+  const recurrenceEnd = resolveRecurrenceEndDate(
+    data.start_date,
+    data.recurrence_end_date,
+  );
 
   while (current <= recurrenceEnd) {
     const dayOfWeek = getDayOfWeek(current);
@@ -180,7 +221,10 @@ export function expandSeriesOccurrences(
           ? 'weekly'
           : 'none',
     selected_days: selectedDays,
-    recurrence_end_date: master.recurrence_end_date || startParts.date,
+    recurrence_end_date: resolveRecurrenceEndDate(
+      startParts.date,
+      master.recurrence_end_date,
+    ),
   });
 
   const exceptionsByDate = new Map<string, CalendarEventRow>();

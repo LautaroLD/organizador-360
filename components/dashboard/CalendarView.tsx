@@ -13,9 +13,9 @@ import { useGoogleCalendarTokens } from '@/hooks/useGoogleCalendarTokens';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { EventModal } from '@/components/calendar/EventModal';
 import { EventList, type CalendarListEvent } from '@/components/calendar/EventList';
-import { generateRecurringEvents, materializeEventsForUI } from '@/lib/calendarUtils';
+import { generateRecurringEvents, materializeEventsForUI, resolveRecurrenceEndDate } from '@/lib/calendarUtils';
 import { getUserPlanTier } from '@/lib/subscriptionUtils';
-import type { CalendarOccurrence } from '@/types/calendarOccurrence';
+import type { CalendarOccurrence, CalendarEventRow } from '@/types/calendarOccurrence';
 import { parseOccurrenceId } from '@/types/calendarOccurrence';
 import Link from 'next/link';
 
@@ -570,6 +570,9 @@ export const CalendarView: React.FC = () => {
       const isRecurring = data.recurrence_type !== 'none';
       // El check events_recurring_requires_series_id exige series_id en el INSERT
       const eventId = crypto.randomUUID();
+      const recurrenceEndDate = isRecurring
+        ? resolveRecurrenceEndDate(data.start_date, data.recurrence_end_date || null)
+        : null;
 
       const { data: createdEvent, error } = await supabase
         .from('events')
@@ -583,7 +586,7 @@ export const CalendarView: React.FC = () => {
           recurrence_rule: isRecurring ? data.recurrence_type : null,
           is_recurring: isRecurring,
           recurrence_days: isRecurring ? (data.selected_days || []) : null,
-          recurrence_end_date: isRecurring ? (data.recurrence_end_date || null) : null,
+          recurrence_end_date: recurrenceEndDate,
           series_id: isRecurring ? eventId : null,
           is_series_master: isRecurring,
           is_exception: false,
@@ -638,9 +641,14 @@ export const CalendarView: React.FC = () => {
             variables.recurrence_type === 'none' ? null : variables.recurrence_type,
           selected_days:
             variables.recurrence_type !== 'none' ? variables.selected_days : [],
-          recurrence_end_date: variables.recurrence_end_date,
-          timeZone: userTimeZone,
-        });
+            recurrence_end_date: variables.recurrence_end_date
+              ? resolveRecurrenceEndDate(
+                  variables.start_date,
+                  variables.recurrence_end_date,
+                )
+              : resolveRecurrenceEndDate(variables.start_date, null),
+            timeZone: userTimeZone,
+          });
 
         if (!result.success) {
           toast.warning(
@@ -722,8 +730,10 @@ export const CalendarView: React.FC = () => {
 
       return payload;
     },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['events'] });
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ['events', currentProject?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+      await queryClient.refetchQueries({ queryKey: ['events', currentProject?.id] });
       const scopeLabel =
         result.scope === 'all'
           ? 'toda la serie'
@@ -734,6 +744,16 @@ export const CalendarView: React.FC = () => {
       toast.success(`Evento actualizado (${scopeLabel})`);
       if (result.message) {
         toast.info(result.message);
+      } else if (
+        result.google?.attempted &&
+        (result.google?.updated || 0) +
+          (result.google?.created || 0) +
+          (result.google?.linked || 0) ===
+          0
+      ) {
+        toast.warning(
+          'Se guardó en Veenzo, pero Google Calendar no reflejó el cambio.',
+        );
       }
 
       setIsModalOpen(false);
@@ -754,12 +774,18 @@ export const CalendarView: React.FC = () => {
 
   const handleEditEvent = (event: CalendarListEvent) => {
     const occurrence = event as CalendarOccurrence;
-    const parsed = parseOccurrenceId(event.id);
-    const sourceId = occurrence.source_event_id || parsed.sourceEventId;
     const occurrenceStart = occurrence.occurrence_start || event.start_date;
 
+    const wallClockTime = (value: string, fallback: string) => {
+      const raw = (value.split('T')[1] || fallback)
+        .replace(/\.\d+/, '')
+        .replace(/(Z|[+-]\d{2}:?\d{2})$/i, '');
+      return raw.slice(0, 5);
+    };
+
     const normalizedEvent: Event = {
-      id: sourceId,
+      // Conservar id virtual (`master::fecha`) para que el PATCH resuelva la ocurrencia
+      id: event.id,
       google_event_id: event.google_event_id || null,
       title: event.title,
       description: event.description || '',
@@ -780,12 +806,8 @@ export const CalendarView: React.FC = () => {
       creator: event.creator,
     };
 
-    const startParts = normalizedEvent.start_date.includes('T')
-      ? normalizedEvent.start_date.split('T')
-      : [normalizedEvent.start_date, '00:00:00'];
-    const endParts = normalizedEvent.end_date.includes('T')
-      ? normalizedEvent.end_date.split('T')
-      : [normalizedEvent.end_date, '23:59:00'];
+    const startDate = event.start_date.split('T')[0] || event.start_date;
+    const endDate = event.end_date.split('T')[0] || event.end_date;
 
     const recurrenceType = normalizedEvent.is_recurring
       ? ((normalizedEvent.recurrence_rule as EventFormData['recurrence_type']) || 'weekly')
@@ -800,10 +822,10 @@ export const CalendarView: React.FC = () => {
     reset({
       title: normalizedEvent.title || '',
       description: normalizedEvent.description || '',
-      start_date: startParts[0],
-      start_time: startParts[1].slice(0, 5),
-      end_date: endParts[0],
-      end_time: endParts[1].slice(0, 5),
+      start_date: startDate,
+      start_time: wallClockTime(event.start_date, '00:00:00'),
+      end_date: endDate,
+      end_time: wallClockTime(event.end_date, '23:59:00'),
       recurrence_type: recurrenceType,
       selected_days: Array.isArray(normalizedEvent.recurrence_days) ? normalizedEvent.recurrence_days : [],
       recurrence_end_date: normalizedEvent.recurrence_end_date || undefined,
@@ -1064,14 +1086,7 @@ export const CalendarView: React.FC = () => {
   // Option 3: expandir masters a ocurrencias virtuales para la UI
   const displayEvents = useMemo(() => {
     if (!events) return [] as CalendarOccurrence[];
-    return materializeEventsForUI(
-      (events as CalendarOccurrence[]).map((row) => ({
-        ...row,
-        recurrence_days: Array.isArray(row.recurrence_days)
-          ? row.recurrence_days.filter((day): day is string => typeof day === 'string')
-          : null,
-      })),
-    );
+    return materializeEventsForUI(events as CalendarEventRow[]);
   }, [events]);
 
   const groupedAndSortedEvents = useMemo(() => {

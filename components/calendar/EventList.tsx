@@ -20,9 +20,11 @@ interface EventListProps {
 }
 
 const formatTimeHM = (iso: string) => {
-  const timePart = (iso.split('T')[1] || '00:00:00').split('+')[0];
+  const timePart = (iso.split('T')[1] || '00:00:00')
+    .replace(/\.\d+/, '')
+    .replace(/(Z|[+-]\d{2}:?\d{2})$/i, '');
   const [h, m] = timePart.split(':');
-  return `${h}:${m}`;
+  return `${h || '00'}:${m || '00'}`;
 };
 
 const getRelativeLabel = (timestamp: number): string | null => {
