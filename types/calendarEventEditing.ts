@@ -18,6 +18,8 @@ export interface EditCalendarEventRequest {
   eventId: string;
   projectId: string;
   scope: EventEditScope;
+  /** Inicio original de la ocurrencia clickeada (masters Option 3 / ids virtuales). */
+  occurrenceStart?: string | null;
   applyToGoogle?: boolean;
   checkDuplicateInGoogle?: boolean;
   changes: EventEditableFields;

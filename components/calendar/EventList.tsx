@@ -15,9 +15,17 @@ export interface CalendarListEvent {
   project_id?: string;
   created_by?: string;
   is_recurring?: boolean;
-  recurrence_rule?: string;
+  recurrence_rule?: string | null;
   recurrence_days?: string[] | null;
   recurrence_end_date?: string | null;
+  series_id?: string | null;
+  is_series_master?: boolean;
+  is_exception?: boolean;
+  is_cancelled?: boolean;
+  original_start_date?: string | null;
+  source_event_id?: string;
+  occurrence_start?: string;
+  is_virtual?: boolean;
   creator?: {
     name: string;
     email: string;

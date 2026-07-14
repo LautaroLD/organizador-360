@@ -87,6 +87,7 @@ export type Database = {
           end_date: string;
           google_event_id: string | null;
           id: string;
+          is_cancelled: boolean;
           is_exception: boolean;
           is_recurring: boolean | null;
           is_series_master: boolean;
@@ -106,6 +107,7 @@ export type Database = {
           end_date: string;
           google_event_id?: string | null;
           id?: string;
+          is_cancelled?: boolean;
           is_exception?: boolean;
           is_recurring?: boolean | null;
           is_series_master?: boolean;
@@ -125,6 +127,7 @@ export type Database = {
           end_date?: string;
           google_event_id?: string | null;
           id?: string;
+          is_cancelled?: boolean;
           is_exception?: boolean;
           is_recurring?: boolean | null;
           is_series_master?: boolean;
