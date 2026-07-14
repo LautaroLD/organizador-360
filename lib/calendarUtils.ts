@@ -123,15 +123,30 @@ const toOccurrenceFromRow = (
 
   return {
     ...row,
-    description: row.description || '',
-    is_recurring: Boolean(row.is_recurring),
-    recurrence_days: extractRecurrenceDays(row.recurrence_days),
+    description: overrides?.description ?? (row.description || ''),
+    is_recurring: overrides?.is_recurring ?? Boolean(row.is_recurring),
+    recurrence_days:
+      overrides?.recurrence_days ?? extractRecurrenceDays(row.recurrence_days),
+    creator: overrides?.creator ?? row.creator ?? undefined,
     source_event_id: overrides?.source_event_id || row.id,
     occurrence_start: occurrenceStart,
     is_virtual: overrides?.is_virtual ?? false,
-    ...overrides,
     id: overrides?.id || row.id,
-    description: overrides?.description ?? (row.description || ''),
+    start_date: overrides?.start_date ?? row.start_date,
+    end_date: overrides?.end_date ?? row.end_date,
+    title: overrides?.title ?? row.title,
+    google_event_id: overrides?.google_event_id ?? row.google_event_id,
+    series_id: overrides?.series_id ?? row.series_id,
+    is_series_master: overrides?.is_series_master ?? row.is_series_master,
+    is_exception: overrides?.is_exception ?? row.is_exception,
+    is_cancelled: overrides?.is_cancelled ?? row.is_cancelled,
+    original_start_date:
+      overrides?.original_start_date ?? row.original_start_date,
+    recurrence_rule: overrides?.recurrence_rule ?? row.recurrence_rule,
+    recurrence_end_date:
+      overrides?.recurrence_end_date ?? row.recurrence_end_date,
+    project_id: overrides?.project_id ?? row.project_id,
+    created_by: overrides?.created_by ?? row.created_by,
   };
 };
 

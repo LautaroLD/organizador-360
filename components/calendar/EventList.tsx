@@ -4,33 +4,9 @@ import React from 'react';
 import { CalendarClock, ChevronDown, ChevronRight, Clock, History, Pencil, Repeat, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { DateRangePicker } from '../ui/DateRangePicker';
+import type { CalendarOccurrence } from '@/types/calendarOccurrence';
 
-export interface CalendarListEvent {
-  id: string;
-  title: string;
-  description?: string;
-  start_date: string;
-  end_date: string;
-  google_event_id?: string | null;
-  project_id?: string;
-  created_by?: string;
-  is_recurring?: boolean;
-  recurrence_rule?: string | null;
-  recurrence_days?: string[] | null;
-  recurrence_end_date?: string | null;
-  series_id?: string | null;
-  is_series_master?: boolean;
-  is_exception?: boolean;
-  is_cancelled?: boolean;
-  original_start_date?: string | null;
-  source_event_id?: string;
-  occurrence_start?: string;
-  is_virtual?: boolean;
-  creator?: {
-    name: string;
-    email: string;
-  };
-}
+export type CalendarListEvent = CalendarOccurrence;
 
 interface EventListProps {
   groupedEvents: Record<string, { events: CalendarListEvent[]; timestamp: number; }>;

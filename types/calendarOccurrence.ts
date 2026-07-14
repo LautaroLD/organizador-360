@@ -16,7 +16,7 @@ export interface CalendarEventRow {
   is_cancelled?: boolean | null;
   original_start_date?: string | null;
   recurrence_rule: string | null;
-  recurrence_days: string[] | null | unknown;
+  recurrence_days: string[] | null;
   recurrence_end_date: string | null;
   is_recurring: boolean | null;
   creator?: {
@@ -30,9 +30,18 @@ export interface CalendarEventRow {
  * - Masters/one-offs y excepciones usan el id real de DB.
  * - Ocurrencias virtuales usan `${sourceEventId}::${YYYY-MM-DD}`.
  */
-export interface CalendarOccurrence extends CalendarEventRow {
+export interface CalendarOccurrence
+  extends Omit<
+    CalendarEventRow,
+    'description' | 'is_recurring' | 'creator' | 'recurrence_days'
+  > {
   description: string;
   is_recurring: boolean;
+  recurrence_days: string[] | null;
+  creator?: {
+    name: string;
+    email: string;
+  };
   /** Id del master (o de la fila fuente) */
   source_event_id: string;
   /** Inicio original de esta ocurrencia (para match Google instance) */

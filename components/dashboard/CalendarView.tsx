@@ -777,8 +777,8 @@ export const CalendarView: React.FC = () => {
       project_id: event.project_id || currentProject?.id || '',
       created_by: event.created_by || user?.id || '',
       series_id: occurrence.series_id,
-      is_series_master: occurrence.is_series_master,
-      is_exception: occurrence.is_exception,
+      is_series_master: occurrence.is_series_master ?? undefined,
+      is_exception: occurrence.is_exception ?? undefined,
       original_start_date: occurrenceStart,
       recurrence_rule: event.recurrence_rule || null,
       recurrence_days: Array.isArray(event.recurrence_days)
@@ -1073,7 +1073,14 @@ export const CalendarView: React.FC = () => {
   // Option 3: expandir masters a ocurrencias virtuales para la UI
   const displayEvents = useMemo(() => {
     if (!events) return [] as CalendarOccurrence[];
-    return materializeEventsForUI(events as CalendarOccurrence[]);
+    return materializeEventsForUI(
+      (events as CalendarOccurrence[]).map((row) => ({
+        ...row,
+        recurrence_days: Array.isArray(row.recurrence_days)
+          ? row.recurrence_days.filter((day): day is string => typeof day === 'string')
+          : null,
+      })),
+    );
   }, [events]);
 
   const groupedAndSortedEvents = useMemo(() => {
