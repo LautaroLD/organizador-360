@@ -493,11 +493,13 @@ export async function applySeriesEditLocally(params: {
   };
   const newMasterFields = buildEventUpdateFromChanges(pivotBase, changes);
   const timesChanged = didEventTimesChange(pivotBase, newMasterFields);
+  const newMasterId = crypto.randomUUID();
 
   const { data: inserted, error: insertError } = await supabaseAdmin
     .from('events')
     .insert({
       ...newMasterFields,
+      id: newMasterId,
       project_id: projectId,
       created_by: master.created_by || userId,
       is_series_master: true,
@@ -506,21 +508,13 @@ export async function applySeriesEditLocally(params: {
       is_recurring: true,
       original_start_date: newMasterFields.start_date,
       google_event_id: null,
-      series_id: null,
+      series_id: newMasterId,
     })
     .select(EVENT_EDITABLE_SELECT)
     .single();
   if (insertError) throw insertError;
 
-  let newMaster = inserted as EditableEventRow;
-  const { data: linked, error: linkError } = await supabaseAdmin
-    .from('events')
-    .update({ series_id: newMaster.id })
-    .eq('id', newMaster.id)
-    .select(EVENT_EDITABLE_SELECT)
-    .single();
-  if (linkError) throw linkError;
-  newMaster = linked as EditableEventRow;
+  const newMaster = inserted as EditableEventRow;
 
   return {
     scope,

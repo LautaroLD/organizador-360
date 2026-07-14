@@ -568,10 +568,13 @@ export const CalendarView: React.FC = () => {
 
       const first = generated[0];
       const isRecurring = data.recurrence_type !== 'none';
+      // El check events_recurring_requires_series_id exige series_id en el INSERT
+      const eventId = crypto.randomUUID();
 
       const { data: createdEvent, error } = await supabase
         .from('events')
         .insert({
+          id: eventId,
           project_id: currentProject!.id,
           title: data.title,
           description: data.description,
@@ -581,7 +584,7 @@ export const CalendarView: React.FC = () => {
           is_recurring: isRecurring,
           recurrence_days: isRecurring ? (data.selected_days || []) : null,
           recurrence_end_date: isRecurring ? (data.recurrence_end_date || null) : null,
-          series_id: null,
+          series_id: isRecurring ? eventId : null,
           is_series_master: isRecurring,
           is_exception: false,
           is_cancelled: false,
@@ -594,19 +597,7 @@ export const CalendarView: React.FC = () => {
       if (error) throw error;
       if (!createdEvent) throw new Error('No se pudo crear el evento');
 
-      let finalEvent = createdEvent as Event;
-      if (isRecurring) {
-        const { data: linked, error: linkError } = await supabase
-          .from('events')
-          .update({ series_id: createdEvent.id })
-          .eq('id', createdEvent.id)
-          .select('*')
-          .single();
-        if (linkError) throw linkError;
-        if (linked) finalEvent = linked as Event;
-      }
-
-      return [finalEvent];
+      return [createdEvent as Event];
     },
     onSuccess: async (createdEvents, variables) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
