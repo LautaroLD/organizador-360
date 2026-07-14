@@ -1075,7 +1075,14 @@ export const CalendarView: React.FC = () => {
       const seriesDeleteIds = new Set<string>();
       const cancelUpdates: string[] = [];
       const cancelInserts: Array<Record<string, unknown>> = [];
-      const googleDeletes: Array<Record<string, unknown>> = [];
+      type GoogleDeleteTarget = {
+        id?: string | null;
+        project_id?: string | null;
+        google_event_id?: string | null;
+        title?: string | null;
+        start_date?: string | null;
+      };
+      const googleDeletes: GoogleDeleteTarget[] = [];
 
       const wallClockTime = (value: string, fallback = '00:00') => {
         const raw = (value.split('T')[1] || fallback)
@@ -1216,7 +1223,7 @@ export const CalendarView: React.FC = () => {
       }
 
       if (canUseGoogleSync && activeIsConnected && googleDeletes.length > 0) {
-        const uniqueGoogle = new Map<string, Record<string, unknown>>();
+        const uniqueGoogle = new Map<string, GoogleDeleteTarget>();
         for (const event of googleDeletes) {
           const key = `${event.google_event_id || ''}|${event.id || ''}|${String(event.start_date || '').split('T')[0]}`;
           uniqueGoogle.set(key, event);
