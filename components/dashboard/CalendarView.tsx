@@ -893,10 +893,10 @@ export const CalendarView: React.FC = () => {
       const occurrenceDate =
         parsed.occurrenceDate ||
         (sourceRow.original_start_date || sourceRow.start_date).split('T')[0];
-      const masterId = sourceRow.is_exception
-        ? (sourceRow.series_id as string)
-        : sourceRow.id;
-      const masterStart = (sourceRow.start_date.split('T')[1] || '00:00:00').slice(0, 5);
+      const masterStart = (sourceRow.start_date.split('T')[1] || '00:00:00')
+        .replace(/\.\d+/, '')
+        .replace(/(Z|[+-]\d{2}:?\d{2})$/i, '')
+        .slice(0, 5);
       const occurrenceStart = `${occurrenceDate}T${masterStart}:00`;
 
       if (sourceRow.is_exception) {
@@ -1013,54 +1013,248 @@ export const CalendarView: React.FC = () => {
     },
   });
 
-  const deleteEventsAndSync = async (eventIds: string[]) => {
+  /** Borrado en lote (Option 3): un toast, DB agrupada, Google en paralelo. */
+  const deleteOccurrencesBatch = async (occurrenceIds: string[]) => {
     if (isViewer) {
       toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
       return;
     }
-    const loadingToast = toast.loading(`Eliminando ${eventIds.length} evento(s)...`);
+    if (occurrenceIds.length === 0) return;
+
+    const loadingToast = toast.loading(
+      `Eliminando ${occurrenceIds.length} evento(s)...`,
+    );
 
     try {
-      const { data: eventsData } = await supabase
+      const uniqueIds = Array.from(new Set(occurrenceIds));
+      const parsedItems = uniqueIds.map((id) => ({
+        id,
+        ...parseOccurrenceId(id),
+      }));
+
+      const sourceIds = Array.from(
+        new Set(parsedItems.map((item) => item.sourceEventId)),
+      );
+
+      const { data: sourceRows, error: fetchError } = await supabase
         .from('events')
         .select('*')
-        .in('id', eventIds);
+        .in('id', sourceIds);
 
-      const { error } = await supabase
-        .from('events')
-        .delete()
-        .in('id', eventIds);
+      if (fetchError) throw fetchError;
 
-      if (error) throw error;
+      const rowById = new Map(
+        (sourceRows || []).map((row) => [row.id as string, row as Event]),
+      );
 
-      if (eventsData) {
-        for (const event of eventsData) {
-          await deleteEventFromGoogle(event);
+      // Series completas involucradas (para excepciones existentes)
+      const seriesIds = Array.from(
+        new Set(
+          (sourceRows || [])
+            .map((row) => (row.series_id as string) || (row.id as string))
+            .filter(Boolean),
+        ),
+      );
+
+      const { data: seriesRows } = seriesIds.length
+        ? await supabase.from('events').select('*').in('series_id', seriesIds)
+        : { data: [] as Event[] };
+
+      const exceptionsBySeriesDate = new Map<string, Event>();
+      for (const row of seriesRows || []) {
+        if (!row.is_exception) continue;
+        const dateKey = (
+          row.original_start_date ||
+          row.start_date ||
+          ''
+        ).split('T')[0];
+        exceptionsBySeriesDate.set(`${row.series_id}|${dateKey}`, row as Event);
+      }
+
+      const hardDeleteIds = new Set<string>();
+      const seriesDeleteIds = new Set<string>();
+      const cancelUpdates: string[] = [];
+      const cancelInserts: Array<Record<string, unknown>> = [];
+      const googleDeletes: Array<Record<string, unknown>> = [];
+
+      const wallClockTime = (value: string, fallback = '00:00') => {
+        const raw = (value.split('T')[1] || fallback)
+          .replace(/\.\d+/, '')
+          .replace(/(Z|[+-]\d{2}:?\d{2})$/i, '');
+        return raw.slice(0, 5);
+      };
+
+      for (const item of parsedItems) {
+        const sourceRow = rowById.get(item.sourceEventId);
+        if (!sourceRow) continue;
+
+        // One-off real
+        if (!item.isVirtual && !sourceRow.is_recurring) {
+          hardDeleteIds.add(sourceRow.id);
+          googleDeletes.push(sourceRow);
+          continue;
+        }
+
+        // Master real (sin ::) → borrar serie completa
+        if (
+          !item.isVirtual &&
+          sourceRow.is_series_master &&
+          !sourceRow.is_exception
+        ) {
+          const seriesId = sourceRow.series_id || sourceRow.id;
+          seriesDeleteIds.add(seriesId);
+          continue;
+        }
+
+        // Cancelar ocurrencia (virtual o excepción)
+        const occurrenceDate =
+          item.occurrenceDate ||
+          (sourceRow.original_start_date || sourceRow.start_date).split('T')[0];
+        const masterTime = wallClockTime(sourceRow.start_date);
+        const occurrenceStart = `${occurrenceDate}T${masterTime}:00`;
+        const seriesId = (sourceRow.series_id || sourceRow.id) as string;
+
+        if (sourceRow.is_exception) {
+          cancelUpdates.push(sourceRow.id);
+          googleDeletes.push({
+            project_id: sourceRow.project_id,
+            google_event_id: sourceRow.google_event_id,
+            id: sourceRow.id,
+            title: sourceRow.title,
+            start_date: sourceRow.original_start_date || occurrenceStart,
+          });
+          continue;
+        }
+
+        const existing = exceptionsBySeriesDate.get(
+          `${seriesId}|${occurrenceDate}`,
+        );
+        if (existing) {
+          cancelUpdates.push(existing.id);
+          googleDeletes.push({
+            project_id: sourceRow.project_id,
+            google_event_id: existing.google_event_id,
+            id: existing.id,
+            title: sourceRow.title,
+            start_date: occurrenceStart,
+          });
+        } else {
+          const insertKey = `${seriesId}|${occurrenceDate}`;
+          if (!exceptionsBySeriesDate.has(insertKey)) {
+            const payload = {
+              project_id: sourceRow.project_id,
+              title: sourceRow.title,
+              description: sourceRow.description,
+              start_date: occurrenceStart,
+              end_date: occurrenceStart,
+              series_id: seriesId,
+              is_series_master: false,
+              is_exception: true,
+              is_cancelled: true,
+              is_recurring: true,
+              original_start_date: occurrenceStart,
+              created_by: user!.id,
+              google_event_id: null,
+              recurrence_rule: null,
+              recurrence_days: null,
+              recurrence_end_date: null,
+            };
+            cancelInserts.push(payload);
+            // Evitar duplicados en el mismo batch
+            exceptionsBySeriesDate.set(insertKey, {
+              id: `pending-${insertKey}`,
+              ...payload,
+            } as Event);
+          }
+          googleDeletes.push({
+            project_id: sourceRow.project_id,
+            google_event_id: null,
+            id: null,
+            title: sourceRow.title,
+            start_date: occurrenceStart,
+          });
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ['events'] });
+      // Cargar filas de series a borrar (para Google) antes del delete
+      for (const seriesId of seriesDeleteIds) {
+        const rows = (seriesRows || []).filter(
+          (row) => (row.series_id || row.id) === seriesId,
+        );
+        for (const row of rows) {
+          googleDeletes.push(row as Event);
+        }
+      }
+
+      if (hardDeleteIds.size > 0) {
+        const { error } = await supabase
+          .from('events')
+          .delete()
+          .in('id', Array.from(hardDeleteIds));
+        if (error) throw error;
+      }
+
+      if (seriesDeleteIds.size > 0) {
+        const { error } = await supabase
+          .from('events')
+          .delete()
+          .in('series_id', Array.from(seriesDeleteIds));
+        if (error) throw error;
+      }
+
+      if (cancelUpdates.length > 0) {
+        const { error } = await supabase
+          .from('events')
+          .update({ is_cancelled: true })
+          .in('id', Array.from(new Set(cancelUpdates)));
+        if (error) throw error;
+      }
+
+      if (cancelInserts.length > 0) {
+        const { error } = await supabase.from('events').insert(cancelInserts);
+        if (error) throw error;
+      }
+
+      if (canUseGoogleSync && activeIsConnected && googleDeletes.length > 0) {
+        const uniqueGoogle = new Map<string, Record<string, unknown>>();
+        for (const event of googleDeletes) {
+          const key = `${event.google_event_id || ''}|${event.id || ''}|${String(event.start_date || '').split('T')[0]}`;
+          uniqueGoogle.set(key, event);
+        }
+        const googleList = Array.from(uniqueGoogle.values());
+        const GOOGLE_DELETE_CONCURRENCY = 6;
+        for (let i = 0; i < googleList.length; i += GOOGLE_DELETE_CONCURRENCY) {
+          const chunk = googleList.slice(i, i + GOOGLE_DELETE_CONCURRENCY);
+          await Promise.all(chunk.map((event) => deleteEventFromGoogle(event)));
+        }
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+      await queryClient.refetchQueries({
+        queryKey: ['events', currentProject?.id],
+      });
+
       toast.dismiss(loadingToast);
-      toast.success(`${eventIds.length} evento(s) eliminado(s)`);
+      toast.success(`${uniqueIds.length} evento(s) eliminado(s)`);
     } catch (error: unknown) {
       toast.dismiss(loadingToast);
-      const errorMessage = error instanceof Error ? error.message : 'Error al eliminar eventos';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Error al eliminar eventos';
       toast.error(errorMessage);
     }
   };
 
   // Eliminar todos los eventos de una fecha
-  const handleDeleteAllEventsFromDate = async (_dateKey: string, eventIds: string[]) => {
-    for (const id of eventIds) {
-      await deleteEventMutation.mutateAsync(id);
-    }
+  const handleDeleteAllEventsFromDate = async (
+    _dateKey: string,
+    eventIds: string[],
+  ) => {
+    await deleteOccurrencesBatch(eventIds);
   };
 
   // Eliminar múltiples eventos seleccionados
   const handleDeleteMultipleEvents = async (eventIds: string[]) => {
-    for (const id of eventIds) {
-      await deleteEventMutation.mutateAsync(id);
-    }
+    await deleteOccurrencesBatch(eventIds);
   };
 
   // Eliminar todos los eventos que ya pasaron
@@ -1072,15 +1266,16 @@ export const CalendarView: React.FC = () => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     const pastOccurrenceIds = displayEvents
-      .filter((e) => new Date(e.start_date) < now)
+      .filter((e) => {
+        const datePart = e.start_date.split('T')[0];
+        return new Date(`${datePart}T00:00:00`) < now;
+      })
       .map((e) => e.id);
     if (pastOccurrenceIds.length === 0) {
       toast.info('No hay eventos pasados para eliminar');
       return;
     }
-    for (const id of pastOccurrenceIds) {
-      await deleteEventMutation.mutateAsync(id);
-    }
+    await deleteOccurrencesBatch(pastOccurrenceIds);
   };
 
   // Option 3: expandir masters a ocurrencias virtuales para la UI
