@@ -444,6 +444,15 @@ describe('PATCH /api/google/sync (scopes recurrentes)', () => {
       },
     ];
 
+    mockGoogleService.getEvent.mockResolvedValue({
+      id: 'gcal-master-1',
+      start: { timeZone: 'America/Argentina/Buenos_Aires' },
+      recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20260831T235959Z'],
+    });
+    mockGoogleService.patchEvent.mockResolvedValue({
+      id: 'gcal-master-1_20260727T090000Z',
+    });
+
     const req = {
       json: async () => ({
         eventId: 'event-2',
@@ -452,9 +461,11 @@ describe('PATCH /api/google/sync (scopes recurrentes)', () => {
         applyToGoogle: true,
         changes: {
           title: 'Solo este',
-          start_time: '11:00',
-          end_time: '12:00',
-          time_zone: 'UTC',
+          start_date: '2026-07-27',
+          start_time: '09:00',
+          end_date: '2026-07-27',
+          end_time: '10:00',
+          time_zone: 'America/Argentina/Buenos_Aires',
         },
       }),
     } as unknown as NextRequest;
@@ -474,26 +485,29 @@ describe('PATCH /api/google/sync (scopes recurrentes)', () => {
         timeMin: '2026-07-27T00:00:00Z',
       }),
     );
-    expect(mockGoogleService.updateEvent).toHaveBeenCalledWith(
+    expect(mockGoogleService.patchEvent).toHaveBeenCalledWith(
       'gcal-master-1_20260727T090000Z',
       expect.objectContaining({
         summary: 'Solo este',
       }),
     );
-    expect(mockGoogleService.updateEvent.mock.calls[0][1].recurrence).toBeUndefined();
+    // Solo título: no debe reenviar start/end (evita desfase de hora)
+    expect(mockGoogleService.patchEvent.mock.calls[0][1].start).toBeUndefined();
+    expect(mockGoogleService.patchEvent.mock.calls[0][1].end).toBeUndefined();
     expect(mockGoogleService.createEvent).not.toHaveBeenCalled();
 
     const edited = dbState.events.find((event) => event.id === 'event-2');
     expect(edited?.title).toBe('Solo este');
     expect(edited?.is_exception).toBe(true);
-    expect(edited?.google_event_id).toBe('gcal-instance-1');
+    expect(String(edited?.start_date)).toContain('T09:00:00');
+    expect(edited?.google_event_id).toBe('gcal-master-1_20260727T090000Z');
 
     const master = dbState.events.find((event) => event.id === 'event-1');
     expect(master?.google_event_id).toBe('gcal-master-1');
     expect(master?.title).toBe('Daily');
   });
 
-  it('scope=this_and_following trunca la serie vieja y crea una nueva en Google', async () => {
+  it('scope=this_and_following actualiza instancias sin crear serie nueva en Google', async () => {
     dbState.google_calendar_tokens = [
       {
         user_id: 'user-1',
@@ -505,6 +519,41 @@ describe('PATCH /api/google/sync (scopes recurrentes)', () => {
       },
     ];
 
+    mockGoogleService.getEvent.mockResolvedValue({
+      id: 'gcal-master-1',
+      start: { timeZone: 'America/Argentina/Buenos_Aires' },
+      recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20260831T235959Z'],
+    });
+    mockGoogleService.listEventInstances.mockImplementation(
+      async (_id: string, options?: { timeMin?: string }) => {
+        if (options?.timeMin?.startsWith('2026-07-27')) {
+          return [
+            {
+              id: 'gcal-master-1_20260727T090000Z',
+              originalStartTime: { dateTime: '2026-07-27T09:00:00-03:00' },
+              start: {
+                dateTime: '2026-07-27T09:00:00-03:00',
+                timeZone: 'America/Argentina/Buenos_Aires',
+              },
+            },
+          ];
+        }
+        return [
+          {
+            id: 'gcal-master-1_20260803T090000Z',
+            originalStartTime: { dateTime: '2026-08-03T09:00:00-03:00' },
+            start: {
+              dateTime: '2026-08-03T09:00:00-03:00',
+              timeZone: 'America/Argentina/Buenos_Aires',
+            },
+          },
+        ];
+      },
+    );
+    mockGoogleService.patchEvent.mockImplementation(async (id: string) => ({
+      id,
+    }));
+
     const req = {
       json: async () => ({
         eventId: 'event-2',
@@ -513,9 +562,11 @@ describe('PATCH /api/google/sync (scopes recurrentes)', () => {
         applyToGoogle: true,
         changes: {
           title: 'Nueva serie',
-          start_time: '15:00',
-          end_time: '16:00',
-          time_zone: 'UTC',
+          start_date: '2026-07-27',
+          start_time: '09:00',
+          end_date: '2026-07-27',
+          end_time: '10:00',
+          time_zone: 'America/Argentina/Buenos_Aires',
         },
       }),
     } as unknown as NextRequest;
@@ -526,32 +577,26 @@ describe('PATCH /api/google/sync (scopes recurrentes)', () => {
     expect(res.status).toBe(200);
     expect(data.success).toBe(true);
     expect(data.google.attempted).toBe(true);
-    expect(data.google.created).toBe(1);
-    expect(data.google.updated).toBe(0);
+    expect(data.google.created).toBe(0);
+    expect(data.google.updated).toBe(2);
 
-    expect(mockGoogleService.getEvent).toHaveBeenCalledWith('gcal-master-1');
-    expect(mockGoogleService.patchEvent).toHaveBeenCalledWith(
-      'gcal-master-1',
-      expect.objectContaining({
-        recurrence: [
-          expect.stringMatching(/RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20260726T235959Z/),
-        ],
-      }),
-    );
-    expect(mockGoogleService.createEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        summary: 'Nueva serie',
-        recurrence: [expect.stringContaining('RRULE:FREQ=WEEKLY')],
-      }),
-    );
+    expect(mockGoogleService.createEvent).not.toHaveBeenCalled();
+    expect(mockGoogleService.patchEvent).toHaveBeenCalled();
+    // Sin cambios de hora: los patches no incluyen start/end
+    for (const call of mockGoogleService.patchEvent.mock.calls) {
+      expect(call[1].start).toBeUndefined();
+      expect(call[1].summary).toBe('Nueva serie');
+    }
 
     const oldMaster = dbState.events.find((event) => event.id === 'event-1');
     expect(oldMaster?.google_event_id).toBe('gcal-master-1');
+    expect(oldMaster?.title).toBe('Daily');
     expect(oldMaster?.recurrence_end_date).toBe('2026-07-26');
 
     const newMaster = dbState.events.find((event) => event.id === 'event-2');
-    expect(newMaster?.google_event_id).toBe('gcal-new-1');
+    expect(newMaster?.google_event_id).toBe('gcal-master-1');
     expect(newMaster?.series_id).not.toBe('series-1');
+    expect(String(newMaster?.start_date)).toContain('T09:00:00');
   });
 
   it('scope=all actualiza el master de Google resolviendo google_event_id', async () => {

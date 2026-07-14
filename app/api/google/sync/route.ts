@@ -542,6 +542,48 @@ const matchGoogleInstanceByOriginalDate = (
   );
 };
 
+const didEventTimesChange = (
+  before: Pick<EditableEventRow, 'start_date' | 'end_date'>,
+  after: Pick<EditableEventRow, 'start_date' | 'end_date'>,
+) => {
+  const beforeStart = splitDateAndTime(before.start_date, '00:00');
+  const beforeEnd = splitDateAndTime(before.end_date, '23:59');
+  const afterStart = splitDateAndTime(after.start_date, '00:00');
+  const afterEnd = splitDateAndTime(after.end_date, '23:59');
+
+  return (
+    beforeStart.date !== afterStart.date ||
+    beforeStart.time !== afterStart.time ||
+    beforeEnd.date !== afterEnd.date ||
+    beforeEnd.time !== afterEnd.time
+  );
+};
+
+const didRecurrencePatternChange = (
+  before: EditableEventRow,
+  changes: EventEditableFields,
+) => {
+  if (Object.prototype.hasOwnProperty.call(changes, 'recurrence_rule')) {
+    const nextRule =
+      changes.recurrence_rule === 'none' ? null : changes.recurrence_rule || null;
+    if (nextRule !== before.recurrence_rule) return true;
+  }
+
+  if (Array.isArray(changes.recurrence_days)) {
+    const beforeDays = extractRecurrenceDays(before.recurrence_days).slice().sort();
+    const nextDays = changes.recurrence_days.slice().sort();
+    if (beforeDays.join(',') !== nextDays.join(',')) return true;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(changes, 'recurrence_end_date')) {
+    const beforeEnd = before.recurrence_end_date || null;
+    const nextEnd = changes.recurrence_end_date || null;
+    if (beforeEnd !== nextEnd) return true;
+  }
+
+  return false;
+};
+
 const findRecurringInstanceForLocalEvent = async (
   calendarService: GoogleCalendarService,
   recurringEventId: string,
@@ -576,6 +618,18 @@ const truncateGoogleRecurringSeries = async (
   return calendarService.patchEvent(recurringEventId, { recurrence });
 };
 
+const resolveGoogleTimeZone = (
+  googleEvent: calendar_v3.Schema$Event | null | undefined,
+  fallback: string,
+) => {
+  return (
+    googleEvent?.start?.timeZone ||
+    googleEvent?.originalStartTime?.timeZone ||
+    fallback ||
+    'UTC'
+  );
+};
+
 const syncSingleOccurrenceToGoogle = async ({
   calendarService,
   event,
@@ -583,6 +637,8 @@ const syncSingleOccurrenceToGoogle = async ({
   seriesMasterGoogleEventId,
   seriesMasterLocalId,
   userId,
+  timesChanged,
+  timeZone,
 }: {
   calendarService: GoogleCalendarService;
   event: EditableEventRow;
@@ -590,9 +646,14 @@ const syncSingleOccurrenceToGoogle = async ({
   seriesMasterGoogleEventId: string | null;
   seriesMasterLocalId: string | null;
   userId: string;
+  timesChanged: boolean;
+  timeZone: string;
 }): Promise<SyncGoogleResult | null> => {
   const localEvent = await getLocalEventLink(toSyncPayloadFromEvent(event), userId);
-  const payload = toSyncPayloadFromEvent(event);
+  const payload = {
+    ...toSyncPayloadFromEvent(event),
+    time_zone: timeZone,
+  };
   const exceptionBody = buildLinkedGoogleEvent(payload, localEvent, {
     asException: true,
   });
@@ -605,10 +666,41 @@ const syncSingleOccurrenceToGoogle = async ({
     ownGoogleId !== seriesMasterGoogleEventId &&
     !isSeriesMasterRow;
 
+  const buildExceptionPatch = (googleSource?: calendar_v3.Schema$Event | null) => {
+    const patch: calendar_v3.Schema$Event = {
+      summary: exceptionBody.summary,
+      description: exceptionBody.description,
+      extendedProperties: exceptionBody.extendedProperties,
+    };
+
+    // Solo tocar start/end si la hora/fecha local cambió; si no, Google
+    // reinterpreta el dateTime+timeZone y produce desfases.
+    if (timesChanged) {
+      const tz = resolveGoogleTimeZone(googleSource, timeZone);
+      patch.start = {
+        dateTime: exceptionBody.start.dateTime,
+        timeZone: tz,
+      };
+      patch.end = {
+        dateTime: exceptionBody.end.dateTime,
+        timeZone: tz,
+      };
+    }
+
+    return patch;
+  };
+
   if (isOwnExceptionInstance && ownGoogleId) {
-    const updated = await calendarService.updateEvent(
+    let existing: calendar_v3.Schema$Event | null = null;
+    try {
+      existing = await calendarService.getEvent(ownGoogleId);
+    } catch (error) {
+      if (!isGoogleNotFoundError(error)) throw error;
+    }
+
+    const updated = await calendarService.patchEvent(
       ownGoogleId,
-      exceptionBody,
+      buildExceptionPatch(existing),
     );
     await persistGoogleEventId(localEvent, updated.id || ownGoogleId);
     return { action: 'updated', data: updated };
@@ -628,7 +720,10 @@ const syncSingleOccurrenceToGoogle = async ({
     return null;
   }
 
-  const updated = await calendarService.updateEvent(instance.id, exceptionBody);
+  const updated = await calendarService.patchEvent(
+    instance.id,
+    buildExceptionPatch(instance),
+  );
 
   // Nunca sobrescribir el google_event_id del master de la serie con el de una
   // instancia; solo persistir el id de excepción en ocurrencias no-master.
@@ -1239,6 +1334,17 @@ export async function PATCH(request: NextRequest) {
           ? currentEvent.google_event_id
           : null);
 
+      const timesChanged = didEventTimesChange(currentEvent, eventForGoogle);
+      let googleTimeZone = editTimeZone;
+      if (masterGoogleId) {
+        try {
+          const masterGoogleEvent = await calendarService.getEvent(masterGoogleId);
+          googleTimeZone = resolveGoogleTimeZone(masterGoogleEvent, editTimeZone);
+        } catch (error) {
+          if (!isGoogleNotFoundError(error)) throw error;
+        }
+      }
+
       const singleResult = await syncSingleOccurrenceToGoogle({
         calendarService,
         event: eventForGoogle,
@@ -1246,6 +1352,8 @@ export async function PATCH(request: NextRequest) {
         seriesMasterGoogleEventId: masterGoogleId,
         seriesMasterLocalId: seriesMaster?.id || null,
         userId: user.id,
+        timesChanged,
+        timeZone: googleTimeZone,
       });
 
       if (!singleResult) {
@@ -1272,7 +1380,9 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
-    // --- scope=this_and_following: truncar serie vieja + crear serie nueva ---
+    // --- scope=this_and_following ---
+    // Por defecto: actualizar instancias de la serie existente (sin crear otra).
+    // Solo truncar + crear serie nueva si cambia el patrón de recurrencia.
     if (
       scope === 'this_and_following' &&
       splitFromSeriesId &&
@@ -1283,30 +1393,120 @@ export async function PATCH(request: NextRequest) {
         splitFromSeriesId,
       );
       const hasPreviousOccurrences = remainingOldSeries.length > 0;
+      const recurrencePatternChanged = didRecurrencePatternChange(
+        currentEvent,
+        changes,
+      );
 
-      if (hasPreviousOccurrences && oldSeriesGoogleEventId) {
+      let googleTimeZone = editTimeZone;
+      if (oldSeriesGoogleEventId) {
+        try {
+          const masterGoogleEvent =
+            await calendarService.getEvent(oldSeriesGoogleEventId);
+          googleTimeZone = resolveGoogleTimeZone(masterGoogleEvent, editTimeZone);
+        } catch (error) {
+          if (!isGoogleNotFoundError(error)) throw error;
+        }
+      }
+
+      // Cambio de título/descripcion/hora: parchear cada instancia desde el pivot
+      if (hasPreviousOccurrences && oldSeriesGoogleEventId && !recurrencePatternChanged) {
+        let updatedCount = 0;
+        let errorCount = 0;
+        const seriesMasterLocalId =
+          remainingOldSeries.find((e) => e.is_series_master)?.id ||
+          remainingOldSeries[0]?.id ||
+          null;
+        const beforeStartTime = splitDateAndTime(
+          currentEvent.start_date,
+          '00:00',
+        ).time;
+        const beforeEndTime = splitDateAndTime(
+          currentEvent.end_date,
+          '23:59',
+        ).time;
+
+        for (const row of updatedEvents) {
+          const originalStart =
+            row.original_start_date || row.start_date || originalStartForSingle;
+          const beforeSnapshot = {
+            start_date: buildDateTimeString(
+              isoDateOnly(originalStart),
+              beforeStartTime,
+            ),
+            end_date: buildDateTimeString(
+              isoDateOnly(originalStart),
+              beforeEndTime,
+            ),
+          };
+          const timesChanged = didEventTimesChange(beforeSnapshot, row);
+
+          try {
+            const result = await syncSingleOccurrenceToGoogle({
+              calendarService,
+              event: row,
+              originalStartDate: originalStart,
+              seriesMasterGoogleEventId: oldSeriesGoogleEventId,
+              seriesMasterLocalId,
+              userId: user.id,
+              timesChanged,
+              timeZone: googleTimeZone,
+            });
+            if (result?.action === 'updated') updatedCount += 1;
+          } catch (error) {
+            console.error('Error syncing this_and_following instance:', error);
+            errorCount += 1;
+          }
+        }
+
+        // La serie local nueva sigue vinculada al mismo master de Google
+        if (eventForGoogle?.id && oldSeriesGoogleEventId) {
+          await persistGoogleEventId(
+            {
+              id: eventForGoogle.id,
+              project_id: eventForGoogle.project_id,
+              google_event_id: eventForGoogle.google_event_id,
+            },
+            oldSeriesGoogleEventId,
+          );
+        }
+
+        return NextResponse.json({
+          success: true,
+          scope,
+          action: 'updated',
+          updatedEventIds: updatedEvents.map((event) => event.id),
+          affectedSeriesId,
+          google_event_id: oldSeriesGoogleEventId,
+          google: {
+            attempted: true,
+            updated: updatedCount,
+            linked: 0,
+            created: 0,
+            errors: errorCount,
+          },
+        });
+      }
+
+      // Cambio de patrón de recurrencia (o corte desde el primer evento):
+      // truncar serie vieja + crear/actualizar master.
+      if (hasPreviousOccurrences && oldSeriesGoogleEventId && recurrencePatternChanged) {
         const untilDate = addDaysToIsoDate(splitPivotDateOnly, -1);
         await truncateGoogleRecurringSeries(
           calendarService,
           oldSeriesGoogleEventId,
           untilDate,
-          editTimeZone,
+          googleTimeZone,
         );
       }
 
       const newMasterPayload = toSyncPayloadFromEvent(eventForGoogle);
+      newMasterPayload.time_zone = googleTimeZone;
 
-      // Si el corte fue desde el primer evento, el master conserva el google_event_id
-      // y syncEventWithGoogle actualiza la serie existente. Si hubo corte real,
-      // el nuevo master no tiene id → se crea una serie nueva (la vieja ya truncada).
-      if (hasPreviousOccurrences) {
+      if (hasPreviousOccurrences && recurrencePatternChanged) {
         newMasterPayload.google_event_id = null;
       } else if (oldSeriesGoogleEventId && !newMasterPayload.google_event_id) {
         newMasterPayload.google_event_id = oldSeriesGoogleEventId;
-      }
-
-      if (editTimeZone) {
-        newMasterPayload.time_zone = editTimeZone;
       }
 
       const splitResult = await syncEventWithGoogle({
@@ -1345,14 +1545,71 @@ export async function PATCH(request: NextRequest) {
       seriesMasterForSync?.google_event_id ||
       null;
 
+    let googleTimeZone = editTimeZone;
+    let existingMaster: calendar_v3.Schema$Event | null = null;
+    if (resolvedGoogleEventId) {
+      try {
+        existingMaster = await calendarService.getEvent(resolvedGoogleEventId);
+        googleTimeZone = resolveGoogleTimeZone(existingMaster, editTimeZone);
+      } catch (error) {
+        if (!isGoogleNotFoundError(error)) throw error;
+      }
+    }
+
     const syncPayload = toSyncPayloadFromEvent({
       ...eventForGoogle,
       id: seriesMasterForSync?.id || eventForGoogle.id,
       google_event_id: resolvedGoogleEventId,
     });
+    syncPayload.time_zone = googleTimeZone;
 
-    if (editTimeZone) {
-      syncPayload.time_zone = editTimeZone;
+    // Comparar contra la ocurrencia editada + changes del form (no contra el master,
+    // cuyas fechas difieren en series recurrentes).
+    const formAfterTimes = {
+      start_date: buildDateTimeString(
+        changes.start_date
+          ? isoDateOnly(changes.start_date)
+          : isoDateOnly(currentEvent.start_date),
+        changes.start_time ||
+          splitDateAndTime(currentEvent.start_date, '00:00').time,
+      ),
+      end_date: buildDateTimeString(
+        changes.end_date
+          ? isoDateOnly(changes.end_date)
+          : isoDateOnly(currentEvent.end_date),
+        changes.end_time ||
+          splitDateAndTime(currentEvent.end_date, '23:59').time,
+      ),
+    };
+    const timesChanged = didEventTimesChange(currentEvent, formAfterTimes);
+
+    // Si no cambió la hora, parchear sin start/end para no desfasar la serie en Google
+    if (resolvedGoogleEventId && !timesChanged && scope === 'all') {
+      const googleEvent = buildLinkedGoogleEvent(
+        syncPayload,
+        {
+          id: String(syncPayload.id),
+          project_id: String(syncPayload.project_id || eventForGoogle.project_id),
+          google_event_id: resolvedGoogleEventId,
+        },
+      );
+
+      const patched = await calendarService.patchEvent(resolvedGoogleEventId, {
+        summary: googleEvent.summary,
+        description: googleEvent.description,
+        recurrence: googleEvent.recurrence,
+        extendedProperties: googleEvent.extendedProperties,
+      });
+
+      return NextResponse.json({
+        success: true,
+        scope,
+        action: 'updated',
+        updatedEventIds: updatedEvents.map((event) => event.id),
+        affectedSeriesId,
+        google_event_id: patched.id || resolvedGoogleEventId,
+        google: buildGoogleStats({ action: 'updated', data: patched }, true),
+      });
     }
 
     const result = await syncEventWithGoogle({
