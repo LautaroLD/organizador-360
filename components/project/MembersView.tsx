@@ -8,16 +8,23 @@ import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/Button';
 import { toast } from 'react-toastify';
-import { Users, UserPlus, Settings } from 'lucide-react';
+import { Users, UserPlus, Settings, LayoutTemplate } from 'lucide-react';
 import { MemberCard } from '@/components/members/MemberCard';
 import { InviteMemberModal } from '@/components/members/InviteMemberModal';
 import { ManageMemberModal } from '@/components/members/ManageMemberModal';
 import { MemberTagsModal } from '@/components/members/MemberTagsModal';
 import { ProjectTagsModal } from '@/components/members/ProjectTagsModal';
 import { AuditLogPanel } from '@/components/project/AuditLogPanel';
-import type { TagFormData, Member, ProjectTag } from '@/models';
+import { Modal } from '@/components/ui/Modal';
+import type { TagFormData, Member, ProjectTag, ProjectTemplateId, MemberOnboardingSummary } from '@/models';
 import { PostgrestSingleResponse } from '@supabase/supabase-js';
 import { useProjectPermissions } from '@/hooks/useProjectPermissions';
+import {
+  ONBOARDING_TASK_TITLE,
+  computeOnboardingProgress,
+  listProjectTemplates,
+} from '@/lib/projectTemplates';
+import clsx from 'clsx';
 
 type InvitationValidationResponse = {
   canAdd: boolean;
@@ -58,6 +65,8 @@ export const MembersView: React.FC = () => {
   // State for modals
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isTagManagementOpen, setIsTagManagementOpen] = useState(false);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<ProjectTemplateId | null>(null);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [selectedMemberForTags, setSelectedMemberForTags] = useState<Member | null>(null);
 
@@ -137,6 +146,145 @@ export const MembersView: React.FC = () => {
     },
     enabled: !!currentProject?.id && (canManageMembers || canInviteMembers),
     staleTime: 30_000,
+  });
+
+  const {
+    data: templateStatus,
+    isSuccess: templateStatusReady,
+  } = useQuery({
+    queryKey: ['project-template-applied', currentProject?.id],
+    queryFn: async () => {
+      if (!currentProject?.id) {
+        return { applied: false, templateId: null, templateName: null };
+      }
+      const response = await fetch(
+        `/api/projects/${currentProject.id}/apply-template`,
+      );
+      if (!response.ok) {
+        throw new Error('No se pudo consultar la plantilla del proyecto');
+      }
+      return response.json() as Promise<{
+        applied: boolean;
+        templateId: ProjectTemplateId | null;
+        templateName: string | null;
+      }>;
+    },
+    enabled: !!currentProject?.id && isProTeamOps,
+    staleTime: 30_000,
+  });
+
+  const hasAppliedTemplate = templateStatus?.applied === true;
+  const canShowApplyTemplate =
+    canManageMembers &&
+    isProTeamOps &&
+    templateStatusReady &&
+    !hasAppliedTemplate;
+
+  const { data: onboardingByUserId = {} } = useQuery({
+    queryKey: ['member-onboarding', currentProject?.id],
+    queryFn: async () => {
+      if (!currentProject?.id || !isProTeamOps) return {} as Record<string, MemberOnboardingSummary>;
+
+      const { data: tasks, error } = await supabase
+        .from('tasks')
+        .select(`
+          id,
+          title,
+          status,
+          done_estimated_at,
+          checklist:task_checklist_items(is_completed),
+          assignments:task_assignments(user_id)
+        `)
+        .eq('project_id', currentProject.id)
+        .eq('title', ONBOARDING_TASK_TITLE);
+
+      if (error) throw error;
+
+      const map: Record<string, MemberOnboardingSummary> = {};
+      for (const task of tasks ?? []) {
+        const checklist = (task.checklist ?? []) as Array<{ is_completed: boolean }>;
+        const assignments = (task.assignments ?? []) as Array<{ user_id: string }>;
+        for (const assignment of assignments) {
+          map[assignment.user_id] = computeOnboardingProgress({
+            userId: assignment.user_id,
+            taskId: task.id,
+            status: String(task.status),
+            doneEstimatedAt: task.done_estimated_at ?? null,
+            checklist,
+          });
+        }
+      }
+      return map;
+    },
+    enabled: !!currentProject?.id && isProTeamOps,
+    staleTime: 30_000,
+  });
+
+  const applyTemplateMutation = useMutation({
+    mutationFn: async (templateId: ProjectTemplateId) => {
+      if (!currentProject?.id) throw new Error('Proyecto no seleccionado');
+      const response = await fetch(
+        `/api/projects/${currentProject.id}/apply-template`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ templateId }),
+        },
+      );
+      const body = (await response.json().catch(() => null)) as {
+        error?: string;
+        success?: boolean;
+      } | null;
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo aplicar la plantilla');
+      }
+      return body;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project-tags'] });
+      queryClient.invalidateQueries({ queryKey: ['project-members'] });
+      queryClient.invalidateQueries({ queryKey: ['member-onboarding'] });
+      queryClient.invalidateQueries({ queryKey: ['project-template-applied'] });
+      queryClient.invalidateQueries({ queryKey: ['project-audit'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['channels'] });
+      toast.success('Plantilla aplicada al proyecto');
+      setIsTemplateModalOpen(false);
+      setSelectedTemplateId(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Error al aplicar plantilla');
+    },
+  });
+
+  const seedOnboardingMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      if (!currentProject?.id) throw new Error('Proyecto no seleccionado');
+      const response = await fetch(
+        `/api/projects/${currentProject.id}/members/onboard`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        },
+      );
+      const body = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo iniciar el onboarding');
+      }
+      return body;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project-members'] });
+      queryClient.invalidateQueries({ queryKey: ['member-onboarding'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Onboarding iniciado');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Error al iniciar onboarding');
+    },
   });
 
   // Change role mutation
@@ -421,6 +569,16 @@ export const MembersView: React.FC = () => {
             </p>
           </div>
           <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
+            { canShowApplyTemplate && (
+              <Button
+                variant='secondary'
+                onClick={ () => setIsTemplateModalOpen(true) }
+                className='w-full sm:w-auto'
+              >
+                <LayoutTemplate className='h-4 w-4 mr-2' />
+                Aplicar plantilla
+              </Button>
+            ) }
             { canManageMembers && (
               <Button
                 variant='secondary'
@@ -457,14 +615,30 @@ export const MembersView: React.FC = () => {
         { members && members.length > 0 ? (
           <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-6'>
             { members.map((member) => (
-              <MemberCard
-                key={ member.id }
-                member={ member }
-                currentUserId={ user?.id }
-                canManage={ canManageMembers }
-                onManageClick={ setSelectedMember }
-                onManageTags={ setSelectedMemberForTags }
-              />
+              <div key={ member.id } className='space-y-2'>
+                <MemberCard
+                  member={ member }
+                  currentUserId={ user?.id }
+                  canManage={ canManageMembers }
+                  onManageClick={ setSelectedMember }
+                  onManageTags={ setSelectedMemberForTags }
+                  onboarding={ onboardingByUserId[member.user_id] ?? null }
+                />
+                { canManageMembers &&
+                  isProTeamOps &&
+                  member.role !== 'Owner' &&
+                  !onboardingByUserId[member.user_id] && (
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='w-full text-xs'
+                      disabled={ seedOnboardingMutation.isPending }
+                      onClick={ () => seedOnboardingMutation.mutate(member.user_id) }
+                    >
+                      Iniciar onboarding 7 días
+                    </Button>
+                  ) }
+              </div>
             )) }
           </div>
         ) : (
@@ -544,6 +718,66 @@ export const MembersView: React.FC = () => {
           deleteTagMutation.isPending
         }
       />
+
+      <Modal
+        isOpen={ isTemplateModalOpen }
+        onClose={ () => {
+          setIsTemplateModalOpen(false);
+          setSelectedTemplateId(null);
+        } }
+        title='Aplicar plantilla de equipo'
+        size='lg'
+      >
+        <div className='space-y-4'>
+          <p className='text-sm text-[var(--text-secondary)]'>
+            Agrega canales, tags de rol y tareas iniciales según el tipo de equipo.
+            Los miembros existentes reciben tags según su rol.
+          </p>
+          <div className='grid gap-2 sm:grid-cols-3'>
+            { listProjectTemplates().map((template) => (
+              <button
+                key={ template.id }
+                type='button'
+                onClick={ () => setSelectedTemplateId(template.id) }
+                className={ clsx(
+                  'rounded-xl border p-3 text-left transition-colors',
+                  selectedTemplateId === template.id
+                    ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10'
+                    : 'border-[var(--text-secondary)]/20 hover:border-[var(--accent-primary)]/40',
+                ) }
+              >
+                <p className='text-sm font-medium text-[var(--text-primary)]'>
+                  { template.name }
+                </p>
+                <p className='text-xs text-[var(--text-secondary)] mt-1 line-clamp-3'>
+                  { template.description }
+                </p>
+              </button>
+            )) }
+          </div>
+          <div className='flex justify-end gap-2 pt-2'>
+            <Button
+              variant='secondary'
+              onClick={ () => {
+                setIsTemplateModalOpen(false);
+                setSelectedTemplateId(null);
+              } }
+            >
+              Cancelar
+            </Button>
+            <Button
+              disabled={ !selectedTemplateId || applyTemplateMutation.isPending }
+              onClick={ () => {
+                if (selectedTemplateId) {
+                  applyTemplateMutation.mutate(selectedTemplateId);
+                }
+              } }
+            >
+              { applyTemplateMutation.isPending ? 'Aplicando...' : 'Aplicar plantilla' }
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

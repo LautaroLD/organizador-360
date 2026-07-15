@@ -21,14 +21,18 @@ import {
   Sparkles,
   ChevronRight,
   AlertTriangle,
+  LayoutTemplate,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
-import type { ProjectFormData, Project } from '@/models';
+import type { ProjectFormData, Project, ProjectTemplateId } from '@/models';
 import { InviteMemberModal } from '@/components/members/InviteMemberModal';
 import { StorageIndicator } from './StorageIndicator';
-import { getPlanLimits } from '@/lib/subscriptionUtils';
+import { getPlanLimits, getUserPlanTier } from '@/lib/subscriptionUtils';
+import { listProjectTemplates } from '@/lib/projectTemplates';
 import { MessageContent } from '@/components/ui/MessageContent';
 import clsx from 'clsx';
+
+const PROJECT_TEMPLATE_OPTIONS = listProjectTemplates();
 
 type ProjectLimitStatus = {
   can_enable: boolean;
@@ -56,10 +60,27 @@ export const ProjectsView: React.FC = () => {
     reset,
     setValue,
     control,
-  } = useForm<ProjectFormData>();
+  } = useForm<ProjectFormData>({
+    defaultValues: {
+      templateId: null,
+    },
+  });
 
   const [descriptionTab, setDescriptionTab] = useState<'richtext' | 'preview'>('richtext');
   const descriptionValue = useWatch({ control, name: 'description' }) || '';
+  const selectedTemplateId = useWatch({ control, name: 'templateId' });
+
+  const { data: userPlanTier = 'free' } = useQuery({
+    queryKey: ['user-plan-tier', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return 'free' as const;
+      return getUserPlanTier(supabase, user.id);
+    },
+    enabled: !!user?.id,
+    staleTime: 60_000,
+  });
+
+  const canUseTemplates = userPlanTier === 'pro';
 
   // Fetch projects
   const { data: projects, isLoading } = useQuery({
@@ -172,13 +193,39 @@ export const ProjectsView: React.FC = () => {
 
       if (memberRes.error) throw memberRes.error;
 
-      return project;
+      let templateApplied = false;
+      if (data.templateId && canUseTemplates) {
+        const templateRes = await fetch(
+          `/api/projects/${project.id}/apply-template`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ templateId: data.templateId }),
+          },
+        );
+        if (!templateRes.ok) {
+          const body = (await templateRes.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          throw new Error(
+            body?.error ||
+              'Proyecto creado, pero no se pudo aplicar la plantilla',
+          );
+        }
+        templateApplied = true;
+      }
+
+      return { project, templateApplied };
     },
-    onSuccess: (project) => {
+    onSuccess: ({ project, templateApplied }) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
-      toast.success('Proyecto creado exitosamente');
+      toast.success(
+        templateApplied
+          ? 'Proyecto creado con plantilla de equipo'
+          : 'Proyecto creado exitosamente',
+      );
       setIsModalOpen(false);
-      reset();
+      reset({ name: '', description: '', templateId: null });
       // Navegar al proyecto recién creado
       router.push(`/projects/${project.id}`);
     },
@@ -484,11 +531,83 @@ export const ProjectsView: React.FC = () => {
               </div>
             ) }
           </div>
+
+          <div>
+            <div className='flex items-center justify-between gap-2 mb-2'>
+              <label className='block text-sm font-medium text-[var(--text-primary)]'>
+                <span className='inline-flex items-center gap-1.5'>
+                  <LayoutTemplate className='h-4 w-4 text-[var(--accent-primary)]' />
+                  Plantilla de equipo
+                </span>
+              </label>
+              { !canUseTemplates && (
+                <a
+                  href='/settings/subscription'
+                  className='text-xs font-medium text-[var(--accent-primary)] underline'
+                >
+                  Disponible en PRO
+                </a>
+              ) }
+            </div>
+            <p className='text-xs text-[var(--text-secondary)] mb-3'>
+              Canales, tags de rol, tareas iniciales y checklist de onboarding para nuevos miembros.
+            </p>
+            <div className={ clsx(
+              'grid gap-2 sm:grid-cols-2',
+              !canUseTemplates && 'opacity-60',
+            ) }>
+              <button
+                type='button'
+                disabled={ !canUseTemplates }
+                onClick={ () => setValue('templateId', null) }
+                className={ clsx(
+                  'rounded-xl border p-3 text-left transition-colors',
+                  !selectedTemplateId
+                    ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10'
+                    : 'border-[var(--text-secondary)]/20 hover:border-[var(--accent-primary)]/40',
+                  !canUseTemplates && 'cursor-not-allowed',
+                ) }
+              >
+                <p className='text-sm font-medium text-[var(--text-primary)]'>En blanco</p>
+                <p className='text-xs text-[var(--text-secondary)] mt-1'>
+                  Solo el canal general, sin seeds.
+                </p>
+              </button>
+              { PROJECT_TEMPLATE_OPTIONS.map((template) => (
+                <button
+                  key={ template.id }
+                  type='button'
+                  disabled={ !canUseTemplates }
+                  onClick={ () =>
+                    setValue('templateId', template.id as ProjectTemplateId)
+                  }
+                  className={ clsx(
+                    'rounded-xl border p-3 text-left transition-colors',
+                    selectedTemplateId === template.id
+                      ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10'
+                      : 'border-[var(--text-secondary)]/20 hover:border-[var(--accent-primary)]/40',
+                    !canUseTemplates && 'cursor-not-allowed',
+                  ) }
+                >
+                  <p className='text-sm font-medium text-[var(--text-primary)]'>
+                    { template.name }
+                  </p>
+                  <p className='text-xs text-[var(--text-secondary)] mt-1 line-clamp-2'>
+                    { template.description }
+                  </p>
+                </button>
+              )) }
+            </div>
+          </div>
+
           <div className='flex justify-end space-x-2 pt-4'>
             <Button
               type='button'
               variant='secondary'
-              onClick={ () => setIsModalOpen(false) }
+              onClick={ () => {
+                setIsModalOpen(false);
+                reset({ name: '', description: '', templateId: null });
+              } }
             >
               Cancelar
             </Button>

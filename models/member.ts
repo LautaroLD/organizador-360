@@ -30,12 +30,22 @@ export interface Member {
   tags?: MemberTagAssociation[];
 }
 
+export interface MemberOnboardingSummary {
+  percent: number;
+  completedItems: number;
+  totalItems: number;
+  isOverdue: boolean;
+  dueAt: string | null;
+  taskId: string;
+}
+
 export interface MemberCardProps {
   member: Member;
   currentUserId?: string;
   canManage: boolean;
   onManageClick: (member: Member) => void;
   onManageTags: (member: Member) => void;
+  onboarding?: MemberOnboardingSummary | null;
 }
 
 export interface ManageMemberModalProps {

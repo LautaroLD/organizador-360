@@ -7,7 +7,14 @@
 export type { AuthStore } from './auth';
 
 // Project Models
-export type { Project, ProjectFormData, ProjectStore, Channel, Message } from './project';
+export type {
+  Project,
+  ProjectFormData,
+  ProjectTemplateId,
+  ProjectStore,
+  Channel,
+  Message,
+} from './project';
 
 // Member Models
 export type {
@@ -15,6 +22,7 @@ export type {
   MemberTagAssociation,
   User,
   Member,
+  MemberOnboardingSummary,
   MemberCardProps,
   ManageMemberModalProps,
 } from './member';

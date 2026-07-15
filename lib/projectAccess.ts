@@ -57,10 +57,12 @@ export async function requireProjectMember(
   return { member, access, error: null };
 }
 
-/** PRO team ops (approvals, audit, granular perms) — same gate as analytics/export. */
+/** PRO team ops (approvals, audit, templates, etc.) — same gate as analytics/export. */
 export async function requireProTeamOps(
   supabase: SupabaseClient,
   projectId: string,
+  errorMessage =
+    'Esta función de equipo está disponible solo para plan Pro',
 ) {
   const { data: canUse, error } = await supabase.rpc('can_use_project_analytics', {
     p_project_id: projectId,
@@ -75,8 +77,7 @@ export async function requireProTeamOps(
       ok: false as const,
       error: NextResponse.json(
         {
-          error:
-            'Aprobaciones, permisos granulares y auditoría están disponibles solo para plan Pro',
+          error: errorMessage,
         },
         { status: 403 },
       ),

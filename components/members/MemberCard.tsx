@@ -3,7 +3,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Crown, Shield, Eye, Code, Users, MoreVertical, Clock, Tag } from 'lucide-react';
+import { Crown, Shield, Eye, Code, Users, MoreVertical, Clock, Tag, ListChecks } from 'lucide-react';
 import type { MemberCardProps } from '@/models';
 
 const getRoleIcon = (role: string) => {
@@ -42,6 +42,7 @@ export const MemberCard: React.FC<MemberCardProps> = ({
   canManage,
   onManageClick,
   onManageTags,
+  onboarding,
 }) => {
   const memberTags = member.tags?.map(mt => mt.tag) || [];
   const memberName = member.user?.name || 'Usuario';
@@ -87,6 +88,46 @@ export const MemberCard: React.FC<MemberCardProps> = ({
                   { tag.label }
                 </span>
               )) }
+            </div>
+          ) }
+
+          { onboarding && (
+            <div className='rounded-lg border border-[var(--text-secondary)]/15 bg-[var(--bg-primary)]/60 p-2.5 space-y-1.5'>
+              <div className='flex items-center justify-between gap-2 text-xs'>
+                <span className='inline-flex items-center gap-1 font-medium text-[var(--text-primary)]'>
+                  <ListChecks className='h-3.5 w-3.5 text-[var(--accent-primary)]' />
+                  Onboarding 7 días
+                </span>
+                <span
+                  className={
+                    onboarding.isOverdue
+                      ? 'text-[var(--accent-danger)] font-medium'
+                      : 'text-[var(--text-secondary)]'
+                  }
+                >
+                  { onboarding.percent }%
+                </span>
+              </div>
+              <div className='h-1.5 rounded-full bg-[var(--text-secondary)]/15 overflow-hidden'>
+                <div
+                  className={
+                    onboarding.isOverdue
+                      ? 'h-full bg-[var(--accent-danger)] transition-all'
+                      : 'h-full bg-[var(--accent-primary)] transition-all'
+                  }
+                  style={ { width: `${onboarding.percent}%` } }
+                />
+              </div>
+              <p className='text-[10px] text-[var(--text-secondary)]'>
+                { onboarding.completedItems }/{ onboarding.totalItems } items
+                { onboarding.dueAt
+                  ? ` · vence ${new Date(onboarding.dueAt).toLocaleDateString('es-ES', {
+                    day: 'numeric',
+                    month: 'short',
+                  })}`
+                  : '' }
+                { onboarding.isOverdue ? ' · atrasado' : '' }
+              </p>
             </div>
           ) }
 

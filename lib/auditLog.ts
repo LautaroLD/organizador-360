@@ -27,10 +27,12 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'member.role_change': 'Cambio de rol',
   'member.remove': 'Miembro eliminado',
   'member.permissions_update': 'Permisos actualizados',
+  'member.onboard': 'Onboarding de miembro',
   'resource.delete': 'Recurso eliminado',
   'approval.request': 'Revisión solicitada',
   'approval.resolve': 'Revisión resuelta',
   'task.delete': 'Tarea eliminada',
+  'project.template_applied': 'Plantilla de proyecto aplicada',
 };
 
 export function formatAuditAction(action: string): string {

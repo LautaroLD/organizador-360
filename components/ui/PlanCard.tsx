@@ -73,6 +73,7 @@ const PLAN_CONTENT: Record<PlanTier, { icon: React.ReactNode; description: strin
       'Integraciones avanzadas',
       'Exportar datos',
       'Analítica avanzada de proyectos con IA',
+      'Plantillas de proyecto y onboarding',
       'Aprobaciones y handoffs',
       'Permisos granulares y auditoría',
     ]
