@@ -28,7 +28,6 @@ import { createClient } from '@/lib/supabase/client';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 import CreateRoadmap from './CreateRoadmap';
 import { Epic, RoadmapPhase, Task } from '@/models';
-import { useProjectStore } from '@/store/projectStore';
 import { toast } from 'react-toastify';
 import { useAuthStore } from '@/store/authStore';
 import { useProjectPermissions } from '@/hooks/useProjectPermissions';
@@ -102,7 +101,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   const { generateSuggestedTasks } = useGemini();
   const supabase = createClient();
   const [openPhaseStats, setOpenPhaseStats] = useState(false);
-  const { currentProject } = useProjectStore();
   const { user } = useAuthStore();
   const { canEditKanban } = useProjectPermissions(user?.id);
   const isViewer = !canEditKanban;

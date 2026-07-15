@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { Modal } from '@/components/ui/Modal';
@@ -14,6 +14,19 @@ import {
   type PermissionOverride,
 } from '@/lib/permissions';
 
+function buildPermissionMap(
+  overrides: PermissionOverride[] = [],
+): Record<Permission, boolean | null> {
+  const next = {} as Record<Permission, boolean | null>;
+  for (const permission of OVERRIDABLE_PERMISSIONS) {
+    next[permission] = null;
+  }
+  for (const override of overrides) {
+    next[override.permission] = override.granted;
+  }
+  return next;
+}
+
 export const ManageMemberModal: React.FC<ManageMemberModalProps> = ({
   member,
   onClose,
@@ -24,16 +37,24 @@ export const ManageMemberModal: React.FC<ManageMemberModalProps> = ({
   canEditPermissions = false,
 }) => {
   const queryClient = useQueryClient();
-  const [draftOverrides, setDraftOverrides] = useState<
-    Record<Permission, boolean | null>
-  >({} as Record<Permission, boolean | null>);
+  const [draftOverrides, setDraftOverrides] = useState<Record<
+    Permission,
+    boolean | null
+  > | null>(null);
+  const [draftMemberId, setDraftMemberId] = useState<string | null>(null);
 
-  const memberId = member?.id;
+  const memberId = member?.id ?? null;
   const showPermissions =
     canEditPermissions &&
     !!projectId &&
     !!member &&
     member.role !== 'Owner';
+
+  // Reset local edits when switching members (adjust state during render).
+  if (memberId !== draftMemberId) {
+    setDraftMemberId(memberId);
+    setDraftOverrides(null);
+  }
 
   const { data: permissionsData, isLoading: loadingPermissions } = useQuery({
     queryKey: ['member-permissions', projectId, memberId],
@@ -48,28 +69,22 @@ export const ManageMemberModal: React.FC<ManageMemberModalProps> = ({
         overridable: Permission[];
       };
     },
-    enabled: showPermissions,
+    enabled: showPermissions && !!memberId,
   });
 
-  useEffect(() => {
-    if (!showPermissions) return;
-    const next = {} as Record<Permission, boolean | null>;
-    for (const permission of OVERRIDABLE_PERMISSIONS) {
-      next[permission] = null;
-    }
-    for (const override of permissionsData?.overrides ?? []) {
-      next[override.permission] = override.granted;
-    }
-    setDraftOverrides(next);
-  }, [permissionsData, showPermissions, memberId]);
+  const baselineOverrides = useMemo(
+    () => buildPermissionMap(permissionsData?.overrides),
+    [permissionsData],
+  );
+  const effectiveOverrides = draftOverrides ?? baselineOverrides;
 
   const savePermissionsMutation = useMutation({
     mutationFn: async () => {
       const overrides: PermissionOverride[] = OVERRIDABLE_PERMISSIONS
-        .filter((permission) => draftOverrides[permission] !== null)
+        .filter((permission) => effectiveOverrides[permission] !== null)
         .map((permission) => ({
           permission,
-          granted: Boolean(draftOverrides[permission]),
+          granted: Boolean(effectiveOverrides[permission]),
         }));
 
       const res = await fetch(
@@ -86,6 +101,7 @@ export const ManageMemberModal: React.FC<ManageMemberModalProps> = ({
     },
     onSuccess: () => {
       toast.success('Permisos actualizados');
+      setDraftOverrides(null);
       queryClient.invalidateQueries({
         queryKey: ['member-permissions', projectId, memberId],
       });
@@ -101,11 +117,11 @@ export const ManageMemberModal: React.FC<ManageMemberModalProps> = ({
 
   const cyclePermission = (permission: Permission) => {
     setDraftOverrides((prev) => {
-      const current = prev[permission];
-      // null (default) -> true (grant) -> false (deny) -> null
-      const next =
+      const base = prev ?? baselineOverrides;
+      const current = base[permission];
+      const nextValue =
         current === null ? true : current === true ? false : null;
-      return { ...prev, [permission]: next };
+      return { ...base, [permission]: nextValue };
     });
   };
 
@@ -170,14 +186,14 @@ export const ManageMemberModal: React.FC<ManageMemberModalProps> = ({
                     </span>
                     <span
                       className={`text-xs font-medium ${
-                        draftOverrides[permission] === true
+                        effectiveOverrides[permission] === true
                           ? 'text-emerald-600'
-                          : draftOverrides[permission] === false
+                          : effectiveOverrides[permission] === false
                             ? 'text-red-600'
                             : 'text-[var(--text-secondary)]'
                       }`}
                     >
-                      {permissionStateLabel(draftOverrides[permission] ?? null)}
+                      {permissionStateLabel(effectiveOverrides[permission] ?? null)}
                     </span>
                   </button>
                 ))}

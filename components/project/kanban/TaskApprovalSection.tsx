@@ -233,6 +233,20 @@ export const TaskApprovalSection: React.FC<TaskApprovalSectionProps> = ({
                   Bloquear
                 </Button>
               </div>
+              <ul className="text-[11px] text-[var(--text-secondary)] space-y-1 leading-snug">
+                <li>
+                  <span className="font-medium text-[var(--text-primary)]">Aprobar:</span>{' '}
+                  la revisión pasa y la tarea puede completarse.
+                </li>
+                <li>
+                  <span className="font-medium text-[var(--text-primary)]">Rechazar:</span>{' '}
+                  hay que corregir y volver a pedir revisión.
+                </li>
+                <li>
+                  <span className="font-medium text-[var(--text-primary)]">Bloquear:</span>{' '}
+                  queda en espera por un impedimento; no se puede completar.
+                </li>
+              </ul>
             </div>
           )}
           {!canResolve && (
