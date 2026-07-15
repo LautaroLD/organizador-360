@@ -7,8 +7,8 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuthStore } from '@/store/authStore';
 import {
   Code2, MessageSquare, FolderKanban, Calendar, Sparkles,
-  BarChart3, Check, X, Zap, ArrowRight,
-  GitBranch, FileText, Link2, Star,
+  BarChart3, Check, Zap, ArrowRight,
+  GitBranch, FileText, Link2, Star, Bell, HardDrive,
 } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
 
@@ -62,16 +62,16 @@ export default function HomePage() {
     },
   ];
 
-  const comparison = [
-    { feature: 'Chat en tiempo real', veenzo: true, slack: true, trello: false, notion: false },
-    { feature: 'Kanban + Roadmap', veenzo: true, slack: false, trello: true, notion: true },
-    { feature: 'Calendario compartido', veenzo: true, slack: false, trello: false, notion: false },
-    { feature: 'Google Calendar sync', veenzo: true, slack: false, trello: false, notion: false },
-    { feature: 'Asistente IA nativo', veenzo: true, slack: false, trello: false, notion: true },
-    { feature: 'Analítica con IA', veenzo: true, slack: false, trello: false, notion: false },
-    { feature: 'Gestión de archivos', veenzo: true, slack: true, trello: false, notion: true },
-    { feature: 'Notificaciones push', veenzo: true, slack: true, trello: false, notion: false },
-    { feature: 'Plan gratuito real', veenzo: true, slack: true, trello: true, notion: true },
+  const benefits = [
+    { icon: <MessageSquare className="h-5 w-5" />, title: 'Chat en tiempo real', description: 'Canales por proyecto para que la conversación viva junto al trabajo.' },
+    { icon: <FolderKanban className="h-5 w-5" />, title: 'Kanban + Roadmap', description: 'Tableros visuales con fases, prioridades y asignación de tareas.' },
+    { icon: <Calendar className="h-5 w-5" />, title: 'Calendario compartido', description: 'Eventos del equipo en un solo lugar, visibles para todos.' },
+    { icon: <Link2 className="h-5 w-5" />, title: 'Sync con Google Calendar', description: 'Sincronización bidireccional para mantener fechas alineadas.' },
+    { icon: <Sparkles className="h-5 w-5" />, title: 'Asistente IA nativo', description: 'Genera tareas, resúmenes y respuestas con contexto del proyecto.' },
+    { icon: <BarChart3 className="h-5 w-5" />, title: 'Analítica con IA', description: 'Métricas de progreso, workload y salud del equipo.' },
+    { icon: <HardDrive className="h-5 w-5" />, title: 'Gestión de archivos', description: 'Documentos y recursos centralizados en cada proyecto.' },
+    { icon: <Bell className="h-5 w-5" />, title: 'Notificaciones push', description: 'Alertas en tiempo real para no perderte lo importante.' },
+    { icon: <Zap className="h-5 w-5" />, title: 'Plan gratuito real', description: 'Empieza sin tarjeta y escala cuando tu equipo lo necesite.' },
   ];
 
   const plans = [
@@ -118,7 +118,7 @@ export default function HomePage() {
     {
       icon: <GitBranch className="h-6 w-6" />,
       title: 'Un solo espacio de trabajo',
-      description: 'Slack para chatear, Jira para tareas, Notion para docs, Calendar para eventos... Con Veenzo todo convive en un lugar.',
+      description: 'Chat, tareas, docs y calendario conviven en un mismo lugar. Sin saltar entre herramientas.',
     },
     {
       icon: <Sparkles className="h-6 w-6" />,
@@ -172,7 +172,7 @@ export default function HomePage() {
             <span className="text-[var(--accent-primary)]">equipo necesitaba</span>
           </h1>
           <p className="text-xl text-[var(--text-secondary)] mb-10 max-w-2xl mx-auto leading-relaxed">
-            Deja de saltar entre Slack, Jira, Notion y Google Calendar. Veenzo los reemplaza a todos con una plataforma unificada, con IA integrada y sin fricción.
+            Chat, proyectos, calendario e IA en una sola plataforma. Menos fricción, más foco en el trabajo del equipo.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button size="lg" onClick={ () => router.push('/auth') } className="gap-2 px-8">
@@ -206,10 +206,10 @@ export default function HomePage() {
       <section className="container mx-auto px-4 py-24">
         <div className="max-w-2xl mx-auto text-center mb-14">
           <h2 className="text-4xl font-bold text-[var(--text-primary)] mb-4">
-            ¿Por qué Veenzo y no otra herramienta?
+            ¿Por qué Veenzo?
           </h2>
           <p className="text-[var(--text-secondary)] text-lg">
-            No es otra app más. Es la que hace el trabajo de cuatro.
+            Un workspace pensado para liderar y operar equipos sin fricción.
           </p>
         </div>
         <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
@@ -255,46 +255,31 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Comparison table */ }
+      {/* Benefits */ }
       <section className="container mx-auto px-4 py-24">
         <div className="max-w-2xl mx-auto text-center mb-14">
           <h2 className="text-4xl font-bold text-[var(--text-primary)] mb-4">
-            Veenzo vs las herramientas que ya usas
+            Todo lo que tu equipo necesita
           </h2>
           <p className="text-[var(--text-secondary)] text-lg">
-            No tienes que elegir entre chat, tareas o docs. Veenzo los tiene todos.
+            Chat, tareas, docs, calendario e IA en un solo workspace.
           </p>
         </div>
-        <div className="max-w-3xl mx-auto overflow-x-auto rounded-xl border border-[var(--text-secondary)]/20">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-[var(--bg-secondary)] border-b border-[var(--text-secondary)]/20">
-                <th className="text-left px-5 py-4 text-[var(--text-secondary)] font-medium w-1/2">Función</th>
-                <th className="px-4 py-4 text-[var(--accent-primary)] font-bold">Veenzo</th>
-                <th className="px-4 py-4 text-[var(--text-secondary)] font-medium">Slack</th>
-                <th className="px-4 py-4 text-[var(--text-secondary)] font-medium">Trello</th>
-                <th className="px-4 py-4 text-[var(--text-secondary)] font-medium">Notion</th>
-              </tr>
-            </thead>
-            <tbody>
-              { comparison.map((row, i) => (
-                <tr
-                  key={ i }
-                  className={ `border-b border-[var(--text-secondary)]/10 ${i % 2 === 0 ? 'bg-[var(--bg-primary)]' : 'bg-[var(--bg-secondary)]'}` }
-                >
-                  <td className="px-5 py-3 text-[var(--text-primary)]">{ row.feature }</td>
-                  { [row.veenzo, row.slack, row.trello, row.notion].map((val, idx) => (
-                    <td key={ idx } className="px-4 py-3 text-center">
-                      { val
-                        ? <Check className={ `h-4 w-4 mx-auto ${idx === 0 ? 'text-[var(--accent-primary)]' : 'text-[var(--accent-success)]'}` } />
-                        : <X className="h-4 w-4 mx-auto text-[var(--text-secondary)]/40" />
-                      }
-                    </td>
-                  )) }
-                </tr>
-              )) }
-            </tbody>
-          </table>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
+          { benefits.map((benefit, i) => (
+            <div
+              key={ i }
+              className="flex gap-3 p-5 rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)]"
+            >
+              <div className="shrink-0 w-10 h-10 rounded-lg bg-[var(--accent-primary)]/10 flex items-center justify-center text-[var(--accent-primary)]">
+                { benefit.icon }
+              </div>
+              <div>
+                <h3 className="font-semibold text-[var(--text-primary)] mb-0.5">{ benefit.title }</h3>
+                <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{ benefit.description }</p>
+              </div>
+            </div>
+          )) }
         </div>
       </section>
 
@@ -363,7 +348,7 @@ export default function HomePage() {
               )) }
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-[var(--accent-primary-contrast)] mb-4">
-              Deja de pagar por 4 apps distintas
+              Todo tu equipo, en un solo lugar
             </h2>
             <p className="text-lg text-[var(--accent-primary-contrast)]/80 mb-8 max-w-2xl mx-auto">
               Un solo workspace para chat, gestión de proyectos, documentación, calendario y asistente IA. Empieza gratis hoy.
