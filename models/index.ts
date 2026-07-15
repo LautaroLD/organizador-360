@@ -93,3 +93,18 @@ export type {
 
 // Audit Models
 export type { AuditAction, AuditLog, WriteAuditLogInput } from './audit';
+
+// Workspace / Team Directory Models
+export type {
+  Workspace,
+  WorkspaceMember,
+  WorkspaceProject,
+  CreateWorkspaceMemberDTO,
+  UpdateWorkspaceMemberDTO,
+  AssignMemberToProjectsDTO,
+  WorkspaceHomeTask,
+  WorkspaceHomeEvent,
+  WorkspaceProjectRisk,
+  WorkspaceHomeSnapshot,
+  WorkspaceBundle,
+} from './workspace';

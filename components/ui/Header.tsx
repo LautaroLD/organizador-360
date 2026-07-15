@@ -6,7 +6,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuthStore } from '@/store/authStore';
 import { createClient } from '@/lib/supabase/client';
 import { clearLocalPushSubscription, deletePushSubscription } from '@/lib/webpush';
-import { Settings, LogOut, ChevronDown, Home, MessageSquare } from 'lucide-react';
+import { Settings, LogOut, ChevronDown, Home, Users } from 'lucide-react';
 import { toast } from 'react-toastify';
 import Link from 'next/link';
 import clsx from 'clsx';
@@ -140,6 +140,10 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
                   <Link href="/dashboard" onClick={ closeMenu } className="w-full px-4 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors flex items-center space-x-3">
                     <Home className="h-4 w-4 text-[var(--text-secondary)]" />
                     <span>Inicio</span>
+                  </Link>
+                  <Link href="/team" onClick={ closeMenu } className="w-full px-4 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors flex items-center space-x-3">
+                    <Users className="h-4 w-4 text-[var(--text-secondary)]" />
+                    <span>Equipo</span>
                   </Link>
                   <Link href="/settings"
                     onClick={ closeMenu }
