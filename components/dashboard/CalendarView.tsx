@@ -31,7 +31,7 @@ interface EventFormData {
   recurrence_end_date?: string;
 }
 
-type EventEditScope = 'single' | 'all' | 'this_and_following';
+type EventEditScope = 'single' | 'all';
 
 interface Event {
   id: string;
@@ -735,11 +735,7 @@ export const CalendarView: React.FC = () => {
       await queryClient.invalidateQueries({ queryKey: ['events'] });
       await queryClient.refetchQueries({ queryKey: ['events', currentProject?.id] });
       const scopeLabel =
-        result.scope === 'all'
-          ? 'toda la serie'
-          : result.scope === 'this_and_following'
-            ? 'este y siguientes'
-            : 'solo este evento';
+        result.scope === 'all' ? 'toda la serie' : 'solo este evento';
 
       toast.success(`Evento actualizado (${scopeLabel})`);
       if (result.message) {
@@ -1550,11 +1546,8 @@ export const CalendarView: React.FC = () => {
 
               if (editingEvent) {
                 if (editingEvent.is_recurring && editScope !== 'single') {
-                  const scopeLabel = editScope === 'all'
-                    ? 'toda la serie'
-                    : 'este y los siguientes';
                   const confirmEdit = confirm(
-                    `Vas a editar ${scopeLabel}. ¿Deseas continuar?`,
+                    'Vas a editar toda la serie. ¿Deseas continuar?',
                   );
                   if (!confirmEdit) {
                     return;

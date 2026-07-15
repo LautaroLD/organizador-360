@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { calendar_v3 } from 'googleapis';
 import { GoogleCalendarService } from '@/lib/googleCalendar';
 import {
-  applyUntilToRecurrence,
   attachGoogleEventLinkMetadata,
   formatEventForGoogle,
   GOOGLE_EVENT_PRIVATE_PROPERTIES,
@@ -493,21 +492,6 @@ const syncEventWithGoogle = async ({
   return { action: 'created', data: created };
 };
 
-const truncateGoogleRecurringSeries = async (
-  calendarService: GoogleCalendarService,
-  recurringEventId: string,
-  untilDate: string,
-  timeZone: string,
-) => {
-  const existing = await calendarService.getEvent(recurringEventId);
-  const recurrence = applyUntilToRecurrence(
-    existing.recurrence,
-    untilDate,
-    timeZone,
-  );
-  return calendarService.patchEvent(recurringEventId, { recurrence });
-};
-
 const buildGoogleStats = (
   result: SyncGoogleResult | null,
   attempted: boolean,
@@ -544,7 +528,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (!['single', 'all', 'this_and_following'].includes(scope)) {
+    if (!['single', 'all'].includes(scope)) {
       return NextResponse.json({ error: 'Scope inválido' }, { status: 400 });
     }
 
@@ -683,53 +667,7 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
-    // --- this_and_following con serie nueva: truncar + crear ---
-    if (effectiveScope === 'this_and_following' && editContext.createdNewSeries) {
-      let truncateTimeZone = editTimeZone;
-      if (editContext.oldMasterGoogleEventId) {
-        try {
-          const masterGoogleEvent = await calendarService.getEvent(
-            editContext.oldMasterGoogleEventId,
-          );
-          truncateTimeZone = resolveGoogleTimeZone(
-            masterGoogleEvent,
-            editTimeZone,
-          );
-          if (editContext.splitPivotDateOnly) {
-            await truncateGoogleRecurringSeries(
-              calendarService,
-              editContext.oldMasterGoogleEventId,
-              addDaysToIsoDate(editContext.splitPivotDateOnly, -1),
-              truncateTimeZone,
-            );
-          }
-        } catch (error) {
-          if (!isGoogleNotFoundError(error)) throw error;
-        }
-      }
-
-      const newMasterPayload = toSyncPayloadFromEvent(editContext.master);
-      newMasterPayload.google_event_id = null;
-      newMasterPayload.time_zone = editTimeZone;
-
-      const splitResult = await syncEventWithGoogle({
-        calendarService,
-        event: newMasterPayload,
-        userId: user.id,
-      });
-
-      return NextResponse.json({
-        success: true,
-        scope: effectiveScope,
-        action: splitResult.action,
-        updatedEventIds: editContext.updatedEvents.map((e) => e.id),
-        affectedSeriesId,
-        google_event_id: splitResult.data?.id || null,
-        google: buildGoogleStats(splitResult, true),
-      });
-    }
-
-    // --- all (o single one-off / this_and_following desde el primero) ---
+    // --- all (o single one-off) ---
     const master = editContext.master;
 
     const syncPayload = toSyncPayloadFromEvent(master);

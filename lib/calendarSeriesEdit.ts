@@ -205,18 +205,15 @@ export const didRecurrencePatternChange = (
 
 export type SeriesEditContext = {
   scope: EventEditScope;
-  master: EditableEventRow;
   /** Ocurrencia clickeada (master virtual o excepción existente) */
   occurrenceStart: string;
+  master: EditableEventRow;
   /** Fila a tocar en Google single (excepción o proyección del master) */
   targetForSingle: EditableEventRow;
   /** Filas actualizadas / creadas para respuesta */
   updatedEvents: EditableEventRow[];
-  /** Serie vieja truncada (this_and_following) */
+  /** google_event_id del master de la serie (para patch de instancia) */
   oldMasterGoogleEventId: string | null;
-  splitPivotDateOnly: string | null;
-  /** true si se creó un master nuevo */
-  createdNewSeries: boolean;
   timesChanged: boolean;
 };
 
@@ -353,8 +350,6 @@ export async function applySeriesEditLocally(params: {
         targetForSingle: updated,
         updatedEvents: [updated],
         oldMasterGoogleEventId: master.google_event_id,
-        splitPivotDateOnly: null,
-        createdNewSeries: false,
         timesChanged,
       };
     }
@@ -403,8 +398,6 @@ export async function applySeriesEditLocally(params: {
       targetForSingle: saved,
       updatedEvents: [saved],
       oldMasterGoogleEventId: master.google_event_id,
-      splitPivotDateOnly: null,
-      createdNewSeries: false,
       timesChanged,
     };
   }
@@ -463,134 +456,12 @@ export async function applySeriesEditLocally(params: {
       targetForSingle: updated,
       updatedEvents: [updated],
       oldMasterGoogleEventId: master.google_event_id,
-      splitPivotDateOnly: null,
-      createdNewSeries: false,
       timesChanged,
     };
   }
 
-  // this_and_following: truncar master + crear nueva serie desde el pivot
-  if (!master.is_recurring) {
-    throw Object.assign(
-      new Error('El scope solicitado requiere una serie recurrente existente.'),
-      { status: 400 },
-    );
-  }
-
-  const pivotDateOnly = occurrenceDate;
-  const previousDate = addDaysToIsoDate(pivotDateOnly, -1);
-  const isFromFirstOccurrence = pivotDateOnly <= masterStart.date;
-
-  if (isFromFirstOccurrence) {
-    // Equivale a editar toda la serie
-    const updateFields = buildEventUpdateFromChanges(master, changes);
-    const timesChanged = didEventTimesChange(master, updateFields);
-    const { data, error } = await supabaseAdmin
-      .from('events')
-      .update(updateFields)
-      .eq('id', master.id)
-      .select(EVENT_EDITABLE_SELECT)
-      .single();
-    if (error) throw error;
-    const updated = data as EditableEventRow;
-
-    const seriesId = master.series_id || master.id;
-    const exceptionSync: { title?: string; description?: string | null } = {};
-    if (Object.prototype.hasOwnProperty.call(changes, 'title')) {
-      exceptionSync.title = updateFields.title;
-    }
-    if (Object.prototype.hasOwnProperty.call(changes, 'description')) {
-      exceptionSync.description = updateFields.description;
-    }
-    if (Object.keys(exceptionSync).length > 0) {
-      await supabaseAdmin
-        .from('events')
-        .update(exceptionSync)
-        .eq('project_id', projectId)
-        .eq('series_id', seriesId)
-        .eq('is_exception', true)
-        .eq('is_cancelled', false);
-    }
-
-    return {
-      scope: 'all',
-      master: updated,
-      occurrenceStart,
-      targetForSingle: updated,
-      updatedEvents: [updated],
-      oldMasterGoogleEventId: master.google_event_id,
-      splitPivotDateOnly: null,
-      createdNewSeries: false,
-      timesChanged,
-    };
-  }
-
-  const { error: truncateError } = await supabaseAdmin
-    .from('events')
-    .update({ recurrence_end_date: previousDate })
-    .eq('id', master.id);
-  if (truncateError) throw truncateError;
-
-  // Cancelar / mover excepciones desde el pivot a la serie nueva se deja
-  // fuera: las excepciones futuras quedan huérfanas del master viejo; las
-  // borramos del rango pivot+ para no duplicar en UI.
-  const seriesId = master.series_id || master.id;
-  const seriesRows = await loadSeriesEvents(projectId, seriesId);
-  const futureExceptions = seriesRows.filter(
-    (row) =>
-      row.is_exception &&
-      isoDateOnly(row.original_start_date || row.start_date) >= pivotDateOnly,
+  throw Object.assign(
+    new Error('Scope inválido. Usa "single" o "all".'),
+    { status: 400 },
   );
-  if (futureExceptions.length > 0) {
-    await supabaseAdmin
-      .from('events')
-      .delete()
-      .in(
-        'id',
-        futureExceptions.map((row) => row.id),
-      );
-  }
-
-  const pivotBase: EditableEventRow = {
-    ...master,
-    start_date: buildDateTimeString(pivotDateOnly, masterStart.time),
-    end_date: buildDateTimeString(pivotDateOnly, masterEnd.time),
-    original_start_date: occurrenceStart,
-  };
-  const newMasterFields = buildEventUpdateFromChanges(pivotBase, changes);
-  const timesChanged = didEventTimesChange(pivotBase, newMasterFields);
-  const newMasterId = crypto.randomUUID();
-
-  const { data: inserted, error: insertError } = await supabaseAdmin
-    .from('events')
-    .insert({
-      ...newMasterFields,
-      id: newMasterId,
-      project_id: projectId,
-      created_by: master.created_by || userId,
-      is_series_master: true,
-      is_exception: false,
-      is_cancelled: false,
-      is_recurring: true,
-      original_start_date: newMasterFields.start_date,
-      google_event_id: null,
-      series_id: newMasterId,
-    })
-    .select(EVENT_EDITABLE_SELECT)
-    .single();
-  if (insertError) throw insertError;
-
-  const newMaster = inserted as EditableEventRow;
-
-  return {
-    scope,
-    master: newMaster,
-    occurrenceStart,
-    targetForSingle: newMaster,
-    updatedEvents: [newMaster],
-    oldMasterGoogleEventId: master.google_event_id,
-    splitPivotDateOnly: pivotDateOnly,
-    createdNewSeries: true,
-    timesChanged,
-  };
 }

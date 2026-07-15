@@ -23,7 +23,7 @@ interface EventFormData {
   recurrence_end_date?: string;
 }
 
-type EventEditScope = 'single' | 'all' | 'this_and_following';
+type EventEditScope = 'single' | 'all';
 
 const WEEKDAYS = [
   { id: 'monday', label: 'Lunes', short: 'L' },
@@ -171,7 +171,6 @@ export const EventModal: React.FC<EventModalProps> = ({
               >
                 <option value="single">Solo este evento</option>
                 <option value="all">Toda la serie</option>
-                <option value="this_and_following">Este y siguientes</option>
               </select>
               <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
             </div>

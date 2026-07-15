@@ -389,7 +389,7 @@ describe('PATCH /api/google/sync (Option 3: 1 master + excepciones)', () => {
     expect(master?.title).toBe('Daily');
   });
 
-  it('scope=this_and_following trunca master y crea serie nueva', async () => {
+  it('scope=this_and_following responde 400', async () => {
     const req = {
       json: async () => ({
         eventId: 'event-master::2026-07-27',
@@ -410,22 +410,16 @@ describe('PATCH /api/google/sync (Option 3: 1 master + excepciones)', () => {
     const res = await PATCH(req);
     const data = await res.json();
 
-    expect(res.status).toBe(200);
-    expect(data.success).toBe(true);
+    expect(res.status).toBe(400);
+    expect(data.error).toMatch(/scope/i);
 
-    const oldMaster = dbState.events.find((e) => e.id === 'event-master');
-    expect(oldMaster?.recurrence_end_date).toBe('2026-07-26');
-    expect(oldMaster?.title).toBe('Daily');
-
+    // No debe haber truncado ni creado serie nueva
     const masters = dbState.events.filter(
       (e) => e.is_series_master && !e.is_exception,
     );
-    expect(masters.length).toBe(2);
-
-    const newMaster = masters.find((e) => e.id !== 'event-master');
-    expect(newMaster?.title).toBe('Desde aquí');
-    expect(String(newMaster?.start_date)).toContain('T15:00:00');
-    expect(newMaster?.series_id).toBe(newMaster?.id);
+    expect(masters).toHaveLength(1);
+    expect(masters[0]?.title).toBe('Daily');
+    expect(masters[0]?.recurrence_end_date).toBe('2026-08-31');
   });
 
   it('scope=single con Google parchea instancia sin tocar start/end si no cambió la hora', async () => {

@@ -1,4 +1,4 @@
-export type EventEditScope = 'single' | 'all' | 'this_and_following';
+export type EventEditScope = 'single' | 'all';
 
 export interface EventEditableFields {
   title?: string;
