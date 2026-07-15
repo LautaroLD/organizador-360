@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const [tasksRes, membersRes] = await Promise.all([
+    const [tasksRes, membersRes, checkinsRes] = await Promise.all([
       supabase
         .from('tasks')
         .select(
@@ -106,6 +106,12 @@ export async function POST(req: NextRequest) {
           'id,user_id, role, user:users(name,email), tags:member_tags(tag:project_tags(label,color))',
         )
         .eq('project_id', projectId),
+      supabase
+        .from('project_checkins')
+        .select('user_id,checkin_date,blockers,user:users(name,email)')
+        .eq('project_id', projectId)
+        .order('checkin_date', { ascending: false })
+        .limit(100),
     ]);
 
     const tasks = tasksRes.data || [];
@@ -124,6 +130,15 @@ export async function POST(req: NextRequest) {
               | { label: string | null; color: string | null }[]
               | null;
           }[]
+        | null;
+    }>;
+    const checkins = (checkinsRes.data ?? []) as Array<{
+      user_id: string;
+      checkin_date: string;
+      blockers: string | null;
+      user:
+        | { name: string | null; email: string | null }
+        | { name: string | null; email: string | null }[]
         | null;
     }>;
     const taskIds = tasks.map((t) => t.id);
@@ -277,6 +292,17 @@ ${members
   })
   .join('\n')}
 
+Check-ins recientes con blockers:
+${checkins
+  .filter((c) => Boolean(c.blockers?.trim()))
+  .slice(0, 20)
+  .map((c) => {
+    const rawUser = Array.isArray(c.user) ? c.user[0] : c.user;
+    const name = rawUser?.name || rawUser?.email || c.user_id;
+    return `- ${c.checkin_date} | ${name}: ${c.blockers}`;
+  })
+  .join('\n') || '- Ninguno'}
+
 Comparacion cierre estimado vs real (tareas completadas):
 ${tasks
   .filter((t) => t.done_estimated_at && t.done_at)
@@ -312,7 +338,7 @@ Analiza los datos y responde en español con exactamente estas secciones en Mark
 (2-3 frases: progreso general, velocidad del equipo y carga de trabajo)
 
 ## Riesgos y alertas
-(Bullets concisos. Incluye: tareas vencidas, miembros sobrecargados, retrasos sistemáticos en estimaciones, backlog alto)
+(Bullets concisos y accionables. Incluye: tareas vencidas, miembros sobrecargados, blockers recurrentes de check-ins, retrasos sistemáticos en estimaciones, backlog alto)
 
 ## Recomendaciones
 (3-5 bullets accionables y específicos basados en los datos. Menciona nombres de miembros o tareas concretas cuando sea relevante)
@@ -321,6 +347,7 @@ NOTAS DE INTERPRETACIÓN:
 - Un desvío estimado positivo significa retraso (se terminó después de lo estimado).
 - Un desvío negativo significa que se terminó antes de lo estimado.
 - Un ratio alto de tareas en progreso vs backlog puede indicar dispersión del equipo.
+- Si hay blockers repetidos en check-ins, priorízalos como alertas de liderazgo.
 `,
       },
     });
