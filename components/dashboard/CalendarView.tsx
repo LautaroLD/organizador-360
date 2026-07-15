@@ -18,6 +18,7 @@ import { getUserPlanTier } from '@/lib/subscriptionUtils';
 import type { CalendarOccurrence, CalendarEventRow } from '@/types/calendarOccurrence';
 import { parseOccurrenceId } from '@/types/calendarOccurrence';
 import Link from 'next/link';
+import { useProjectPermissions } from '@/hooks/useProjectPermissions';
 
 interface EventFormData {
   title: string;
@@ -183,8 +184,8 @@ export const CalendarView: React.FC = () => {
   const oauthProcessedRef = useRef(false);
   const { user } = useAuthStore();
   const { currentProject } = useProjectStore();
-  const normalizedRole = currentProject?.userRole?.toLowerCase();
-  const isViewer = normalizedRole === 'viewer';
+  const { canEditCalendar } = useProjectPermissions(user?.id);
+  const isViewer = !canEditCalendar;
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();

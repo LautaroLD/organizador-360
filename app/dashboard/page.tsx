@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Header } from '@/components/ui/Header';
 import { ProjectsView } from '@/components/dashboard/ProjectsView';
 import { InvitationsWidget } from '@/components/dashboard/InvitationsWidget';
+import { ApprovalsWidget } from '@/components/dashboard/ApprovalsWidget';
 import SubscriptionRealtimeRefresh from '@/components/dashboard/SubscriptionRealtimeRefresh';
 // import { supabaseAdmin } from '@/lib/supabase/admin';
 
@@ -59,6 +60,7 @@ export default async function DashboardPage() {
         )} */}
         <SubscriptionRealtimeRefresh />
         <InvitationsWidget />
+        <ApprovalsWidget />
         <ProjectsView />
       </main>
     </div>

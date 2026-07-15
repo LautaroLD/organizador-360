@@ -73,3 +73,15 @@ export type { Task, TaskAssignment, TaskImage, TaskChecklistItem, CreateTaskDTO,
 
 // Check-in Models
 export type { ProjectCheckin, UpsertCheckinDTO } from './checkin';
+
+// Approval Models
+export type {
+  ApprovalEntityType,
+  ApprovalStatus,
+  ApprovalRequest,
+  CreateApprovalDTO,
+  ResolveApprovalDTO,
+} from './approval';
+
+// Audit Models
+export type { AuditAction, AuditLog, WriteAuditLogInput } from './audit';

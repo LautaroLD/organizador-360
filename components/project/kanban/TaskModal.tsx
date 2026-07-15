@@ -14,6 +14,7 @@ import { CheckSquare, Plus, Trash2, ImageIcon, X, Sparkles, Lock } from 'lucide-
 import useGemini from '@/hooks/useGemini';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 import { parseDateValue } from '@/lib/utils';
+import { TaskApprovalSection } from './TaskApprovalSection';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -53,6 +54,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const isGeneratingWithAI = useRef(false);
   const { generateTaskDescription } = useGemini();
   const [isPremium, setIsPremium] = React.useState(false);
+  const [isProTeamOps, setIsProTeamOps] = React.useState(false);
   const { register, handleSubmit, reset, setValue, watch } = useForm<CreateTaskDTO>({
     defaultValues: {
       title: '',
@@ -81,6 +83,19 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       checkPremium();
     }
   }, [isOpen, supabase]);
+
+  useEffect(() => {
+    const checkTeamOps = async () => {
+      if (!projectId) return;
+      const { data, error } = await supabase.rpc('can_use_project_analytics', {
+        p_project_id: projectId,
+      });
+      setIsProTeamOps(!error && data === true);
+    };
+    if (isOpen) {
+      checkTeamOps();
+    }
+  }, [isOpen, projectId, supabase]);
 
   // Fetch project members for assignment
   const { data: members } = useQuery({
@@ -797,6 +812,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             ))}
           </div>
         </div>
+
+        {initialData?.id && (
+          <TaskApprovalSection
+            projectId={projectId}
+            taskId={initialData.id}
+            enabled={isProTeamOps}
+          />
+        )}
 
         <div className="flex justify-between pt-4">
           {initialData && onDelete ? (

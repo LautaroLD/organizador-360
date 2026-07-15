@@ -44,4 +44,6 @@ export interface ManageMemberModalProps {
   onChangeRole: (memberId: string, newRole: string) => void;
   onRemove: (memberId: string, memberName: string) => void;
   isLoading: boolean;
+  projectId?: string | null;
+  canEditPermissions?: boolean;
 }

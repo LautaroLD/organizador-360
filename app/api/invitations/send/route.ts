@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { writeAuditLog } from '@/lib/auditLog';
 
 type SendInvitationPayload = {
   projectId?: string;
@@ -226,6 +227,21 @@ export async function POST(request: NextRequest) {
         },
         { status: 422 },
       );
+    }
+
+    if (!edgeFailed) {
+      await writeAuditLog(supabase, {
+        projectId: reqBody.projectId,
+        actorId: user.id,
+        action: 'member.invite',
+        entityType: 'invitation',
+        entityId: null,
+        metadata: {
+          invitee_email: reqBody.inviteeEmail ?? null,
+          role: reqBody.role,
+          invite_type: reqBody.inviteType ?? 'email',
+        },
+      });
     }
 
     return NextResponse.json(

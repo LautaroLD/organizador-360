@@ -14,8 +14,10 @@ import { InviteMemberModal } from '@/components/members/InviteMemberModal';
 import { ManageMemberModal } from '@/components/members/ManageMemberModal';
 import { MemberTagsModal } from '@/components/members/MemberTagsModal';
 import { ProjectTagsModal } from '@/components/members/ProjectTagsModal';
+import { AuditLogPanel } from '@/components/project/AuditLogPanel';
 import type { TagFormData, Member, ProjectTag } from '@/models';
 import { PostgrestSingleResponse } from '@supabase/supabase-js';
+import { useProjectPermissions } from '@/hooks/useProjectPermissions';
 
 type InvitationValidationResponse = {
   canAdd: boolean;
@@ -32,8 +34,26 @@ export const MembersView: React.FC = () => {
   const { currentProject, setCurrentProject } = useProjectStore();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const { canManageMembers: canManageByPerms, canInviteMembers, canViewAudit } =
+    useProjectPermissions(user?.id);
   const canManageMembers =
-    currentProject?.userRole === 'Owner' || currentProject?.userRole === 'Admin';
+    canManageByPerms ||
+    currentProject?.userRole === 'Owner' ||
+    currentProject?.userRole === 'Admin';
+
+  const { data: isProTeamOps = false } = useQuery({
+    queryKey: ['pro-team-ops', currentProject?.id],
+    queryFn: async () => {
+      if (!currentProject?.id) return false;
+      const { data, error } = await supabase.rpc('can_use_project_analytics', {
+        p_project_id: currentProject.id,
+      });
+      if (error) return false;
+      return data === true;
+    },
+    enabled: !!currentProject?.id,
+    staleTime: 60_000,
+  });
 
   // State for modals
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -99,7 +119,7 @@ export const MembersView: React.FC = () => {
   const { data: memberValidation, refetch: refetchMemberValidation } = useQuery({
     queryKey: ['member-limit-validation', currentProject?.id],
     queryFn: async (): Promise<InvitationValidationResponse | null> => {
-      if (!currentProject?.id || !canManageMembers) {
+      if (!currentProject?.id || !(canManageMembers || canInviteMembers)) {
         return null;
       }
 
@@ -115,7 +135,7 @@ export const MembersView: React.FC = () => {
 
       return response.json() as Promise<InvitationValidationResponse>;
     },
-    enabled: !!currentProject?.id && canManageMembers,
+    enabled: !!currentProject?.id && (canManageMembers || canInviteMembers),
     staleTime: 30_000,
   });
 
@@ -128,9 +148,23 @@ export const MembersView: React.FC = () => {
         .eq('id', memberId);
 
       if (error) throw error;
+
+      if (currentProject?.id) {
+        await fetch(`/api/projects/${currentProject.id}/audit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'member.role_change',
+            entityType: 'member',
+            entityId: memberId,
+            metadata: { new_role: newRole },
+          }),
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-members'] });
+      queryClient.invalidateQueries({ queryKey: ['project-audit'] });
       toast.success('Rol actualizado correctamente');
       setSelectedMember(null);
     },
@@ -148,9 +182,22 @@ export const MembersView: React.FC = () => {
         .eq('id', memberId);
 
       if (error) throw error;
+
+      if (currentProject?.id) {
+        await fetch(`/api/projects/${currentProject.id}/audit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'member.remove',
+            entityType: 'member',
+            entityId: memberId,
+          }),
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-members'] });
+      queryClient.invalidateQueries({ queryKey: ['project-audit'] });
       toast.success('Miembro eliminado del proyecto');
       setSelectedMember(null);
     },
@@ -384,7 +431,7 @@ export const MembersView: React.FC = () => {
                 Gestionar Tags
               </Button>
             ) }
-            { canManageMembers && (
+            { (canManageMembers || canInviteMembers) && (
               <Button
                 onClick={ handleInviteClick }
                 className='w-full sm:w-auto'
@@ -431,7 +478,7 @@ export const MembersView: React.FC = () => {
             <p className='text-sm md:text-base text-[var(--text-secondary)] mb-6 max-w-md mx-auto px-4'>
               Invita a colaboradores para comenzar a trabajar en equipo
             </p>
-            { canManageMembers && (
+            { (canManageMembers || canInviteMembers) && (
               <Button onClick={ handleInviteClick } size='lg'>
                 <UserPlus className='h-5 w-5 mr-2' />
                 Invitar primer miembro
@@ -439,6 +486,15 @@ export const MembersView: React.FC = () => {
             ) }
           </div>
         ) }
+
+        <AuditLogPanel
+          projectId={ currentProject?.id ?? '' }
+          enabled={
+            !!currentProject?.id &&
+            isProTeamOps &&
+            (canViewAudit || canManageMembers)
+          }
+        />
       </div>
 
       {/* Modals */ }
@@ -451,7 +507,10 @@ export const MembersView: React.FC = () => {
         memberLimit={ memberValidation?.limit ?? undefined }
         isPremium={ memberValidation?.isPremium ?? false }
         planTier={ memberValidation?.planTier ?? 'free' }
-        onSuccess={ () => queryClient.invalidateQueries({ queryKey: ['project-members'] }) }
+        onSuccess={ () => {
+          queryClient.invalidateQueries({ queryKey: ['project-members'] });
+          queryClient.invalidateQueries({ queryKey: ['project-audit'] });
+        } }
       />
 
       <ManageMemberModal
@@ -460,6 +519,8 @@ export const MembersView: React.FC = () => {
         onChangeRole={ (memberId, newRole) => changeRoleMutation.mutate({ memberId, newRole }) }
         onRemove={ (memberId) => removeMemberMutation.mutate(memberId) }
         isLoading={ changeRoleMutation.isPending || removeMemberMutation.isPending }
+        projectId={ currentProject?.id }
+        canEditPermissions={ canManageMembers && isProTeamOps }
       />
 
       <MemberTagsModal
