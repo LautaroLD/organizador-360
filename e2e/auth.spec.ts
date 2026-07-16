@@ -10,17 +10,24 @@ test.describe('Home Page', () => {
     // Check if page loaded
     await expect(page).toHaveTitle(/Veenzo/i);
     
-    // Check for features section using heading role to avoid strict-mode collisions
-    await expect(page.getByRole('heading', { name: /Chat en Tiempo Real/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Kanban Avanzado/i })).toBeVisible();
+    // Exact names: benefits section has similar titles with different casing
+    await expect(
+      page.getByRole('heading', { name: 'Chat en Tiempo Real', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Kanban Avanzado', exact: true }),
+    ).toBeVisible();
   });
 
   test('should have navigation button', async ({ page }) => {
     await page.goto('/');
     
-    // Look for login/signup button (it's a button, not a link)
-    // Use .first() since there are multiple buttons with "Comenzar"
-    const button = page.getByRole('button', { name: /iniciar sesión|comenzar/i }).first();
+    // Look for login/signup CTA (button, not link). Multiple CTAs may match.
+    const button = page
+      .getByRole('button', {
+        name: /iniciar sesión|empezar gratis|crear cuenta|comenzar/i,
+      })
+      .first();
     await expect(button).toBeVisible();
   });
 });
