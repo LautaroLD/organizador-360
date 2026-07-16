@@ -17,8 +17,6 @@ export type WorkspaceMember = {
   user_id: string | null;
   email: string;
   display_name: string | null;
-  org_role: string | null;
-  skills: string[];
   created_at: string;
   updated_at: string;
   user?: {
@@ -27,7 +25,13 @@ export type WorkspaceMember = {
     email: string;
     avatar_url?: string | null;
   } | null;
-  /** Project IDs within the workspace where this person is already a member */
+  /** Project memberships within the workspace (permissions live per project) */
+  activeProjects?: Array<{
+    projectId: string;
+    projectName: string;
+    role: string;
+  }>;
+  /** @deprecated Prefer activeProjects; kept for older clients */
   activeProjectIds?: string[];
 };
 
@@ -48,15 +52,11 @@ export type WorkspaceProject = {
 export type CreateWorkspaceMemberDTO = {
   email: string;
   displayName?: string | null;
-  orgRole?: string | null;
-  skills?: string[];
   userId?: string | null;
 };
 
 export type UpdateWorkspaceMemberDTO = {
   displayName?: string | null;
-  orgRole?: string | null;
-  skills?: string[];
 };
 
 export type AssignMemberToProjectsDTO = {

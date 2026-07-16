@@ -27,23 +27,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const body = (await request.json().catch(() => ({}))) as {
       displayName?: string | null;
-      orgRole?: string | null;
-      skills?: string[];
     };
 
     const updates: Record<string, unknown> = {};
     if (body.displayName !== undefined) {
       updates.display_name =
         typeof body.displayName === 'string' ? body.displayName.trim() || null : null;
-    }
-    if (body.orgRole !== undefined) {
-      updates.org_role =
-        typeof body.orgRole === 'string' ? body.orgRole.trim() || null : null;
-    }
-    if (body.skills !== undefined) {
-      updates.skills = Array.isArray(body.skills)
-        ? body.skills.map((s) => String(s).trim()).filter(Boolean).slice(0, 20)
-        : [];
     }
 
     if (Object.keys(updates).length === 0) {
@@ -57,7 +46,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .eq('workspace_id', workspaceId)
       .select(
         `
-        *,
+        id,
+        workspace_id,
+        user_id,
+        email,
+        display_name,
+        created_at,
+        updated_at,
         user:users(id, name, email, avatar_url)
       `,
       )

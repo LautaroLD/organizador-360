@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { materializeEventsForUI } from '@/lib/calendarUtils';
 import {
   buildTeamHealthSnapshot,
   isTaskOverdue,
@@ -16,6 +17,7 @@ import type {
   WorkspaceProject,
   WorkspaceProjectRisk,
 } from '@/models/workspace';
+import type { CalendarEventRow } from '@/types/calendarOccurrence';
 
 type OwnedProjectRow = {
   id: string;
@@ -46,8 +48,6 @@ function mapMemberRow(row: Record<string, unknown>): WorkspaceMember {
     user_id: (row.user_id as string | null) ?? null,
     email: String(row.email),
     display_name: (row.display_name as string | null) ?? null,
-    org_role: (row.org_role as string | null) ?? null,
-    skills: Array.isArray(row.skills) ? (row.skills as string[]) : [],
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
     user,
@@ -125,8 +125,6 @@ async function seedWorkspace(
         user_id: owner.id,
         email: ownerEmail,
         display_name: owner.name ?? null,
-        org_role: 'Owner',
-        skills: [],
       });
     }
   }
@@ -159,7 +157,7 @@ export async function seedDirectoryFromProjects(
   const ownerNorm = ownerEmail ? normalizeEmail(ownerEmail) : null;
   const byEmail = new Map<
     string,
-    { userId: string; email: string; name: string | null; orgRole: string | null }
+    { userId: string; email: string; name: string | null }
   >();
 
   for (const row of projectMembers ?? []) {
@@ -172,7 +170,6 @@ export async function seedDirectoryFromProjects(
       userId: user.id,
       email,
       name: user.name ?? null,
-      orgRole: row.role ?? null,
     });
   }
 
@@ -194,8 +191,6 @@ export async function seedDirectoryFromProjects(
       user_id: m.userId,
       email: m.email,
       display_name: m.name,
-      org_role: m.orgRole,
-      skills: [] as string[],
     }));
 
   if (inserts.length > 0) {
@@ -271,7 +266,13 @@ export async function getOrCreateWorkspaceBundle(
       .from('workspace_members')
       .select(
         `
-        *,
+        id,
+        workspace_id,
+        user_id,
+        email,
+        display_name,
+        created_at,
+        updated_at,
         user:users(id, name, email, avatar_url)
       `,
       )
@@ -300,29 +301,43 @@ export async function getOrCreateWorkspaceBundle(
   );
 
   const linkedProjectIds = projects.map((p) => p.project_id);
-  const activeByUser = new Map<string, string[]>();
+  const projectNameById = new Map(
+    projects.map((p) => [p.project_id, p.project?.name ?? 'Proyecto']),
+  );
+  const activeByUser = new Map<
+    string,
+    Array<{ projectId: string; projectName: string; role: string }>
+  >();
 
   if (linkedProjectIds.length > 0) {
     const userIds = members.map((m) => m.user_id).filter(Boolean) as string[];
     if (userIds.length > 0) {
       const { data: memberships } = await supabase
         .from('project_members')
-        .select('user_id, project_id')
+        .select('user_id, project_id, role')
         .in('project_id', linkedProjectIds)
         .in('user_id', userIds);
 
       for (const row of memberships ?? []) {
         const list = activeByUser.get(row.user_id) ?? [];
-        list.push(row.project_id);
+        list.push({
+          projectId: row.project_id,
+          projectName: projectNameById.get(row.project_id) ?? 'Proyecto',
+          role: row.role || 'Collaborator',
+        });
         activeByUser.set(row.user_id, list);
       }
     }
   }
 
-  const membersWithProjects = members.map((m) => ({
-    ...m,
-    activeProjectIds: m.user_id ? activeByUser.get(m.user_id) ?? [] : [],
-  }));
+  const membersWithProjects = members.map((m) => {
+    const activeProjects = m.user_id ? activeByUser.get(m.user_id) ?? [] : [];
+    return {
+      ...m,
+      activeProjects,
+      activeProjectIds: activeProjects.map((p) => p.projectId),
+    };
+  });
 
   return {
     ok: true,
@@ -387,38 +402,70 @@ export async function buildWorkspaceHomeSnapshot(
   const weekEndIso = weekEnd.toISOString();
   const nowIso = now.toISOString();
 
-  const [tasksRes, eventsRes, membersRes, checkinsRes] = await Promise.all([
-    supabase
-      .from('tasks')
-      .select('id, title, status, priority, done_estimated_at, project_id, created_at, done_at')
-      .in('project_id', projectIds)
-      .neq('status', 'done'),
-    supabase
-      .from('events')
-      .select('id, title, start_date, end_date, project_id, is_cancelled')
-      .in('project_id', projectIds)
-      .gte('start_date', nowIso)
-      .lte('start_date', weekEndIso)
-      .eq('is_cancelled', false)
-      .order('start_date', { ascending: true })
-      .limit(40),
-    supabase
-      .from('project_members')
-      .select(
-        `
+  const eventSelect = `
+    id,
+    google_event_id,
+    title,
+    description,
+    start_date,
+    end_date,
+    project_id,
+    created_by,
+    series_id,
+    is_series_master,
+    is_exception,
+    is_cancelled,
+    original_start_date,
+    recurrence_rule,
+    recurrence_days,
+    recurrence_end_date,
+    is_recurring
+  `;
+
+  const [tasksRes, oneOffEventsRes, recurringEventsRes, membersRes, checkinsRes] =
+    await Promise.all([
+      supabase
+        .from('tasks')
+        .select('id, title, status, priority, done_estimated_at, project_id, created_at, done_at')
+        .in('project_id', projectIds)
+        .neq('status', 'done'),
+      // One-offs (y filas no recurrentes) dentro de la ventana
+      supabase
+        .from('events')
+        .select(eventSelect)
+        .in('project_id', projectIds)
+        .eq('is_cancelled', false)
+        .or('is_recurring.is.null,is_recurring.eq.false')
+        .gte('start_date', nowIso)
+        .lte('start_date', weekEndIso)
+        .order('start_date', { ascending: true })
+        .limit(80),
+      // Series recurrentes: masters (+ excepciones) que pueden generar ocurrencias en la ventana
+      supabase
+        .from('events')
+        .select(eventSelect)
+        .in('project_id', projectIds)
+        .eq('is_recurring', true)
+        .lte('start_date', weekEndIso)
+        .order('start_date', { ascending: true })
+        .limit(200),
+      supabase
+        .from('project_members')
+        .select(
+          `
         project_id,
         user_id,
         role,
         user:users(id, name)
       `,
-      )
-      .in('project_id', projectIds),
-    supabase
-      .from('project_checkins')
-      .select('project_id, user_id, checkin_date, blockers')
-      .in('project_id', projectIds)
-      .gte('checkin_date', toISODateLocal(new Date(now.getTime() - 7 * 86400000))),
-  ]);
+        )
+        .in('project_id', projectIds),
+      supabase
+        .from('project_checkins')
+        .select('project_id, user_id, checkin_date, blockers')
+        .in('project_id', projectIds)
+        .gte('checkin_date', toISODateLocal(new Date(now.getTime() - 7 * 86400000))),
+    ]);
 
   const openTasks = tasksRes.data ?? [];
   const openTaskIds = openTasks.map((t) => t.id);
@@ -470,14 +517,46 @@ export async function buildWorkspaceHomeSnapshot(
     (t) => !t.assignee_ids.includes(currentUserId),
   );
 
-  const upcomingEvents: WorkspaceHomeEvent[] = (eventsRes.data ?? []).map((event) => ({
-    id: event.id,
-    title: event.title,
-    start_date: event.start_date,
-    end_date: event.end_date,
-    project_id: event.project_id,
-    project_name: projectNameById.get(event.project_id) ?? 'Proyecto',
-  }));
+  const todayIso = todayDate;
+  const recurringRows = (recurringEventsRes.data ?? []).filter((row) => {
+    if (row.is_cancelled && !row.is_exception) return false;
+    // Masters/series sin fin, o con fin >= hoy; excepciones se incluyen para materializar
+    if (row.is_exception) return true;
+    if (!row.recurrence_end_date) return true;
+    const endDate = String(row.recurrence_end_date).slice(0, 10);
+    return endDate >= todayIso;
+  });
+
+  const eventRowsById = new Map<string, CalendarEventRow>();
+  for (const row of [...(oneOffEventsRes.data ?? []), ...recurringRows]) {
+    eventRowsById.set(row.id, {
+      ...(row as CalendarEventRow),
+      created_by: row.created_by ?? '',
+      is_cancelled: row.is_cancelled ?? false,
+    });
+  }
+
+  const windowStartMs = now.getTime();
+  const windowEndMs = weekEnd.getTime();
+
+  const upcomingEvents: WorkspaceHomeEvent[] = materializeEventsForUI([
+    ...eventRowsById.values(),
+  ])
+    .filter((occurrence) => {
+      if (occurrence.is_cancelled) return false;
+      const startMs = Date.parse(occurrence.start_date);
+      if (Number.isNaN(startMs)) return false;
+      return startMs >= windowStartMs && startMs <= windowEndMs;
+    })
+    .slice(0, 60)
+    .map((occurrence) => ({
+      id: occurrence.id,
+      title: occurrence.title,
+      start_date: occurrence.start_date,
+      end_date: occurrence.end_date,
+      project_id: occurrence.project_id,
+      project_name: projectNameById.get(occurrence.project_id) ?? 'Proyecto',
+    }));
 
   const risks: WorkspaceProjectRisk[] = [];
 

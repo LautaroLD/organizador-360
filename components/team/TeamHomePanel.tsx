@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import type {
+  WorkspaceHomeEvent,
   WorkspaceHomeSnapshot,
   WorkspaceHomeTask,
   WorkspaceProjectRisk,
@@ -192,6 +193,121 @@ function ProjectTasksAccordion({
                   className="block px-1 pt-1 text-xs text-[var(--accent-primary)] hover:underline"
                 >
                   Ver kanban del proyecto
+                </Link>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+type ProjectEventGroup = {
+  projectId: string;
+  projectName: string;
+  events: WorkspaceHomeEvent[];
+};
+
+function groupEventsByProject(events: WorkspaceHomeEvent[]): ProjectEventGroup[] {
+  const map = new Map<string, ProjectEventGroup>();
+
+  for (const event of events) {
+    const existing = map.get(event.project_id);
+    if (existing) {
+      existing.events.push(event);
+      continue;
+    }
+    map.set(event.project_id, {
+      projectId: event.project_id,
+      projectName: event.project_name,
+      events: [event],
+    });
+  }
+
+  return [...map.values()].sort((a, b) => {
+    if (b.events.length !== a.events.length) return b.events.length - a.events.length;
+    return a.projectName.localeCompare(b.projectName, 'es');
+  });
+}
+
+function ProjectEventsAccordion({ events }: { events: WorkspaceHomeEvent[] }) {
+  const groups = useMemo(() => groupEventsByProject(events), [events]);
+  const [openIds, setOpenIds] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    if (groups[0]) initial.add(groups[0].projectId);
+    return initial;
+  });
+
+  const toggle = (projectId: string) => {
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+  };
+
+  if (events.length === 0) {
+    return (
+      <p className="text-sm text-[var(--text-secondary)]">
+        Sin eventos próximos en los proyectos vinculados.
+      </p>
+    );
+  }
+
+  return (
+    <div className="min-h-0 max-h-[28rem] space-y-2 overflow-y-auto overscroll-contain pr-1">
+      {groups.map((group) => {
+        const isOpen = openIds.has(group.projectId);
+        return (
+          <div
+            key={group.projectId}
+            className="rounded-md border border-[var(--text-secondary)]/20 overflow-hidden"
+          >
+            <button
+              type="button"
+              onClick={() => toggle(group.projectId)}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-[var(--bg-primary)] transition-colors"
+              aria-expanded={isOpen}
+            >
+              <ChevronDown
+                className={clsx(
+                  'h-4 w-4 shrink-0 text-[var(--text-secondary)] transition-transform',
+                  isOpen ? 'rotate-0' : '-rotate-90',
+                )}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-[var(--text-primary)]">
+                  {group.projectName}
+                </p>
+              </div>
+              <span className="shrink-0 rounded-md bg-[var(--bg-primary)] px-1.5 py-0.5 text-xs text-[var(--text-secondary)]">
+                {group.events.length}
+              </span>
+            </button>
+
+            {isOpen && (
+              <div className="max-h-56 space-y-1.5 overflow-y-auto border-t border-[var(--text-secondary)]/15 px-2 py-2">
+                {group.events.map((event) => (
+                  <Link
+                    key={event.id}
+                    href={`/projects/${event.project_id}/calendar`}
+                    className="block rounded-md border border-[var(--text-secondary)]/20 px-3 py-2 hover:bg-[var(--bg-primary)] transition-colors"
+                  >
+                    <p className="text-sm font-medium text-[var(--text-primary)]">
+                      {event.title}
+                    </p>
+                    <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                      {formatEventWhen(event.start_date)}
+                    </p>
+                  </Link>
+                ))}
+                <Link
+                  href={`/projects/${group.projectId}/calendar`}
+                  className="block px-1 pt-1 text-xs text-[var(--accent-primary)] hover:underline"
+                >
+                  Ver calendario del proyecto
                 </Link>
               </div>
             )}
@@ -427,32 +543,14 @@ export function TeamHomePanel({ home, isLoading }: Props) {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
               <CalendarDays className="h-4 w-4" />
-              Calendario del equipo (7 días)
+              Calendario del equipo (próximos 7 días)
             </CardTitle>
           </CardHeader>
           <CardContent className="min-h-0">
-            <div className="min-h-0 max-h-[28rem] space-y-2 overflow-y-auto overscroll-contain pr-1">
-              {upcomingEvents.length === 0 ? (
-                <p className="text-sm text-[var(--text-secondary)]">
-                  Sin eventos próximos en los proyectos vinculados.
-                </p>
-              ) : (
-                upcomingEvents.map((event) => (
-                  <Link
-                    key={event.id}
-                    href={`/projects/${event.project_id}/calendar`}
-                    className="block rounded-md border border-[var(--text-secondary)]/20 px-3 py-2 hover:bg-[var(--bg-primary)] transition-colors"
-                  >
-                    <p className="text-sm font-medium text-[var(--text-primary)]">
-                      {event.title}
-                    </p>
-                    <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                      {event.project_name} · {formatEventWhen(event.start_date)}
-                    </p>
-                  </Link>
-                ))
-              )}
-            </div>
+            <ProjectEventsAccordion
+              key={`events-${upcomingEvents.length}`}
+              events={upcomingEvents}
+            />
           </CardContent>
         </Card>
 
