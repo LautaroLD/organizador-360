@@ -10,12 +10,11 @@ test.describe('Home Page', () => {
     // Check if page loaded
     await expect(page).toHaveTitle(/Veenzo/i);
     
-    // Exact names: benefits section has similar titles with different casing
     await expect(
-      page.getByRole('heading', { name: 'Chat en Tiempo Real', exact: true }),
+      page.getByRole('heading', { name: 'Chat en tiempo real', exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: 'Kanban Avanzado', exact: true }),
+      page.getByRole('heading', { name: 'Kanban + Roadmap', exact: true }),
     ).toBeVisible();
   });
 
