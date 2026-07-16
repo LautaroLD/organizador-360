@@ -466,9 +466,9 @@ export async function buildWorkspaceHomeSnapshot(
 
   const mappedTasks = openTasks.map(mapTask);
   const myOpenTasks = mappedTasks.filter((t) => t.assignee_ids.includes(currentUserId));
-  const teamOpenTasks = mappedTasks
-    .filter((t) => !t.assignee_ids.includes(currentUserId))
-    .slice(0, 40);
+  const teamOpenTasks = mappedTasks.filter(
+    (t) => !t.assignee_ids.includes(currentUserId),
+  );
 
   const upcomingEvents: WorkspaceHomeEvent[] = (eventsRes.data ?? []).map((event) => ({
     id: event.id,
@@ -592,10 +592,10 @@ export async function buildWorkspaceHomeSnapshot(
   const overdueCount = mappedTasks.filter((t) => t.is_overdue).length;
 
   return {
-    myOpenTasks: myOpenTasks.slice(0, 30),
+    myOpenTasks,
     teamOpenTasks,
     upcomingEvents,
-    risks: risks.slice(0, 30),
+    risks,
     stats: {
       linkedProjects: projects.length,
       directoryMembers: memberCount ?? 0,
