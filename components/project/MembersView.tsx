@@ -52,7 +52,7 @@ export const MembersView: React.FC = () => {
     queryKey: ['pro-team-ops', currentProject?.id],
     queryFn: async () => {
       if (!currentProject?.id) return false;
-      const { data, error } = await supabase.rpc('can_use_project_analytics', {
+      const { data, error } = await supabase.rpc('can_use_project_team_ops', {
         p_project_id: currentProject.id,
       });
       if (error) return false;

@@ -32,18 +32,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const body = (await request.json().catch(() => ({}))) as {
       email?: string;
       displayName?: string | null;
-      orgRole?: string | null;
-      skills?: string[];
     };
 
     const email = typeof body.email === 'string' ? normalizeEmail(body.email) : '';
     if (!email || !email.includes('@')) {
       return NextResponse.json({ error: 'Email inválido' }, { status: 400 });
     }
-
-    const skills = Array.isArray(body.skills)
-      ? body.skills.map((s) => String(s).trim()).filter(Boolean).slice(0, 20)
-      : [];
 
     const { data: existingUser } = await supabase
       .from('users')
@@ -75,13 +69,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
           (typeof body.displayName === 'string' && body.displayName.trim()) ||
           existingUser?.name ||
           null,
-        org_role:
-          typeof body.orgRole === 'string' ? body.orgRole.trim() || null : null,
-        skills,
       })
       .select(
         `
-        *,
+        id,
+        workspace_id,
+        user_id,
+        email,
+        display_name,
+        created_at,
+        updated_at,
         user:users(id, name, email, avatar_url)
       `,
       )
@@ -95,7 +92,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    return NextResponse.json({ member: { ...data, activeProjectIds: [] } }, { status: 201 });
+    return NextResponse.json(
+      { member: { ...data, activeProjects: [], activeProjectIds: [] } },
+      { status: 201 },
+    );
   } catch (error) {
     console.error('POST /api/workspaces/[id]/members error:', error);
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });

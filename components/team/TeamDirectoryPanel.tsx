@@ -4,8 +4,8 @@ import React, { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import {
+  ChevronDown,
   FolderKanban,
-  Pencil,
   Plus,
   Trash2,
   UserPlus,
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import type { WorkspaceBundle, WorkspaceMember, WorkspaceProject } from '@/models/workspace';
+import clsx from 'clsx';
 
 type Props = {
   bundle: WorkspaceBundle;
@@ -25,33 +26,48 @@ function memberLabel(member: WorkspaceMember) {
   return member.display_name || member.user?.name || member.email;
 }
 
+function getActiveProjects(member: WorkspaceMember) {
+  if (member.activeProjects && member.activeProjects.length > 0) {
+    return member.activeProjects;
+  }
+  return (member.activeProjectIds ?? []).map((projectId) => ({
+    projectId,
+    projectName: 'Proyecto',
+    role: '—',
+  }));
+}
+
 export function TeamDirectoryPanel({ bundle }: Props) {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [editing, setEditing] = useState<WorkspaceMember | null>(null);
   const [assigning, setAssigning] = useState<WorkspaceMember | null>(null);
+  const [openProjectLists, setOpenProjectLists] = useState<Set<string>>(() => new Set());
 
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [orgRole, setOrgRole] = useState('');
-  const [skillsInput, setSkillsInput] = useState('');
-
-  const [editName, setEditName] = useState('');
-  const [editRole, setEditRole] = useState('');
-  const [editSkills, setEditSkills] = useState('');
 
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [assignRole, setAssignRole] = useState<'Admin' | 'Collaborator' | 'Viewer'>(
     'Collaborator',
   );
 
-  const projectNameById = useMemo(() => {
+  const toggleProjectList = (memberId: string) => {
+    setOpenProjectLists((prev) => {
+      const next = new Set(prev);
+      if (next.has(memberId)) next.delete(memberId);
+      else next.add(memberId);
+      return next;
+    });
+  };
+
+  const roleByProjectId = useMemo(() => {
     const map = new Map<string, string>();
-    for (const link of bundle.projects) {
-      map.set(link.project_id, link.project?.name ?? 'Proyecto');
+    if (!assigning) return map;
+    for (const project of getActiveProjects(assigning)) {
+      map.set(project.projectId, project.role);
     }
     return map;
-  }, [bundle.projects]);
+  }, [assigning]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['workspace'] });
@@ -60,18 +76,12 @@ export function TeamDirectoryPanel({ bundle }: Props) {
 
   const addMutation = useMutation({
     mutationFn: async () => {
-      const skills = skillsInput
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
       const res = await fetch(`/api/workspaces/${bundle.workspace.id}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
           displayName: displayName || null,
-          orgRole: orgRole || null,
-          skills,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -83,39 +93,6 @@ export function TeamDirectoryPanel({ bundle }: Props) {
       setIsAddOpen(false);
       setEmail('');
       setDisplayName('');
-      setOrgRole('');
-      setSkillsInput('');
-      invalidate();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const editMutation = useMutation({
-    mutationFn: async () => {
-      if (!editing) return;
-      const skills = editSkills
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const res = await fetch(
-        `/api/workspaces/${bundle.workspace.id}/members/${editing.id}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            displayName: editName || null,
-            orgRole: editRole || null,
-            skills,
-          }),
-        },
-      );
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || 'No se pudo actualizar');
-      return body;
-    },
-    onSuccess: () => {
-      toast.success('Directorio actualizado');
-      setEditing(null);
       invalidate();
     },
     onError: (err: Error) => toast.error(err.message),
@@ -179,13 +156,6 @@ export function TeamDirectoryPanel({ bundle }: Props) {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const openEdit = (member: WorkspaceMember) => {
-    setEditing(member);
-    setEditName(member.display_name || member.user?.name || '');
-    setEditRole(member.org_role || '');
-    setEditSkills((member.skills ?? []).join(', '));
-  };
-
   const openAssign = (member: WorkspaceMember) => {
     setAssigning(member);
     setSelectedProjectIds([]);
@@ -208,7 +178,8 @@ export function TeamDirectoryPanel({ bundle }: Props) {
             Directorio del equipo
           </h2>
           <p className="text-sm text-[var(--text-secondary)]">
-            Skills, rol org y proyectos activos — asigná a varios proyectos sin reinvitar.
+            Personas del workspace y sus permisos por proyecto. Asigná a varios
+            proyectos sin reinvitar.
           </p>
         </div>
         <Button onClick={() => setIsAddOpen(true)}>
@@ -226,85 +197,100 @@ export function TeamDirectoryPanel({ bundle }: Props) {
         </Card>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {bundle.members.map((member) => (
-            <Card key={member.id}>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-[var(--text-primary)]">
-                      {memberLabel(member)}
-                    </p>
-                    <p className="text-xs text-[var(--text-secondary)]">{member.email}</p>
-                    {member.org_role && (
-                      <p className="text-xs text-[var(--accent-primary)] mt-1">
-                        {member.org_role}
+          {bundle.members.map((member) => {
+            const activeProjects = getActiveProjects(member);
+            return (
+              <Card key={member.id}>
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-[var(--text-primary)]">
+                        {memberLabel(member)}
                       </p>
-                    )}
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      onClick={() => openEdit(member)}
-                      aria-label="Editar"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      onClick={() => openAssign(member)}
-                      aria-label="Asignar a proyectos"
-                    >
-                      <UserPlus className="h-3.5 w-3.5" />
-                    </Button>
-                    {member.user_id !== bundle.workspace.owner_id && (
+                      <p className="text-xs text-[var(--text-secondary)]">
+                        {member.email}
+                      </p>
+                    </div>
+                    <div className="flex gap-1">
                       <Button
                         size="icon-sm"
                         variant="ghost"
-                        onClick={() => {
-                          if (
-                            confirm(
-                              `¿Quitar a ${memberLabel(member)} del directorio?`,
-                            )
-                          ) {
-                            deleteMutation.mutate(member.id);
-                          }
-                        }}
-                        aria-label="Eliminar"
+                        onClick={() => openAssign(member)}
+                        aria-label="Asignar a proyectos"
                       >
-                        <Trash2 className="h-3.5 w-3.5 text-[var(--accent-danger)]" />
+                        <UserPlus className="h-3.5 w-3.5" />
                       </Button>
+                      {member.user_id !== bundle.workspace.owner_id && (
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => {
+                            if (
+                              confirm(
+                                `¿Quitar a ${memberLabel(member)} del directorio?`,
+                              )
+                            ) {
+                              deleteMutation.mutate(member.id);
+                            }
+                          }}
+                          aria-label="Eliminar"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-[var(--accent-danger)]" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border border-[var(--text-secondary)]/20 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => toggleProjectList(member.id)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-[var(--bg-primary)] transition-colors"
+                      aria-expanded={openProjectLists.has(member.id)}
+                    >
+                      <ChevronDown
+                        className={clsx(
+                          'h-4 w-4 shrink-0 text-[var(--text-secondary)] transition-transform',
+                          openProjectLists.has(member.id) ? 'rotate-0' : '-rotate-90',
+                        )}
+                      />
+                      <FolderKanban className="h-3.5 w-3.5 shrink-0 text-[var(--text-secondary)]" />
+                      <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-secondary)]">
+                        Permisos por proyecto
+                      </span>
+                      <span className="shrink-0 rounded-md bg-[var(--bg-primary)] px-1.5 py-0.5 text-xs text-[var(--text-secondary)]">
+                        {activeProjects.length}
+                      </span>
+                    </button>
+
+                    {openProjectLists.has(member.id) && (
+                      <div className="max-h-40 space-y-1 overflow-y-auto border-t border-[var(--text-secondary)]/15 px-3 py-2">
+                        {activeProjects.length === 0 ? (
+                          <p className="text-xs text-[var(--text-secondary)]">
+                            Sin proyectos activos en el workspace
+                          </p>
+                        ) : (
+                          activeProjects.map((project) => (
+                            <div
+                              key={project.projectId}
+                              className="flex items-center justify-between gap-2 text-xs"
+                            >
+                              <span className="truncate text-[var(--text-primary)]">
+                                {project.projectName}
+                              </span>
+                              <span className="shrink-0 rounded-md bg-[var(--bg-primary)] px-1.5 py-0.5 text-[var(--text-secondary)]">
+                                {project.role}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     )}
                   </div>
-                </div>
-
-                {(member.skills ?? []).length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {member.skills.map((skill) => (
-                      <span
-                        key={skill}
-                        className="text-xs px-2 py-0.5 rounded-md bg-[var(--bg-primary)] text-[var(--text-secondary)]"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex items-start gap-1.5 text-xs text-[var(--text-secondary)]">
-                  <FolderKanban className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                  <span>
-                    {(member.activeProjectIds ?? []).length === 0
-                      ? 'Sin proyectos activos en el workspace'
-                      : (member.activeProjectIds ?? [])
-                          .map((id) => projectNameById.get(id) ?? 'Proyecto')
-                          .join(', ')}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -326,18 +312,9 @@ export function TeamDirectoryPanel({ bundle }: Props) {
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Opcional"
           />
-          <Input
-            label="Rol en la org"
-            value={orgRole}
-            onChange={(e) => setOrgRole(e.target.value)}
-            placeholder="Ej. Design Lead"
-          />
-          <Input
-            label="Skills (separadas por coma)"
-            value={skillsInput}
-            onChange={(e) => setSkillsInput(e.target.value)}
-            placeholder="React, QA, Facilitation"
-          />
+          <p className="text-xs text-[var(--text-secondary)]">
+            El rol/permiso se elige al asignar la persona a cada proyecto.
+          </p>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setIsAddOpen(false)}>
               Cancelar
@@ -347,38 +324,6 @@ export function TeamDirectoryPanel({ bundle }: Props) {
               disabled={!email.trim() || addMutation.isPending}
             >
               Agregar
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal
-        isOpen={!!editing}
-        onClose={() => setEditing(null)}
-        title="Editar persona"
-      >
-        <div className="space-y-3 p-1">
-          <Input
-            label="Nombre"
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-          />
-          <Input
-            label="Rol en la org"
-            value={editRole}
-            onChange={(e) => setEditRole(e.target.value)}
-          />
-          <Input
-            label="Skills (separadas por coma)"
-            value={editSkills}
-            onChange={(e) => setEditSkills(e.target.value)}
-          />
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="secondary" onClick={() => setEditing(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={() => editMutation.mutate()} disabled={editMutation.isPending}>
-              Guardar
             </Button>
           </div>
         </div>
@@ -397,7 +342,7 @@ export function TeamDirectoryPanel({ bundle }: Props) {
         <div className="space-y-4 p-1">
           <p className="text-sm text-[var(--text-secondary)]">
             Se agregará como miembro del proyecto sin reenviar invitación (si ya tiene
-            cuenta).
+            cuenta). El rol se aplica solo a los proyectos seleccionados.
           </p>
 
           {!assigning?.user_id && (
@@ -409,7 +354,7 @@ export function TeamDirectoryPanel({ bundle }: Props) {
 
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">
-              Rol en los proyectos
+              Rol en los proyectos seleccionados
             </label>
             <select
               className="w-full rounded-lg border border-[var(--text-secondary)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]"
@@ -431,7 +376,8 @@ export function TeamDirectoryPanel({ bundle }: Props) {
               </p>
             ) : (
               bundle.projects.map((link: WorkspaceProject) => {
-                const already = assigning?.activeProjectIds?.includes(link.project_id);
+                const currentRole = roleByProjectId.get(link.project_id);
+                const already = !!currentRole;
                 const checked = selectedProjectIds.includes(link.project_id);
                 return (
                   <label
@@ -444,11 +390,13 @@ export function TeamDirectoryPanel({ bundle }: Props) {
                       disabled={!!already || !assigning?.user_id}
                       onChange={() => toggleProject(link.project_id)}
                     />
-                    <span className="text-sm text-[var(--text-primary)]">
-                      {link.project?.name ?? 'Proyecto'}
+                    <span className="flex min-w-0 flex-1 items-center justify-between gap-2 text-sm text-[var(--text-primary)]">
+                      <span className="truncate">
+                        {link.project?.name ?? 'Proyecto'}
+                      </span>
                       {already ? (
-                        <span className="ml-2 text-xs text-[var(--text-secondary)]">
-                          (ya es miembro)
+                        <span className="shrink-0 text-xs text-[var(--text-secondary)]">
+                          {currentRole}
                         </span>
                       ) : null}
                     </span>

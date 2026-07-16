@@ -87,7 +87,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   useEffect(() => {
     const checkTeamOps = async () => {
       if (!projectId) return;
-      const { data, error } = await supabase.rpc('can_use_project_analytics', {
+      const { data, error } = await supabase.rpc('can_use_project_team_ops', {
         p_project_id: projectId,
       });
       setIsProTeamOps(!error && data === true);

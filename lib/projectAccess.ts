@@ -57,14 +57,14 @@ export async function requireProjectMember(
   return { member, access, error: null };
 }
 
-/** PRO team ops (approvals, audit, templates, etc.) — same gate as analytics/export. */
+/** PRO team ops — gated by project owner's plan (any project member can check). */
 export async function requireProTeamOps(
   supabase: SupabaseClient,
   projectId: string,
   errorMessage =
-    'Esta función de equipo está disponible solo para plan Pro',
+    'Esta función de equipo está disponible solo cuando el owner del proyecto tiene plan Pro',
 ) {
-  const { data: canUse, error } = await supabase.rpc('can_use_project_analytics', {
+  const { data: canUse, error } = await supabase.rpc('can_use_project_team_ops', {
     p_project_id: projectId,
   });
 
