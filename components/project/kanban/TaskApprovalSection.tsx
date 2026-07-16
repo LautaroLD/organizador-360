@@ -145,7 +145,7 @@ export const TaskApprovalSection: React.FC<TaskApprovalSectionProps> = ({
       <div className="rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] p-3">
         <p className="text-sm text-[var(--text-secondary)] flex items-center gap-2">
           <ClipboardCheck className="h-4 w-4" />
-          Aprobaciones y handoffs disponibles en plan Pro
+          Aprobaciones y handoffs disponibles cuando el owner del proyecto tiene plan Pro
         </p>
       </div>
     );

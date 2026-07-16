@@ -158,7 +158,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   const { data: isProTeamOps = false } = useQuery({
     queryKey: ['pro-team-ops', projectId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('can_use_project_analytics', {
+      const { data, error } = await supabase.rpc('can_use_project_team_ops', {
         p_project_id: projectId,
       });
       if (error) return false;
