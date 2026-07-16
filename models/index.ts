@@ -7,7 +7,14 @@
 export type { AuthStore } from './auth';
 
 // Project Models
-export type { Project, ProjectFormData, ProjectStore, Channel, Message } from './project';
+export type {
+  Project,
+  ProjectFormData,
+  ProjectTemplateId,
+  ProjectStore,
+  Channel,
+  Message,
+} from './project';
 
 // Member Models
 export type {
@@ -15,6 +22,7 @@ export type {
   MemberTagAssociation,
   User,
   Member,
+  MemberOnboardingSummary,
   MemberCardProps,
   ManageMemberModalProps,
 } from './member';
@@ -73,3 +81,30 @@ export type { Task, TaskAssignment, TaskImage, TaskChecklistItem, CreateTaskDTO,
 
 // Check-in Models
 export type { ProjectCheckin, UpsertCheckinDTO } from './checkin';
+
+// Approval Models
+export type {
+  ApprovalEntityType,
+  ApprovalStatus,
+  ApprovalRequest,
+  CreateApprovalDTO,
+  ResolveApprovalDTO,
+} from './approval';
+
+// Audit Models
+export type { AuditAction, AuditLog, WriteAuditLogInput } from './audit';
+
+// Workspace / Team Directory Models
+export type {
+  Workspace,
+  WorkspaceMember,
+  WorkspaceProject,
+  CreateWorkspaceMemberDTO,
+  UpdateWorkspaceMemberDTO,
+  AssignMemberToProjectsDTO,
+  WorkspaceHomeTask,
+  WorkspaceHomeEvent,
+  WorkspaceProjectRisk,
+  WorkspaceHomeSnapshot,
+  WorkspaceBundle,
+} from './workspace';

@@ -1,4 +1,10 @@
-interface EventFormData {
+import type {
+  CalendarEventRow,
+  CalendarOccurrence,
+} from '@/types/calendarOccurrence';
+import { buildOccurrenceId } from '@/types/calendarOccurrence';
+
+export interface EventFormData {
   title: string;
   description: string;
   start_date: string;
@@ -15,7 +21,6 @@ interface GeneratedEvent {
   end: string;
 }
 
-// Helper para sumar días sin depender de Date
 const addDays = (dateStr: string, days: number): string => {
   const [year, month, day] = dateStr.split('-').map(Number);
   const date = new Date(year, month - 1, day);
@@ -26,10 +31,65 @@ const addDays = (dateStr: string, days: number): string => {
   return `${newYear}-${newMonth}-${newDay}`;
 };
 
-// Helper para obtener día de la semana
 const getDayOfWeek = (dateStr: string): number => {
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day).getDay();
+};
+
+const isoDateOnly = (value: string) => value.split('T')[0] || value;
+
+const splitDateAndTime = (value: string, fallbackTime: string) => {
+  const raw = (value || '').trim();
+  const [datePartRaw, timePartRaw = ''] = raw.includes('T')
+    ? raw.split('T')
+    : [raw, fallbackTime];
+
+  const datePart = (datePartRaw || '').slice(0, 10);
+  const cleanedTime = timePartRaw
+    .replace(/\.\d+/, '')
+    .replace(/(Z|[+-]\d{2}:?\d{2})$/i, '');
+  const timePart = cleanedTime.slice(0, 5);
+
+  return {
+    date: /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : datePartRaw,
+    time: /^\d{2}:\d{2}$/.test(timePart) ? timePart : fallbackTime,
+  };
+};
+
+const extractRecurrenceDays = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((day): day is string => typeof day === 'string');
+  }
+  // Postgres/JSON a veces serializa el array como string
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((day): day is string => typeof day === 'string');
+      }
+    } catch {
+      return value
+        .split(',')
+        .map((day) => day.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
+};
+
+/** Horizonte por defecto si la serie no tiene fecha de fin (Google puede ser infinita). */
+export const DEFAULT_RECURRENCE_HORIZON_DAYS = 180;
+
+export const resolveRecurrenceEndDate = (
+  startDate: string,
+  endDate?: string | null,
+): string => {
+  const start = startDate.split('T')[0] || startDate;
+  if (endDate) {
+    const end = endDate.split('T')[0] || endDate;
+    if (end >= start) return end;
+  }
+  return addDays(start, DEFAULT_RECURRENCE_HORIZON_DAYS);
 };
 
 export const generateRecurringEvents = (data: EventFormData): GeneratedEvent[] => {
@@ -37,32 +97,23 @@ export const generateRecurringEvents = (data: EventFormData): GeneratedEvent[] =
     return [];
   }
 
-  const startHours = parseInt(data.start_time.split(':')[0]);
-  const startMins = parseInt(data.start_time.split(':')[1]);
-  const endHours = parseInt(data.end_time.split(':')[0]);
-  const endMins = parseInt(data.end_time.split(':')[1]);
-
-  // Calcular duración en minutos
-  let durationMinutes = endHours * 60 + endMins - (startHours * 60 + startMins);
-  if (durationMinutes < 0) {
-    durationMinutes += 24 * 60; // Si cruza medianoche
-  }
+  const startHours = parseInt(data.start_time.split(':')[0], 10);
+  const startMins = parseInt(data.start_time.split(':')[1], 10);
+  const endHours = parseInt(data.end_time.split(':')[0], 10);
+  const endMins = parseInt(data.end_time.split(':')[1], 10);
 
   if (data.recurrence_type === 'none') {
-    // Evento único: usar hora exacta sin conversiones
     let endDate = data.start_date;
-    const finalEndHours = endHours;
-    const finalEndMins = endMins;
-
-    // Si la hora final es menor que la inicial, es del día siguiente
     if (endHours * 60 + endMins < startHours * 60 + startMins) {
       endDate = addDays(data.start_date, 1);
     }
 
-    return [{
-      start: `${data.start_date}T${String(startHours).padStart(2, '0')}:${String(startMins).padStart(2, '0')}:00`,
-      end: `${endDate}T${String(finalEndHours).padStart(2, '0')}:${String(finalEndMins).padStart(2, '0')}:00`,
-    }];
+    return [
+      {
+        start: `${data.start_date}T${String(startHours).padStart(2, '0')}:${String(startMins).padStart(2, '0')}:00`,
+        end: `${endDate}T${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}:00`,
+      },
+    ];
   }
 
   if (!data.selected_days || data.selected_days.length === 0) {
@@ -71,11 +122,22 @@ export const generateRecurringEvents = (data: EventFormData): GeneratedEvent[] =
 
   const events: GeneratedEvent[] = [];
   let current = data.start_date;
-  const recurrenceEnd = data.recurrence_end_date || data.start_date;
+  const recurrenceEnd = resolveRecurrenceEndDate(
+    data.start_date,
+    data.recurrence_end_date,
+  );
 
   while (current <= recurrenceEnd) {
     const dayOfWeek = getDayOfWeek(current);
-    const dayIdMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayIdMap = [
+      'sunday',
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+    ];
     const dayId = dayIdMap[dayOfWeek];
 
     if (dayId && data.selected_days?.includes(dayId)) {
@@ -91,3 +153,225 @@ export const generateRecurringEvents = (data: EventFormData): GeneratedEvent[] =
   return events;
 };
 
+const toOccurrenceFromRow = (
+  row: CalendarEventRow,
+  overrides?: Partial<CalendarOccurrence>,
+): CalendarOccurrence => {
+  const occurrenceStart =
+    overrides?.occurrence_start ||
+    row.original_start_date ||
+    row.start_date;
+
+  return {
+    ...row,
+    description: overrides?.description ?? (row.description || ''),
+    is_recurring: overrides?.is_recurring ?? Boolean(row.is_recurring),
+    recurrence_days:
+      overrides?.recurrence_days ?? extractRecurrenceDays(row.recurrence_days),
+    creator: overrides?.creator ?? row.creator ?? undefined,
+    source_event_id: overrides?.source_event_id || row.id,
+    occurrence_start: occurrenceStart,
+    is_virtual: overrides?.is_virtual ?? false,
+    id: overrides?.id || row.id,
+    start_date: overrides?.start_date ?? row.start_date,
+    end_date: overrides?.end_date ?? row.end_date,
+    title: overrides?.title ?? row.title,
+    google_event_id: overrides?.google_event_id ?? row.google_event_id,
+    series_id: overrides?.series_id ?? row.series_id,
+    is_series_master: overrides?.is_series_master ?? row.is_series_master,
+    is_exception: overrides?.is_exception ?? row.is_exception,
+    is_cancelled: overrides?.is_cancelled ?? row.is_cancelled,
+    original_start_date:
+      overrides?.original_start_date ?? row.original_start_date,
+    recurrence_rule: overrides?.recurrence_rule ?? row.recurrence_rule,
+    recurrence_end_date:
+      overrides?.recurrence_end_date ?? row.recurrence_end_date,
+    project_id: overrides?.project_id ?? row.project_id,
+    created_by: overrides?.created_by ?? row.created_by,
+  };
+};
+
+/**
+ * Expande un master recurrente a ocurrencias virtuales, aplicando excepciones.
+ * Las excepciones canceladas se omiten; las modificadas reemplazan la ocurrencia.
+ */
+export function expandSeriesOccurrences(
+  master: CalendarEventRow,
+  exceptions: CalendarEventRow[] = [],
+): CalendarOccurrence[] {
+  if (!master.is_recurring) {
+    return [toOccurrenceFromRow(master, { source_event_id: master.id })];
+  }
+
+  const startParts = splitDateAndTime(master.start_date, '00:00');
+  const endParts = splitDateAndTime(master.end_date, '23:59');
+  const selectedDays = extractRecurrenceDays(master.recurrence_days);
+
+  const generated = generateRecurringEvents({
+    title: master.title,
+    description: master.description || '',
+    start_date: startParts.date,
+    start_time: startParts.time,
+    end_date: endParts.date,
+    end_time: endParts.time,
+    recurrence_type:
+      master.recurrence_rule === 'weekly' || master.recurrence_rule === 'custom'
+        ? master.recurrence_rule
+        : selectedDays.length > 0
+          ? 'weekly'
+          : 'none',
+    selected_days: selectedDays,
+    recurrence_end_date: resolveRecurrenceEndDate(
+      startParts.date,
+      master.recurrence_end_date,
+    ),
+  });
+
+  const exceptionsByDate = new Map<string, CalendarEventRow>();
+  for (const exception of exceptions) {
+    const key = isoDateOnly(
+      exception.original_start_date || exception.start_date,
+    );
+    exceptionsByDate.set(key, exception);
+  }
+
+  const results: CalendarOccurrence[] = [];
+
+  for (const slot of generated) {
+    const dateKey = isoDateOnly(slot.start);
+    const exception = exceptionsByDate.get(dateKey);
+
+    if (exception?.is_cancelled) {
+      exceptionsByDate.delete(dateKey);
+      continue;
+    }
+
+    if (exception) {
+      results.push(
+        toOccurrenceFromRow(exception, {
+          source_event_id: master.id,
+          occurrence_start: exception.original_start_date || slot.start,
+          is_virtual: false,
+          is_recurring: true,
+          series_id: master.series_id || master.id,
+          recurrence_rule: master.recurrence_rule,
+          recurrence_days: extractRecurrenceDays(master.recurrence_days),
+          recurrence_end_date: master.recurrence_end_date,
+        }),
+      );
+      exceptionsByDate.delete(dateKey);
+      continue;
+    }
+
+    results.push(
+      toOccurrenceFromRow(master, {
+        id: buildOccurrenceId(master.id, slot.start),
+        start_date: slot.start,
+        end_date: slot.end,
+        source_event_id: master.id,
+        occurrence_start: slot.start,
+        is_virtual: true,
+        original_start_date: slot.start,
+        is_series_master: isoDateOnly(master.start_date) === dateKey,
+        is_exception: false,
+      }),
+    );
+  }
+
+  // Excepciones fuera del rango generado (p.ej. movidas) — mostrarlas igual
+  for (const orphan of exceptionsByDate.values()) {
+    if (orphan.is_cancelled) continue;
+    results.push(
+      toOccurrenceFromRow(orphan, {
+        source_event_id: master.id,
+        occurrence_start: orphan.original_start_date || orphan.start_date,
+        is_virtual: false,
+        is_recurring: true,
+      }),
+    );
+  }
+
+  return results.sort((a, b) => a.start_date.localeCompare(b.start_date));
+}
+
+/**
+ * Convierte filas de DB (modelo Option 3 + legado N filas) en ocurrencias de UI.
+ * - Serie Option 3: 1 master (+ excepciones) → expand
+ * - Serie legado: N filas materializadas → se muestran tal cual (hasta migrar)
+ * - One-off: 1:1
+ */
+export function materializeEventsForUI(
+  rows: CalendarEventRow[],
+): CalendarOccurrence[] {
+  const oneOffs: CalendarEventRow[] = [];
+  const seriesMap = new Map<string, CalendarEventRow[]>();
+
+  for (const row of rows) {
+    if (!row.is_recurring || !row.series_id) {
+      oneOffs.push(row);
+      continue;
+    }
+    const bucket = seriesMap.get(row.series_id) || [];
+    bucket.push(row);
+    seriesMap.set(row.series_id, bucket);
+  }
+
+  const results: CalendarOccurrence[] = oneOffs.map((row) =>
+    toOccurrenceFromRow(row, { source_event_id: row.id }),
+  );
+
+  for (const [, seriesRows] of seriesMap) {
+    const master =
+      seriesRows.find((row) => row.is_series_master) ||
+      [...seriesRows].sort((a, b) => a.start_date.localeCompare(b.start_date))[0];
+
+    if (!master) continue;
+
+    const exceptions = seriesRows.filter((row) => row.is_exception);
+    const nonExceptionSiblings = seriesRows.filter(
+      (row) => !row.is_exception && row.id !== master.id,
+    );
+
+    // Legado: varias filas materializadas sin ser excepciones
+    if (nonExceptionSiblings.length > 0) {
+      for (const row of seriesRows.filter((r) => !r.is_exception)) {
+        results.push(
+          toOccurrenceFromRow(row, {
+            source_event_id: master.id,
+            occurrence_start: row.original_start_date || row.start_date,
+            is_virtual: false,
+          }),
+        );
+      }
+      for (const exception of exceptions) {
+        if (exception.is_cancelled) continue;
+        const dateKey = isoDateOnly(
+          exception.original_start_date || exception.start_date,
+        );
+        const alreadyShown = results.some(
+          (item) =>
+            item.series_id === master.series_id &&
+            isoDateOnly(item.occurrence_start) === dateKey,
+        );
+        if (!alreadyShown) {
+          results.push(
+            toOccurrenceFromRow(exception, {
+              source_event_id: master.id,
+              occurrence_start:
+                exception.original_start_date || exception.start_date,
+              is_virtual: false,
+            }),
+          );
+        }
+      }
+      continue;
+    }
+
+    results.push(...expandSeriesOccurrences(master, exceptions));
+  }
+
+  return results.sort((a, b) => {
+    if (a.start_date === b.start_date) return a.id.localeCompare(b.id);
+    return a.start_date.localeCompare(b.start_date);
+  });
+}

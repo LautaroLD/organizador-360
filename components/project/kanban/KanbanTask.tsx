@@ -5,14 +5,16 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '@/models';
 import { Card } from '@/components/ui/Card';
-import { CheckSquare, ImageIcon, CalendarClock, Layers, Flag, FolderKanban } from 'lucide-react';
+import { CheckSquare, ImageIcon, CalendarClock, Layers, Flag, FolderKanban, ClipboardCheck } from 'lucide-react';
 import clsx from 'clsx';
 import { formatLocalDate } from '@/lib/utils';
+import type { ApprovalStatus } from '@/models/approval';
 
 interface KanbanTaskProps {
   task: Task;
   phaseLabel?: string | null;
   epicLabel?: string | null;
+  approvalStatus?: ApprovalStatus;
   onEdit?: () => void;
   isReadOnly?: boolean;
 }
@@ -21,9 +23,34 @@ interface KanbanTaskCardProps {
   task: Task;
   phaseLabel?: string | null;
   epicLabel?: string | null;
+  approvalStatus?: ApprovalStatus;
 }
 
-const KanbanTaskCardComponent: React.FC<KanbanTaskCardProps> = ({ task, phaseLabel, epicLabel }) => {
+const APPROVAL_BADGE: Record<ApprovalStatus, { label: string; className: string }> = {
+  pending: {
+    label: 'En revisión',
+    className: 'text-amber-700 bg-amber-500/10 border-amber-500/30',
+  },
+  approved: {
+    label: 'Aprobado',
+    className: 'text-emerald-700 bg-emerald-500/10 border-emerald-500/30',
+  },
+  rejected: {
+    label: 'Rechazado',
+    className: 'text-[var(--text-secondary)] bg-[var(--bg-secondary)] border-[var(--text-secondary)]/30',
+  },
+  blocked: {
+    label: 'Bloqueado',
+    className: 'text-red-700 bg-red-500/10 border-red-500/30',
+  },
+};
+
+const KanbanTaskCardComponent: React.FC<KanbanTaskCardProps> = ({
+  task,
+  phaseLabel,
+  epicLabel,
+  approvalStatus,
+}) => {
   const doneEstimatedAtDate = task.done_estimated_at ? new Date(task.done_estimated_at) : null;
   const now = new Date();
   const isOverdue = doneEstimatedAtDate ? doneEstimatedAtDate.getTime() < now.getTime() : false;
@@ -33,6 +60,8 @@ const KanbanTaskCardComponent: React.FC<KanbanTaskCardProps> = ({ task, phaseLab
     media: 'text-amber-700 bg-amber-500/10 border-amber-500/30',
     baja: 'text-emerald-700 bg-emerald-500/10 border-emerald-500/30',
   };
+
+  const approvalBadge = approvalStatus ? APPROVAL_BADGE[approvalStatus] : null;
 
   return (
     <Card className="p-3 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)]/60 transition-all hover:shadow-md border border-transparent flex flex-col gap-2">
@@ -45,6 +74,13 @@ const KanbanTaskCardComponent: React.FC<KanbanTaskCardProps> = ({ task, phaseLab
           </p>
         ) }
       </div>
+
+      { approvalBadge && (
+        <p className={ clsx('text-[11px] border py-1 px-2 rounded-full w-fit font-medium inline-flex items-center gap-1', approvalBadge.className) }>
+          <ClipboardCheck className="w-3 h-3" />
+          { approvalBadge.label }
+        </p>
+      ) }
 
       { task.tags && task.tags.length > 0 && (
         <div className="flex flex-wrap gap-1">
@@ -130,7 +166,14 @@ const KanbanTaskCardComponent: React.FC<KanbanTaskCardProps> = ({ task, phaseLab
 
 export const KanbanTaskCard = React.memo(KanbanTaskCardComponent);
 
-const KanbanTaskComponent: React.FC<KanbanTaskProps> = ({ task, phaseLabel, epicLabel, onEdit, isReadOnly = false }) => {
+const KanbanTaskComponent: React.FC<KanbanTaskProps> = ({
+  task,
+  phaseLabel,
+  epicLabel,
+  approvalStatus,
+  onEdit,
+  isReadOnly = false,
+}) => {
   const {
     attributes,
     listeners,
@@ -155,7 +198,12 @@ const KanbanTaskComponent: React.FC<KanbanTaskProps> = ({ task, phaseLabel, epic
       onClick={ isReadOnly ? undefined : onEdit }
       className={ clsx(isReadOnly ? 'cursor-default' : 'cursor-pointer', isDragging ? 'opacity-70 scale-[0.98]' : 'opacity-100') }
     >
-      <KanbanTaskCard task={ task } phaseLabel={ phaseLabel } epicLabel={ epicLabel } />
+      <KanbanTaskCard
+        task={ task }
+        phaseLabel={ phaseLabel }
+        epicLabel={ epicLabel }
+        approvalStatus={ approvalStatus }
+      />
     </div>
   );
 };

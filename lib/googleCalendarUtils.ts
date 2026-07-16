@@ -14,11 +14,22 @@ export interface GoogleCalendarEvent {
     timeZone: string;
   };
   recurrence?: string[];
+  recurringEventId?: string;
+  originalStartTime?: {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
   extendedProperties?: {
     private?: Record<string, string>;
     shared?: Record<string, string>;
   };
 }
+
+export type FormatEventForGoogleOptions = {
+  /** Omit RRULE — used when patching a single occurrence exception. */
+  asException?: boolean;
+};
 
 export interface AppEvent {
   id?: string;
@@ -74,7 +85,10 @@ export function attachGoogleEventLinkMetadata(
 }
 
 // Formatear evento de la app para Google Calendar
-export function formatEventForGoogle(appEvent: AppEvent): GoogleCalendarEvent {
+export function formatEventForGoogle(
+  appEvent: AppEvent,
+  options?: FormatEventForGoogleOptions,
+): GoogleCalendarEvent {
   // Validar y formatear las fechas
   const startDate = appEvent.start_date;
   const startTime = appEvent.start_time || '00:00';
@@ -110,8 +124,12 @@ export function formatEventForGoogle(appEvent: AppEvent): GoogleCalendarEvent {
     },
   };
 
-  // Agregar recurrencia si existe
-  if (appEvent.is_recurring && appEvent.recurrence_rule) {
+  // Agregar recurrencia si existe (nunca en excepciones de una sola ocurrencia)
+  if (
+    !options?.asException &&
+    appEvent.is_recurring &&
+    appEvent.recurrence_rule
+  ) {
     const rrule = convertToRRule(appEvent.recurrence_rule, appEvent.selected_days, appEvent.recurrence_end_date, eventTimeZone);
     if (rrule) {
       googleEvent.recurrence = [rrule];
@@ -121,8 +139,29 @@ export function formatEventForGoogle(appEvent: AppEvent): GoogleCalendarEvent {
   return googleEvent;
 }
 
+/** Aplica o reemplaza UNTIL en reglas RRULE existentes (para truncar series). */
+export function applyUntilToRecurrence(
+  recurrence: string[] | null | undefined,
+  untilDate: string,
+  timeZone: string = 'UTC',
+): string[] {
+  const until = getEndOfDayUtc(untilDate, timeZone);
+
+  if (!recurrence || recurrence.length === 0) {
+    return [`RRULE:FREQ=WEEKLY;UNTIL=${until}`];
+  }
+
+  return recurrence.map((rule) => {
+    if (!rule.startsWith('RRULE:')) return rule;
+    const cleaned = rule
+      .replace(/;UNTIL=[^;]+/gi, '')
+      .replace(/;COUNT=\d+/gi, '');
+    return `${cleaned};UNTIL=${until}`;
+  });
+}
+
 // Convertir regla de recurrencia a formato RFC 5545
-function convertToRRule(recurrenceType: string, selectedDays?: string[], recurrenceEndDate?: string, timeZone: string = 'UTC'): string | null {
+export function convertToRRule(recurrenceType: string, selectedDays?: string[], recurrenceEndDate?: string, timeZone: string = 'UTC'): string | null {
   if (recurrenceType === 'weekly' && selectedDays && selectedDays.length > 0) {
     const daysMap: Record<string, string> = {
       monday: 'MO',
@@ -157,7 +196,7 @@ function convertToRRule(recurrenceType: string, selectedDays?: string[], recurre
 }
 
 // Calcular el final del día en UTC respetando la zona horaria
-function getEndOfDayUtc(dateStr: string, timeZone: string): string {
+export function getEndOfDayUtc(dateStr: string, timeZone: string): string {
   const [year, month, day] = dateStr.split('-').map(Number);
   
   // Intentamos encontrar el instante UTC que corresponde a las 23:59:59 en la zona horaria local

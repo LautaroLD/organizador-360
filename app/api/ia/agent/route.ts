@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
     ${tasks.map((t) => `* (Titulo: ${t.title}) - (Prioridad: ${t.priority || 'Sin prioridad'}) - (Estado: ${t.status}) - (Descripcion: ${t.description || 'Sin descripción'})`).join('\n')}
 
     ÚLTIMOS MENSAJES DE CHAT (Contexto de conversación):
-    ${chatMessages
+    ${[...chatMessages]
       .reverse()
       .map((m: ChatMessage) => {
         const user = Array.isArray(m.users) ? m.users[0] : m.users;
@@ -264,14 +264,17 @@ export async function POST(req: NextRequest) {
       ],
       config: {
         systemInstruction: `Eres el Asistente de IA oficial del proyecto "${project.name}".
+        La fecha actual es ${new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
+
         Tu objetivo es ayudar al equipo respondiendo preguntas sobre el estado del proyecto, tareas y conversaciones pasadas.
         
         INSTRUCCIONES:
-        1. Usa la información proporcionada arriba para responder. Si no está en el contexto, di que no tienes esa información reciente.
-        2. Sé conciso y directo.
-        3. Si sugieres crear tareas, hazlo en formato de lista clara.
-        4. Puedes analizar el sentimiento del equipo basado en el chat.
-        5. Mantén el hilo de la conversación actual si el usuario hace referencias a mensajes anteriores.
+        1. Usa el contexto del proyecto provisto en la conversación para responder. Si la información no está disponible, indícalo claramente.
+        2. Sé conciso y directo. Usa listas o tablas cuando la respuesta tenga múltiples elementos.
+        3. Si sugieres crear tareas, hazlo en formato de lista clara con título accionable.
+        4. Puedes analizar el sentimiento del equipo basado en el historial de chat.
+        5. Mantén el hilo de la conversación si el usuario hace referencias a mensajes anteriores.
+        6. Para fechas de eventos, usa la fecha actual como referencia para indicar cuánto falta.
         
         Responde siempre en español.
         `,

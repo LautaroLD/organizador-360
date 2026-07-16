@@ -58,6 +58,7 @@ export async function proxy(request: NextRequest) {
     '/projects',
     '/settings',
     '/invitations',
+    '/team',
   ];
   const isProtectedRoute = protectedRoutes.some((route) =>
     pathname.startsWith(route),

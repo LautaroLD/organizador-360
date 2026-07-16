@@ -172,6 +172,12 @@ export const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
           </div>
         ) }
 
+        { planTier === 'pro' && (
+          <p className='text-xs text-[var(--text-secondary)] rounded-lg border border-[var(--accent-primary)]/20 bg-[var(--accent-primary)]/5 px-3 py-2'>
+            Al aceptar, el miembro recibirá tags según su rol y el checklist de onboarding de los primeros 7 días.
+          </p>
+        ) }
+
         {/* Invite method toggle */ }
         <div>
           <p className='text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide mb-2'>Método de invitación</p>

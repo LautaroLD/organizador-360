@@ -5,6 +5,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { KanbanTask } from './KanbanTask';
 import { Task } from '@/models';
+import type { ApprovalStatus } from '@/models/approval';
 
 interface KanbanColumnProps {
   id: string;
@@ -12,6 +13,7 @@ interface KanbanColumnProps {
   tasks: Task[];
   phaseLabels?: Record<number, string>;
   epicLabels?: Record<string, string>;
+  approvalByTaskId?: Record<string, ApprovalStatus>;
   onEditTask?: (task: Task) => void;
   isReadOnly?: boolean;
 }
@@ -34,7 +36,16 @@ const columnTheme: Record<string, { ring: string; badge: string; dot: string; }>
   },
 };
 
-const KanbanColumnComponent: React.FC<KanbanColumnProps> = ({ id, title, tasks, phaseLabels, epicLabels, onEditTask, isReadOnly = false }) => {
+const KanbanColumnComponent: React.FC<KanbanColumnProps> = ({
+  id,
+  title,
+  tasks,
+  phaseLabels,
+  epicLabels,
+  approvalByTaskId,
+  onEditTask,
+  isReadOnly = false,
+}) => {
   const { setNodeRef } = useDroppable({
     id: id,
   });
@@ -67,6 +78,7 @@ const KanbanColumnComponent: React.FC<KanbanColumnProps> = ({ id, title, tasks, 
                 task={ task }
                 phaseLabel={ task.phase_roadmap_id ? phaseLabels?.[task.phase_roadmap_id] : null }
                 epicLabel={ task.epic_id ? epicLabels?.[task.epic_id] : null }
+                approvalStatus={ approvalByTaskId?.[task.id] }
                 isReadOnly={ isReadOnly }
                 onEdit={ () => onEditTask?.(task) }
               />

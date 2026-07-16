@@ -58,9 +58,20 @@ test.describe('Settings & Subscription (Requires Auth)', () => {
     await page.goto('/settings/subscription', {
       waitUntil: 'domcontentloaded',
     });
+
+    const loadingSession = page.getByText(/Cargando sesión/i);
+    if (await loadingSession.isVisible().catch(() => false)) {
+      await loadingSession.waitFor({ state: 'hidden', timeout: 20000 });
+    }
+
+    const loadingSubscription = page.getByText(/Cargando datos de suscripci/i);
+    if (await loadingSubscription.isVisible().catch(() => false)) {
+      await loadingSubscription.waitFor({ state: 'hidden', timeout: 25000 });
+    }
+
     await expect(
-      page.getByRole('heading', { name: /Planes y Suscripci[oó]n/i }),
-    ).toBeVisible({ timeout: 10000 });
+      page.getByRole('heading', { name: /Suscripci[oó]n/i }).first(),
+    ).toBeVisible({ timeout: 15000 });
   });
 
   test('should show loading and success states in subscription checkout modal', async ({

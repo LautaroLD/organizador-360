@@ -22,6 +22,7 @@ import { useNotificationStore } from '@/store/notificationStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
+import { useProjectPermissions } from '@/hooks/useProjectPermissions';
 
 const CHAT_SUMMARY_HOUR_OPTIONS = [1, 4, 12, 24] as const;
 const CHAT_SUMMARY_MAX_MESSAGES = 100;
@@ -64,9 +65,12 @@ export const ChatView: React.FC = () => {
   const [summaryError, setSummaryError] = useState('');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
-  const normalizedRole = currentProject?.userRole?.toLowerCase();
-  const isViewer = normalizedRole === 'viewer';
-  const canManageChannels = normalizedRole === 'owner' || normalizedRole === 'admin';
+  const { canWriteChat, canManageMembers } = useProjectPermissions(user?.id);
+  const isViewer = !canWriteChat;
+  const canManageChannels =
+    canManageMembers ||
+    currentProject?.userRole === 'Owner' ||
+    currentProject?.userRole === 'Admin';
 
   // Verificar si el usuario puede usar IA
   useEffect(() => {

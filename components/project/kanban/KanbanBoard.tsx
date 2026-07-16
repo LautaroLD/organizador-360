@@ -28,8 +28,10 @@ import { createClient } from '@/lib/supabase/client';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 import CreateRoadmap from './CreateRoadmap';
 import { Epic, RoadmapPhase, Task } from '@/models';
-import { useProjectStore } from '@/store/projectStore';
 import { toast } from 'react-toastify';
+import { useAuthStore } from '@/store/authStore';
+import { useProjectPermissions } from '@/hooks/useProjectPermissions';
+import type { ApprovalStatus } from '@/models/approval';
 
 interface KanbanBoardProps {
   projectId: string;
@@ -99,9 +101,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
   const { generateSuggestedTasks } = useGemini();
   const supabase = createClient();
   const [openPhaseStats, setOpenPhaseStats] = useState(false);
-  const { currentProject } = useProjectStore();
-  const normalizedRole = currentProject?.userRole?.toLowerCase();
-  const isViewer = normalizedRole === 'viewer';
+  const { user } = useAuthStore();
+  const { canEditKanban } = useProjectPermissions(user?.id);
+  const isViewer = !canEditKanban;
   // Verificar si el usuario puede usar IA
   React.useEffect(() => {
     const checkPremium = async () => {
@@ -151,6 +153,45 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
       return (data || []) as EpicOption[];
     },
     enabled: !!projectId,
+  });
+
+  const { data: isProTeamOps = false } = useQuery({
+    queryKey: ['pro-team-ops', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('can_use_project_analytics', {
+        p_project_id: projectId,
+      });
+      if (error) return false;
+      return data === true;
+    },
+    enabled: !!projectId,
+    staleTime: 60_000,
+  });
+
+  const { data: approvalByTaskId = {} } = useQuery({
+    queryKey: ['project-approvals-map', projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/approvals`);
+      if (!res.ok) return {} as Record<string, ApprovalStatus>;
+      const body = (await res.json()) as {
+        approvals: Array<{
+          entity_type: string;
+          entity_id: string;
+          status: ApprovalStatus;
+        }>;
+      };
+      const map: Record<string, ApprovalStatus> = {};
+      for (const approval of body.approvals ?? []) {
+        if (approval.entity_type !== 'task') continue;
+        // First (newest) wins due to API order
+        if (!map[approval.entity_id]) {
+          map[approval.entity_id] = approval.status;
+        }
+      }
+      return map;
+    },
+    enabled: !!projectId && isProTeamOps,
+    staleTime: 30_000,
   });
 
   const editingTask = useMemo(() =>
@@ -389,6 +430,20 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
       }
 
       if (persistedTask && persistedTask.status !== newStatus) {
+        if (
+          newStatus === 'done' &&
+          (approvalByTaskId[activeTask.id] === 'pending' ||
+            approvalByTaskId[activeTask.id] === 'blocked')
+        ) {
+          toast.warning(
+            approvalByTaskId[activeTask.id] === 'blocked'
+              ? 'Esta tarea está bloqueada pendiente de revisión'
+              : 'Esta tarea necesita aprobación antes de completarse',
+          );
+          setDragTasks(null);
+          setActiveId(null);
+          return;
+        }
         updateTask.mutate({
           id: activeTask.id,
           data: { status: newStatus }
@@ -398,7 +453,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
 
     setDragTasks(null);
     setActiveId(null);
-  }, [dragTasks, isViewer, persistedTasksById, tasks, updateTask]);
+  }, [approvalByTaskId, dragTasks, isViewer, persistedTasksById, tasks, updateTask]);
 
   const activeTask = activeId ? tasksById[activeId] : null;
 
@@ -664,6 +719,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             tasks={ columns.todo }
             phaseLabels={ phaseLabels }
             epicLabels={ epicLabels }
+            approvalByTaskId={ approvalByTaskId }
             onEditTask={ handleEditTask }
             isReadOnly={ isViewer }
           />
@@ -673,6 +729,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             tasks={ columns['in-progress'] }
             phaseLabels={ phaseLabels }
             epicLabels={ epicLabels }
+            approvalByTaskId={ approvalByTaskId }
             onEditTask={ handleEditTask }
             isReadOnly={ isViewer }
           />
@@ -682,6 +739,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
             tasks={ columns.done }
             phaseLabels={ phaseLabels }
             epicLabels={ epicLabels }
+            approvalByTaskId={ approvalByTaskId }
             onEditTask={ handleEditTask }
             isReadOnly={ isViewer }
           />
@@ -693,6 +751,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ projectId }) => {
               task={ activeTask }
               phaseLabel={ activeTask.phase_roadmap_id ? phaseLabels[activeTask.phase_roadmap_id] : null }
               epicLabel={ activeTask.epic_id ? epicLabels[activeTask.epic_id] : null }
+              approvalStatus={ approvalByTaskId[activeTask.id] }
             />
           ) : null }
         </DragOverlay>

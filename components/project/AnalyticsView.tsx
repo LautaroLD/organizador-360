@@ -6,9 +6,26 @@ import { createClient } from '@/lib/supabase/client';
 import { useProjectStore } from '@/store/projectStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { BarChart3, CheckCircle2, ChevronDown, ChevronUp, Clock, Lock, Sparkles, Users } from 'lucide-react';
+import {
+  AlertTriangle,
+  BarChart3,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Download,
+  HeartPulse,
+  Lock,
+  Sparkles,
+  Users,
+} from 'lucide-react';
 import { MessageContent } from '@/components/ui/MessageContent';
 import { formatLocalDate, parseDateValue } from '@/lib/utils';
+import {
+  addDaysLocal,
+  buildTeamHealthSnapshot,
+  toISODateLocal,
+} from '@/lib/teamHealth';
 import { RoadmapPhase } from '@/models';
 import Link from 'next/link';
 import { toast } from 'react-toastify';
@@ -113,7 +130,32 @@ interface MemberRow {
   user?: { name: string | null; email: string | null; } | null;
 }
 
+interface CheckinRow {
+  user_id: string;
+  checkin_date: string;
+  blockers: string | null;
+}
+
+interface TaskTagRow {
+  task_id: string;
+  tag:
+    | { label: string | null }
+    | { label: string | null }[]
+    | null;
+}
+
 type RoadmapPhaseRow = Pick<RoadmapPhase, 'id' | 'name' | 'init_at' | 'end_at' | 'description'>;
+
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
 
 export const AnalyticsView: React.FC = () => {
   const supabase = createClient();
@@ -121,10 +163,13 @@ export const AnalyticsView: React.FC = () => {
   const [memberTaskFilter, setMemberTaskFilter] = useState<'all' | 'todo' | 'in-progress' | 'done' | 'overdue'>('all');
   const [memberTaskSort, setMemberTaskSort] = useState<'estimated' | 'status' | 'title'>('estimated');
   const [showExplanation, setShowExplanation] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const normalizedRole = currentProject?.userRole?.toLowerCase();
   const canManage = normalizedRole === 'owner' || normalizedRole === 'admin';
-
+  const todayDate = toISODateLocal(new Date());
+  const weekStartDate = addDaysLocal(todayDate, -6);
   const { data: canAccessAnalytics = false, isLoading: accessLoading } = useQuery({
     queryKey: ['analytics-access', currentProject?.id],
     queryFn: async () => {
@@ -203,6 +248,35 @@ export const AnalyticsView: React.FC = () => {
         .in('task_id', taskIds);
       if (error) throw error;
       return (data ?? []) as unknown as AssignmentRow[];
+    },
+    enabled: !!currentProject?.id && taskIds.length > 0 && canAccessAnalytics && canManage,
+  });
+
+  const { data: checkins = [] } = useQuery({
+    queryKey: ['analytics-checkins', currentProject?.id, weekStartDate, todayDate],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('project_checkins')
+        .select('user_id,checkin_date,blockers')
+        .eq('project_id', currentProject!.id)
+        .gte('checkin_date', weekStartDate)
+        .lte('checkin_date', todayDate);
+      if (error) throw error;
+      return (data ?? []) as CheckinRow[];
+    },
+    enabled: !!currentProject?.id && canAccessAnalytics && canManage,
+  });
+
+  const { data: taskTags = [] } = useQuery({
+    queryKey: ['analytics-task-tags', currentProject?.id, taskIds.length],
+    queryFn: async () => {
+      if (taskIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('task_tags')
+        .select('task_id,tag:project_tags(label)')
+        .in('task_id', taskIds);
+      if (error) throw error;
+      return (data ?? []) as unknown as TaskTagRow[];
     },
     enabled: !!currentProject?.id && taskIds.length > 0 && canAccessAnalytics && canManage,
   });
@@ -365,6 +439,100 @@ export const AnalyticsView: React.FC = () => {
     };
   }, [assignments, roadmapPhases, tasks]);
 
+  const teamHealth = useMemo(() => {
+    const healthMembers = members.map((m) => {
+      const rawUser = m.user;
+      return {
+        user_id: m.user_id,
+        role: m.role,
+        name: rawUser?.name || rawUser?.email || 'Sin nombre',
+      };
+    });
+
+    const healthTaskTags = taskTags.flatMap((row) => {
+      const rawTag = Array.isArray(row.tag) ? row.tag[0] : row.tag;
+      const label = rawTag?.label?.trim();
+      return label ? [{ task_id: row.task_id, label }] : [];
+    });
+
+    return buildTeamHealthSnapshot({
+      members: healthMembers,
+      tasks,
+      assignments,
+      checkins,
+      taskTags: healthTaskTags,
+      todayDate,
+      nowMs: INITIAL_NOW_MS,
+    });
+  }, [assignments, checkins, members, taskTags, tasks, todayDate]);
+
+  const handleExport = async (format: 'json' | 'csv') => {
+    if (!currentProject?.id || exporting) return;
+    setExporting(true);
+    setShowExportMenu(false);
+
+    try {
+      const res = await fetch(
+        `/api/projects/${currentProject.id}/export?format=${format}&datasets=all`,
+      );
+
+      if (res.status === 403) {
+        toast.error('La exportación está disponible solo para Owner/Admin en plan Pro.');
+        return;
+      }
+
+      if (!res.ok) {
+        toast.error('No se pudo exportar los datos del proyecto.');
+        return;
+      }
+
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="([^"]+)"/);
+      const fallbackName =
+        format === 'csv'
+          ? `${currentProject.name || 'proyecto'}-export-csv.json`
+          : `${currentProject.name || 'proyecto'}-export.json`;
+      const filename = match?.[1] || fallbackName;
+
+      if (format === 'csv') {
+        const contentType = res.headers.get('Content-Type') || '';
+        if (contentType.includes('text/csv')) {
+          const text = await res.text();
+          downloadBlob(new Blob([text], { type: 'text/csv;charset=utf-8' }), filename);
+        } else {
+          const payload = await res.json() as {
+            files?: Record<string, string>;
+          };
+          if (payload.files && Object.keys(payload.files).length > 0) {
+            Object.entries(payload.files).forEach(([fileName, content]) => {
+              downloadBlob(
+                new Blob([content], { type: 'text/csv;charset=utf-8' }),
+                fileName,
+              );
+            });
+          } else {
+            downloadBlob(
+              new Blob([JSON.stringify(payload, null, 2)], {
+                type: 'application/json;charset=utf-8',
+              }),
+              filename,
+            );
+          }
+        }
+      } else {
+        const text = await res.text();
+        downloadBlob(new Blob([text], { type: 'application/json;charset=utf-8' }), filename);
+      }
+
+      toast.success('Exportación lista');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Error al exportar datos');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const isOverdue = (task: TaskRow) => {
     if (task.status === 'done') return false;
     if (!task.done_estimated_at) return false;
@@ -438,11 +606,43 @@ export const AnalyticsView: React.FC = () => {
   return (
     <main className="flex grow flex-col max-h-full overflow-y-auto">
       <div className="p-6 space-y-6">
-        <div className="flex items-center gap-3">
-          <BarChart3 className="h-6 w-6 text-[var(--accent-primary)]" />
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">Analíticas del Proyecto</h1>
-            <p className="text-sm text-[var(--text-secondary)]">Vista avanzada del progreso y productividad</p>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <HeartPulse className="h-6 w-6 text-[var(--accent-primary)]" />
+            <div>
+              <h1 className="text-2xl font-bold text-[var(--text-primary)]">Salud del equipo</h1>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Check-ins, carga de trabajo, alertas y métricas del proyecto
+              </p>
+            </div>
+          </div>
+          <div className="relative">
+            <Button
+              variant="secondary"
+              onClick={ () => setShowExportMenu((open) => !open) }
+              disabled={ exporting }
+            >
+              <Download className="h-4 w-4 mr-1" />
+              { exporting ? 'Exportando...' : 'Exportar datos' }
+            </Button>
+            { showExportMenu && (
+              <div className="absolute right-0 mt-2 z-20 min-w-[180px] rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] shadow-lg p-1">
+                <button
+                  type="button"
+                  className="w-full text-left text-sm px-3 py-2 rounded-md hover:bg-[var(--bg-secondary)] text-[var(--text-primary)]"
+                  onClick={ () => handleExport('json') }
+                >
+                  JSON completo
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left text-sm px-3 py-2 rounded-md hover:bg-[var(--bg-secondary)] text-[var(--text-primary)]"
+                  onClick={ () => handleExport('csv') }
+                >
+                  CSV (datasets)
+                </button>
+              </div>
+            ) }
           </div>
         </div>
 
@@ -452,7 +652,7 @@ export const AnalyticsView: React.FC = () => {
             onClick={ () => setShowExplanation(!showExplanation) }
           >
             <CardTitle className="text-base flex items-center justify-between">
-              <span>📊 ¿Cómo funcionan las analíticas?</span>
+              <span>¿Cómo funciona el panel de salud?</span>
               { showExplanation ? (
                 <ChevronUp className="h-4 w-4 text-[var(--text-secondary)]" />
               ) : (
@@ -463,25 +663,73 @@ export const AnalyticsView: React.FC = () => {
           { showExplanation && (
             <CardContent className="text-sm text-[var(--text-secondary)] space-y-3">
               <p>
-                Las analíticas te permiten obtener una visión completa del estado y rendimiento de tu proyecto mediante métricas clave:
+                Este panel combina analíticas del proyecto con señales de liderazgo de equipo:
               </p>
               <ul className="list-disc list-inside space-y-1.5 ml-2">
-                <li><strong className="text-[var(--text-primary)]">Avance:</strong> Porcentaje de tareas completadas respecto al total.</li>
-                <li><strong className="text-[var(--text-primary)]">Tiempo de cierre:</strong> Promedio y mediana del tiempo que toma completar una tarea desde su creación. El desvío estimado muestra si las tareas se completan antes o después de lo estimado.</li>
-                <li><strong className="text-[var(--text-primary)]">Estado:</strong> Distribución de tareas por estado (por hacer, en progreso, completadas) y cantidad de tareas sin asignar.</li>
-                <li><strong className="text-[var(--text-primary)]">Estado por fase:</strong> Si tu proyecto tiene un roadmap, verás el progreso detallado de cada fase.</li>
-                <li><strong className="text-[var(--text-primary)]">Cierre estimado vs real:</strong> Compara las fechas estimadas con las reales para identificar retrasos o adelantos.</li>
-                <li><strong className="text-[var(--text-primary)]">Tareas por miembro:</strong> Visualiza la carga de trabajo de cada integrante del equipo con filtros por estado y fechas.</li>
-                <li><strong className="text-[var(--text-primary)]">Insights de IA:</strong> Genera un análisis automático con recomendaciones basadas en el estado actual del proyecto.</li>
+                <li><strong className="text-[var(--text-primary)]">Cumplimiento de check-ins:</strong> quién faltó hoy y esta semana.</li>
+                <li><strong className="text-[var(--text-primary)]">Carga por persona:</strong> abiertas, en progreso y vencidas.</li>
+                <li><strong className="text-[var(--text-primary)]">Alertas accionables:</strong> blockers recurrentes, sobrecarga y entregas fuera de plazo.</li>
+                <li><strong className="text-[var(--text-primary)]">Throughput / on-time:</strong> ritmo de cierre por persona y por tag.</li>
+                <li><strong className="text-[var(--text-primary)]">Exportación:</strong> descarga JSON o CSV de tareas, miembros, check-ins, eventos, OKRs y analytics.</li>
               </ul>
-              <p className="text-xs italic">
-                💡 Tip: Usa estas métricas para identificar cuellos de botella, redistribuir trabajo y mejorar la planificación de tu equipo.
-              </p>
             </CardContent>
           ) }
         </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Check-ins hoy</CardTitle>
+              <CardDescription>Cumplimiento del día</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold text-[var(--text-primary)]">
+                { teamHealth.checkinCompliance.complianceTodayRate === null
+                  ? 'Sin datos'
+                  : `${teamHealth.checkinCompliance.complianceTodayRate}%` }
+              </p>
+              <p className="text-xs text-[var(--text-secondary)]">
+                { teamHealth.checkinCompliance.missedToday.length === 0
+                  ? 'Todos los miembros activos completaron el check-in'
+                  : `Faltan: ${teamHealth.checkinCompliance.missedToday.map((m) => m.name).join(', ')}` }
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Users className="h-4 w-4" /> Check-ins semana</CardTitle>
+              <CardDescription>Últimos 7 días</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold text-[var(--text-primary)]">
+                { teamHealth.checkinCompliance.complianceWeekRate === null
+                  ? 'Sin datos'
+                  : `${teamHealth.checkinCompliance.complianceWeekRate}%` }
+              </p>
+              <p className="text-xs text-[var(--text-secondary)]">
+                { teamHealth.checkinCompliance.missedThisWeek.length === 0
+                  ? 'Nadie quedó sin check-in esta semana'
+                  : `Sin check-in: ${teamHealth.checkinCompliance.missedThisWeek.map((m) => m.name).join(', ')}` }
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Alertas</CardTitle>
+              <CardDescription>Señales accionables</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold text-[var(--text-primary)]">{ teamHealth.alerts.length }</p>
+              <p className="text-xs text-[var(--text-secondary)]">
+                { teamHealth.alerts.length === 0
+                  ? 'Sin alertas activas'
+                  : `${teamHealth.alerts.filter((a) => a.severity === 'danger').length} críticas` }
+              </p>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Avance</CardTitle>
@@ -495,7 +743,136 @@ export const AnalyticsView: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+        </div>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Alertas del equipo</CardTitle>
+            <CardDescription>Blockers recurrentes, sobrecarga y riesgos de entrega</CardDescription>
+          </CardHeader>
+          <CardContent>
+            { teamHealth.alerts.length === 0 ? (
+              <p className="text-sm text-[var(--text-secondary)]">No hay alertas activas. El equipo se ve estable.</p>
+            ) : (
+              <div className="space-y-2">
+                { teamHealth.alerts.map((alert) => (
+                  <div
+                    key={ alert.id }
+                    className="rounded-lg border p-3"
+                    style={ getToneStyles(alert.severity === 'info' ? 'neutral' : alert.severity) }
+                  >
+                    <p className="text-sm font-semibold">{ alert.title }</p>
+                    <p className="text-xs mt-1 opacity-90">{ alert.detail }</p>
+                  </div>
+                )) }
+              </div>
+            ) }
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Users className="h-4 w-4" /> Carga de trabajo por miembro</CardTitle>
+            <CardDescription>Abiertas, en progreso y vencidas</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              { teamHealth.workload.map((row) => (
+                <div key={ row.userId } className="bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--text-primary)]">{ row.name }</p>
+                      <p className="text-xs text-[var(--text-secondary)]">{ row.role }</p>
+                    </div>
+                    <span className="text-sm font-semibold text-[var(--accent-primary)]">{ row.total }</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs text-[var(--text-secondary)]">
+                    <div>
+                      Abiertas
+                      <p className="text-[var(--text-primary)] font-semibold">{ row.open }</p>
+                    </div>
+                    <div>
+                      En progreso
+                      <p className="text-[var(--text-primary)] font-semibold">{ row.inProgress }</p>
+                    </div>
+                    <div>
+                      Vencidas
+                      <p className="font-semibold" style={ { color: row.overdue > 0 ? 'var(--accent-danger)' : 'var(--text-primary)' } }>
+                        { row.overdue }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )) }
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Throughput por persona</CardTitle>
+              <CardDescription>Cierres y % en plazo</CardDescription>
+            </CardHeader>
+            <CardContent>
+              { teamHealth.throughputByMember.length === 0 ? (
+                <p className="text-sm text-[var(--text-secondary)]">Aún no hay tareas cerradas asignadas.</p>
+              ) : (
+                <div className="space-y-2">
+                  { teamHealth.throughputByMember.map((point) => (
+                    <div key={ point.key } className="flex items-center justify-between gap-3 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
+                      <div>
+                        <p className="text-sm font-medium text-[var(--text-primary)]">{ point.label }</p>
+                        <p className="text-xs text-[var(--text-secondary)]">
+                          { point.doneCount } cerradas · { point.onTimeCount } en plazo · { point.lateCount } tarde
+                        </p>
+                      </div>
+                      <span
+                        className="text-xs font-semibold px-2 py-0.5 rounded-full border"
+                        style={ getToneStyles(getOnTimeTone(point.onTimeRate)) }
+                      >
+                        { point.onTimeRate === null ? 'Sin est.' : `${point.onTimeRate}%` }
+                      </span>
+                    </div>
+                  )) }
+                </div>
+              ) }
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Throughput por tag</CardTitle>
+              <CardDescription>Rendimiento por etiqueta de tarea</CardDescription>
+            </CardHeader>
+            <CardContent>
+              { teamHealth.throughputByTag.length === 0 ? (
+                <p className="text-sm text-[var(--text-secondary)]">No hay tags en tareas cerradas.</p>
+              ) : (
+                <div className="space-y-2">
+                  { teamHealth.throughputByTag.map((point) => (
+                    <div key={ point.key } className="flex items-center justify-between gap-3 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
+                      <div>
+                        <p className="text-sm font-medium text-[var(--text-primary)]">{ point.label }</p>
+                        <p className="text-xs text-[var(--text-secondary)]">
+                          { point.doneCount } cerradas · { point.onTimeCount } en plazo · { point.lateCount } tarde
+                        </p>
+                      </div>
+                      <span
+                        className="text-xs font-semibold px-2 py-0.5 rounded-full border"
+                        style={ getToneStyles(getOnTimeTone(point.onTimeRate)) }
+                      >
+                        { point.onTimeRate === null ? 'Sin est.' : `${point.onTimeRate}%` }
+                      </span>
+                    </div>
+                  )) }
+                </div>
+              ) }
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Entrega en plazo</CardTitle>

@@ -166,6 +166,19 @@ export default function InvitationPage() {
         throw new Error(data.message);
       }
 
+      // PRO: seed role tags + first-7-days onboarding checklist (no-op on Free/Starter)
+      if (invitation.project_id) {
+        try {
+          await fetch(`/api/projects/${invitation.project_id}/members/onboard`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          });
+        } catch (onboardError) {
+          console.warn('Onboarding seed skipped:', onboardError);
+        }
+      }
+
       // Clear stored invitation token
       if (typeof window !== 'undefined') {
         localStorage.removeItem('pending_invitation');

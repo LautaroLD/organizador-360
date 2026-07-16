@@ -12,10 +12,13 @@ import { Calendar as CalendarIcon, Plus, ArrowUp, RefreshCw, CheckCircle2, Alert
 import { useGoogleCalendarTokens } from '@/hooks/useGoogleCalendarTokens';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { EventModal } from '@/components/calendar/EventModal';
-import { EventList } from '@/components/calendar/EventList';
-import { generateRecurringEvents } from '@/lib/calendarUtils';
+import { EventList, type CalendarListEvent } from '@/components/calendar/EventList';
+import { generateRecurringEvents, materializeEventsForUI, resolveRecurrenceEndDate } from '@/lib/calendarUtils';
 import { getUserPlanTier } from '@/lib/subscriptionUtils';
+import type { CalendarOccurrence, CalendarEventRow } from '@/types/calendarOccurrence';
+import { parseOccurrenceId } from '@/types/calendarOccurrence';
 import Link from 'next/link';
+import { useProjectPermissions } from '@/hooks/useProjectPermissions';
 
 interface EventFormData {
   title: string;
@@ -29,6 +32,8 @@ interface EventFormData {
   recurrence_end_date?: string;
 }
 
+type EventEditScope = 'single' | 'all';
+
 interface Event {
   id: string;
   google_event_id: string | null;
@@ -38,6 +43,10 @@ interface Event {
   end_date: string;
   project_id: string;
   created_by: string;
+  series_id?: string | null;
+  is_series_master?: boolean;
+  is_exception?: boolean;
+  original_start_date?: string | null;
   recurrence_rule: string | null;
   recurrence_days: string[] | null;
   recurrence_end_date: string | null;
@@ -120,6 +129,44 @@ const toSyncPayloadEvent = (event: Event, userTimeZone: string): SyncPayloadEven
   };
 };
 
+const pickRecurringSeriesRepresentatives = (events: Event[]) => {
+  const nonRecurring = events.filter((event) => !event.is_recurring);
+  const recurring = events.filter((event) => event.is_recurring);
+
+  const bySeries = new Map<string, Event[]>();
+  for (const event of recurring) {
+    const key = event.series_id || event.id;
+    const bucket = bySeries.get(key) || [];
+    bucket.push(event);
+    bySeries.set(key, bucket);
+  }
+
+  const recurringRepresentatives: Event[] = [];
+  bySeries.forEach((seriesEvents) => {
+    const explicitMaster = seriesEvents.find((event) => event.is_series_master);
+    if (explicitMaster) {
+      recurringRepresentatives.push(explicitMaster);
+      return;
+    }
+
+    const fallback = [...seriesEvents].sort((a, b) => {
+      if (a.start_date === b.start_date) {
+        return a.id.localeCompare(b.id);
+      }
+      return a.start_date.localeCompare(b.start_date);
+    })[0];
+
+    if (fallback) recurringRepresentatives.push(fallback);
+  });
+
+  return [...nonRecurring, ...recurringRepresentatives].sort((a, b) => {
+    if (a.start_date === b.start_date) {
+      return a.id.localeCompare(b.id);
+    }
+    return a.start_date.localeCompare(b.start_date);
+  });
+};
+
 export const CalendarView: React.FC = () => {
   const supabase = createClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -130,13 +177,15 @@ export const CalendarView: React.FC = () => {
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
   const [lastSyncSummary, setLastSyncSummary] = useState<SyncSummary | null>(null);
   const [isProMember, setIsProMember] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [editingOccurrenceStart, setEditingOccurrenceStart] = useState<string | null>(null);
+  const [editScope, setEditScope] = useState<EventEditScope>('single');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const oauthProcessedRef = useRef(false);
-  const autoDisconnectHandledRef = useRef(false);
   const { user } = useAuthStore();
   const { currentProject } = useProjectStore();
-  const normalizedRole = currentProject?.userRole?.toLowerCase();
-  const isViewer = normalizedRole === 'viewer';
+  const { canEditCalendar } = useProjectPermissions(user?.id);
+  const isViewer = !canEditCalendar;
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -241,29 +290,6 @@ export const CalendarView: React.FC = () => {
 
     loadPlan();
   }, [supabase, user?.id]);
-
-  useEffect(() => {
-    if (isProMember) {
-      autoDisconnectHandledRef.current = false;
-      return;
-    }
-
-    if (!activeIsConnected || autoDisconnectHandledRef.current) {
-      return;
-    }
-
-    autoDisconnectHandledRef.current = true;
-
-    const disconnectForPlanDowngrade = async () => {
-      try {
-        await disconnectGoogle();
-      } catch (error) {
-        console.error('Error al desconectar Google Calendar por cambio de plan:', error);
-      }
-    };
-
-    disconnectForPlanDowngrade();
-  }, [activeIsConnected, disconnectGoogle, isProMember]);
 
   // Conectar con Google Calendar (usando hook unificado)
   const connectGoogleCalendar = async () => {
@@ -449,9 +475,16 @@ export const CalendarView: React.FC = () => {
       return;
     }
 
+    const eventsToSync = pickRecurringSeriesRepresentatives(events as Event[]);
+
+    if (eventsToSync.length === 0) {
+      toast.error('No hay eventos para sincronizar');
+      return;
+    }
+
     setIsSyncing(true);
-    setSyncProgress({ current: 0, total: events.length });
-    const loadingToast = toast.loading(`Sincronizando ${events.length} evento(s)...`);
+    setSyncProgress({ current: 0, total: eventsToSync.length });
+    const loadingToast = toast.loading(`Sincronizando ${eventsToSync.length} evento(s)...`);
     let createdCount = 0;
     let updatedCount = 0;
     let linkedCount = 0;
@@ -459,7 +492,7 @@ export const CalendarView: React.FC = () => {
     let errorCount = 0;
 
     try {
-      const payloadEvents = events.map((event) => toSyncPayloadEvent(event, userTimeZone));
+      const payloadEvents = eventsToSync.map((event) => toSyncPayloadEvent(event, userTimeZone));
 
       for (let index = 0; index < payloadEvents.length; index += SYNC_BATCH_SIZE) {
         const batch = payloadEvents.slice(index, index + SYNC_BATCH_SIZE);
@@ -519,7 +552,7 @@ export const CalendarView: React.FC = () => {
     enabled: !!currentProject?.id,
   });
 
-  // Create event mutation
+  // Create event mutation — Option 3: 1 fila master (sin materializar N ocurrencias)
   const createEventMutation = useMutation({
     mutationFn: async (data: EventFormData) => {
       if (isViewer) {
@@ -529,103 +562,99 @@ export const CalendarView: React.FC = () => {
         throw new Error('La hora de fin no puede ser menor que la hora de inicio');
       }
 
-      const events = generateRecurringEvents(data);
-      const createdEvents: Event[] = [];
-
-      // Crear múltiples eventos si es recurrente
-      for (const event of events) {
-        const { data: createdEvent, error } = await supabase
-          .from('events')
-          .insert({
-            project_id: currentProject!.id,
-            title: data.title,
-            description: data.description,
-            start_date: event.start,
-            end_date: event.end,
-            recurrence_rule: data.recurrence_type === 'none' ? null : data.recurrence_type,
-            is_recurring: data.recurrence_type !== 'none',
-            recurrence_days: data.selected_days,
-            recurrence_end_date: data.recurrence_end_date,
-            created_by: user!.id,
-          })
-          .select('*')
-          .single();
-
-        if (error) throw error;
-        if (createdEvent) createdEvents.push(createdEvent as Event);
+      const generated = generateRecurringEvents(data);
+      if (generated.length === 0) {
+        throw new Error('No se pudo generar el evento');
       }
 
-      return createdEvents;
+      const first = generated[0];
+      const isRecurring = data.recurrence_type !== 'none';
+      // El check events_recurring_requires_series_id exige series_id en el INSERT
+      const eventId = crypto.randomUUID();
+      const recurrenceEndDate = isRecurring
+        ? resolveRecurrenceEndDate(data.start_date, data.recurrence_end_date || null)
+        : null;
+
+      const { data: createdEvent, error } = await supabase
+        .from('events')
+        .insert({
+          id: eventId,
+          project_id: currentProject!.id,
+          title: data.title,
+          description: data.description,
+          start_date: first.start,
+          end_date: first.end,
+          recurrence_rule: isRecurring ? data.recurrence_type : null,
+          is_recurring: isRecurring,
+          recurrence_days: isRecurring ? (data.selected_days || []) : null,
+          recurrence_end_date: recurrenceEndDate,
+          series_id: isRecurring ? eventId : null,
+          is_series_master: isRecurring,
+          is_exception: false,
+          is_cancelled: false,
+          original_start_date: first.start,
+          created_by: user!.id,
+        })
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      if (!createdEvent) throw new Error('No se pudo crear el evento');
+
+      return [createdEvent as Event];
     },
     onSuccess: async (createdEvents, variables) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast.success('Evento(s) creado(s) exitosamente');
+      toast.success(
+        variables.recurrence_type !== 'none'
+          ? 'Serie creada exitosamente'
+          : 'Evento creado exitosamente',
+      );
 
-      // Sincronizar con Google Calendar si está conectado
       if (canUseGoogleSync && activeIsConnected && activeTokens) {
+        const localEvent = createdEvents[0];
         const generatedEvents = generateRecurringEvents(variables);
-        let syncFailures = 0;
+        const event = generatedEvents[0];
+        if (!event || !localEvent) {
+          setIsModalOpen(false);
+          reset();
+          setSelectedDays([]);
+          setShowRecurrenceOptions(false);
+          return;
+        }
 
-        if (variables.recurrence_type !== 'none' && generatedEvents.length > 0) {
-          // Si es recurrente, solo sincronizamos el primer evento como una serie recurrente
-          const event = generatedEvents[0];
-          const localEvent = createdEvents[0];
-          const [startDate, startTime] = event.start.split('T');
-          const [endDate, endTimeStr] = event.end.split('T');
-          const endTime = endTimeStr.split(':').slice(0, 2).join(':'); // HH:MM
+        const [startDate, startTime] = event.start.split('T');
+        const [endDate, endTimeStr] = event.end.split('T');
+        const endTime = endTimeStr.split(':').slice(0, 2).join(':');
 
-          const result = await syncEventToGoogle({
-            id: localEvent?.id,
-            project_id: localEvent?.project_id,
-            google_event_id: localEvent?.google_event_id,
-            title: variables.title,
-            description: variables.description,
-            start_date: startDate,
-            start_time: startTime.slice(0, 5),
-            end_date: endDate,
-            end_time: endTime,
-            is_recurring: true,
-            recurrence_rule: variables.recurrence_type,
-            selected_days: variables.selected_days,
-            recurrence_end_date: variables.recurrence_end_date,
+        const result = await syncEventToGoogle({
+          id: localEvent.id,
+          project_id: localEvent.project_id,
+          google_event_id: localEvent.google_event_id,
+          title: variables.title,
+          description: variables.description,
+          start_date: startDate,
+          start_time: startTime.slice(0, 5),
+          end_date: endDate,
+          end_time: endTime,
+          is_recurring: variables.recurrence_type !== 'none',
+          recurrence_rule:
+            variables.recurrence_type === 'none' ? null : variables.recurrence_type,
+          selected_days:
+            variables.recurrence_type !== 'none' ? variables.selected_days : [],
+            recurrence_end_date: variables.recurrence_end_date
+              ? resolveRecurrenceEndDate(
+                  variables.start_date,
+                  variables.recurrence_end_date,
+                )
+              : resolveRecurrenceEndDate(variables.start_date, null),
             timeZone: userTimeZone,
           });
 
-          if (!result.success) {
-            syncFailures += 1;
-          }
-        } else {
-          // Si no es recurrente, sincronizamos individualmente
-          for (const [index, event] of generatedEvents.entries()) {
-            const localEvent = createdEvents[index];
-            // Separar fecha y hora de los strings completos
-            const [startDate, startTime] = event.start.split('T');
-            const [endDate, endTimeStr] = event.end.split('T');
-            const endTime = endTimeStr.split(':').slice(0, 2).join(':'); // HH:MM
-
-            const result = await syncEventToGoogle({
-              id: localEvent?.id,
-              project_id: localEvent?.project_id,
-              google_event_id: localEvent?.google_event_id,
-              title: variables.title,
-              description: variables.description,
-              start_date: startDate,
-              start_time: startTime.slice(0, 5), // HH:MM
-              end_date: endDate,
-              end_time: endTime,
-              is_recurring: false,
-              recurrence_rule: 'none',
-              selected_days: [],
-              timeZone: userTimeZone,
-            });
-            if (!result.success) {
-              syncFailures += 1;
-            }
-          }
-        }
-
-        if (syncFailures > 0) {
-          toast.warning(`El evento se guardo en Veenzo, pero ${syncFailures} sincronizacion(es) con Google fallaron.`);
+        if (!result.success) {
+          toast.warning(
+            'El evento se guardó en Veenzo, pero la sincronización con Google falló.',
+          );
         }
 
         queryClient.invalidateQueries({ queryKey: ['events'] });
@@ -641,36 +670,339 @@ export const CalendarView: React.FC = () => {
     },
   });
 
-  // Delete event mutation
+  const updateEventMutation = useMutation({
+    mutationFn: async ({
+      event,
+      data,
+      scope,
+    }: {
+      event: Event;
+      data: EventFormData;
+      scope: EventEditScope;
+    }) => {
+      if (isViewer) {
+        throw new Error('No tienes permisos para editar eventos');
+      }
+      if (!currentProject?.id) {
+        throw new Error('No hay proyecto seleccionado');
+      }
+      if (isEndBeforeStart(data)) {
+        throw new Error('La hora de fin no puede ser menor que la hora de inicio');
+      }
+
+      const recurrenceRule = data.recurrence_type === 'none'
+        ? 'none'
+        : data.recurrence_type;
+
+      const response = await fetch('/api/google/sync', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventId: event.id,
+          projectId: currentProject.id,
+          scope,
+          occurrenceStart: editingOccurrenceStart || event.original_start_date || event.start_date,
+          applyToGoogle: canUseGoogleSync && activeIsConnected,
+          changes: {
+            title: data.title,
+            description: data.description,
+            start_date: data.start_date,
+            start_time: data.start_time,
+            end_date: data.end_date,
+            end_time: data.end_time,
+            is_recurring: data.recurrence_type !== 'none',
+            recurrence_rule: recurrenceRule,
+            recurrence_days: data.recurrence_type !== 'none' ? (data.selected_days || []) : [],
+            recurrence_end_date:
+              data.recurrence_type !== 'none'
+                ? (data.recurrence_end_date || null)
+                : null,
+            time_zone: userTimeZone,
+          },
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Error al editar evento');
+      }
+
+      return payload;
+    },
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ['events', currentProject?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+      await queryClient.refetchQueries({ queryKey: ['events', currentProject?.id] });
+      const scopeLabel =
+        result.scope === 'all' ? 'toda la serie' : 'solo este evento';
+
+      toast.success(`Evento actualizado (${scopeLabel})`);
+      if (result.message) {
+        toast.info(result.message);
+      } else if (
+        result.google?.attempted &&
+        (result.google?.updated || 0) +
+          (result.google?.created || 0) +
+          (result.google?.linked || 0) ===
+          0
+      ) {
+        toast.warning(
+          'Se guardó en Veenzo, pero Google Calendar no reflejó el cambio.',
+        );
+      }
+
+      setIsModalOpen(false);
+      setEditingEvent(null);
+      setEditingOccurrenceStart(null);
+      setEditScope('single');
+      reset({
+        recurrence_type: 'none',
+        selected_days: [],
+      });
+      setSelectedDays([]);
+      setShowRecurrenceOptions(false);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Error al editar evento');
+    },
+  });
+
+  const handleEditEvent = (event: CalendarListEvent) => {
+    const occurrence = event as CalendarOccurrence;
+    const occurrenceStart = occurrence.occurrence_start || event.start_date;
+
+    const wallClockTime = (value: string, fallback: string) => {
+      const raw = (value.split('T')[1] || fallback)
+        .replace(/\.\d+/, '')
+        .replace(/(Z|[+-]\d{2}:?\d{2})$/i, '');
+      return raw.slice(0, 5);
+    };
+
+    const normalizedEvent: Event = {
+      // Conservar id virtual (`master::fecha`) para que el PATCH resuelva la ocurrencia
+      id: event.id,
+      google_event_id: event.google_event_id || null,
+      title: event.title,
+      description: event.description || '',
+      start_date: event.start_date,
+      end_date: event.end_date,
+      project_id: event.project_id || currentProject?.id || '',
+      created_by: event.created_by || user?.id || '',
+      series_id: occurrence.series_id,
+      is_series_master: occurrence.is_series_master ?? undefined,
+      is_exception: occurrence.is_exception ?? undefined,
+      original_start_date: occurrenceStart,
+      recurrence_rule: event.recurrence_rule || null,
+      recurrence_days: Array.isArray(event.recurrence_days)
+        ? event.recurrence_days
+        : null,
+      recurrence_end_date: event.recurrence_end_date || null,
+      is_recurring: event.is_recurring || false,
+      creator: event.creator,
+    };
+
+    const startDate = event.start_date.split('T')[0] || event.start_date;
+    const endDate = event.end_date.split('T')[0] || event.end_date;
+
+    const recurrenceType = normalizedEvent.is_recurring
+      ? ((normalizedEvent.recurrence_rule as EventFormData['recurrence_type']) || 'weekly')
+      : 'none';
+
+    setEditingEvent(normalizedEvent);
+    setEditingOccurrenceStart(occurrenceStart);
+    setEditScope('single');
+    setSelectedDays(Array.isArray(normalizedEvent.recurrence_days) ? normalizedEvent.recurrence_days : []);
+    setShowRecurrenceOptions(normalizedEvent.is_recurring);
+
+    reset({
+      title: normalizedEvent.title || '',
+      description: normalizedEvent.description || '',
+      start_date: startDate,
+      start_time: wallClockTime(event.start_date, '00:00:00'),
+      end_date: endDate,
+      end_time: wallClockTime(event.end_date, '23:59:00'),
+      recurrence_type: recurrenceType,
+      selected_days: Array.isArray(normalizedEvent.recurrence_days) ? normalizedEvent.recurrence_days : [],
+      recurrence_end_date: normalizedEvent.recurrence_end_date || undefined,
+    });
+
+    setIsModalOpen(true);
+  };
+  const closeEventModal = () => {
+    setIsModalOpen(false);
+    setEditingEvent(null);
+    setEditingOccurrenceStart(null);
+    setEditScope('single');
+    setShowRecurrenceOptions(false);
+    setSelectedDays([]);
+    reset({
+      recurrence_type: 'none',
+      selected_days: [],
+    });
+  };
+
+  // Delete: ocurrencia virtual → cancelar excepción; one-off/master → borrar fila
   const deleteEventMutation = useMutation({
-    mutationFn: async (eventId: string) => {
+    mutationFn: async (occurrenceId: string) => {
       if (isViewer) {
         throw new Error('No tienes permisos para eliminar eventos');
       }
-      // Primero obtener el evento para tener su información
-      const { data: eventData } = await supabase
+
+      const parsed = parseOccurrenceId(occurrenceId);
+      const sourceId = parsed.sourceEventId;
+
+      const { data: sourceRow, error: findError } = await supabase
         .from('events')
         .select('*')
-        .eq('id', eventId)
+        .eq('id', sourceId)
+        .maybeSingle();
+
+      if (findError) throw findError;
+      if (!sourceRow) throw new Error('Evento no encontrado');
+
+      // One-off o borrar master completo (id real sin ::)
+      if (!parsed.isVirtual && !sourceRow.is_recurring) {
+        const { error } = await supabase.from('events').delete().eq('id', sourceId);
+        if (error) throw error;
+        return { mode: 'deleted' as const, eventData: sourceRow };
+      }
+
+      if (!parsed.isVirtual && sourceRow.is_series_master && !sourceRow.is_exception) {
+        // Borrar toda la serie (master + excepciones)
+        const seriesId = sourceRow.series_id || sourceRow.id;
+        const { data: seriesRows } = await supabase
+          .from('events')
+          .select('*')
+          .eq('series_id', seriesId);
+
+        const { error } = await supabase.from('events').delete().eq('series_id', seriesId);
+        if (error) throw error;
+        return {
+          mode: 'series_deleted' as const,
+          eventData: sourceRow,
+          seriesRows: seriesRows || [],
+        };
+      }
+
+      // Cancelar una ocurrencia (virtual o excepción)
+      const occurrenceDate =
+        parsed.occurrenceDate ||
+        (sourceRow.original_start_date || sourceRow.start_date).split('T')[0];
+      const masterStart = (sourceRow.start_date.split('T')[1] || '00:00:00')
+        .replace(/\.\d+/, '')
+        .replace(/(Z|[+-]\d{2}:?\d{2})$/i, '')
+        .slice(0, 5);
+      const occurrenceStart = `${occurrenceDate}T${masterStart}:00`;
+
+      if (sourceRow.is_exception) {
+        const { error } = await supabase
+          .from('events')
+          .update({ is_cancelled: true })
+          .eq('id', sourceRow.id);
+        if (error) throw error;
+        return {
+          mode: 'cancelled' as const,
+          eventData: { ...sourceRow, is_cancelled: true },
+          occurrenceStart: sourceRow.original_start_date || occurrenceStart,
+        };
+      }
+
+      // Buscar/crear excepción cancelada
+      const { data: existingException } = await supabase
+        .from('events')
+        .select('*')
+        .eq('series_id', sourceRow.series_id || sourceRow.id)
+        .eq('is_exception', true)
+        .eq('original_start_date', occurrenceStart)
+        .maybeSingle();
+
+      if (existingException) {
+        await supabase
+          .from('events')
+          .update({ is_cancelled: true })
+          .eq('id', existingException.id);
+        return {
+          mode: 'cancelled' as const,
+          eventData: sourceRow,
+          occurrenceStart,
+          exceptionId: existingException.id,
+          googleInstanceId: existingException.google_event_id,
+        };
+      }
+
+      const { data: cancelled, error: insertError } = await supabase
+        .from('events')
+        .insert({
+          project_id: sourceRow.project_id,
+          title: sourceRow.title,
+          description: sourceRow.description,
+          start_date: occurrenceStart,
+          end_date: occurrenceStart,
+          series_id: sourceRow.series_id || sourceRow.id,
+          is_series_master: false,
+          is_exception: true,
+          is_cancelled: true,
+          is_recurring: true,
+          original_start_date: occurrenceStart,
+          created_by: user!.id,
+          google_event_id: null,
+          recurrence_rule: null,
+          recurrence_days: null,
+          recurrence_end_date: null,
+        })
+        .select('*')
         .single();
 
-      // Eliminar de la base de datos
-      const { error } = await supabase
-        .from('events')
-        .delete()
-        .eq('id', eventId);
+      if (insertError) throw insertError;
 
-      if (error) throw error;
-
-      return eventData;
+      return {
+        mode: 'cancelled' as const,
+        eventData: sourceRow,
+        occurrenceStart,
+        exceptionId: cancelled?.id,
+      };
     },
-    onSuccess: async (eventData) => {
+    onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast.success('Evento eliminado');
+      toast.success(
+        result.mode === 'series_deleted'
+          ? 'Serie eliminada'
+          : result.mode === 'cancelled'
+            ? 'Ocurrencia eliminada'
+            : 'Evento eliminado',
+      );
 
-      // Eliminar de Google Calendar para todas las cuentas conectadas
-      if (eventData) {
-        await deleteEventFromGoogle(eventData);
+      if (result.mode === 'deleted' || result.mode === 'series_deleted') {
+        await deleteEventFromGoogle(result.eventData);
+        if (result.mode === 'series_deleted' && 'seriesRows' in result) {
+          for (const row of result.seriesRows || []) {
+            if (row.google_event_id && row.google_event_id !== result.eventData.google_event_id) {
+              await deleteEventFromGoogle(row);
+            }
+          }
+        }
+        return;
+      }
+
+      // Cancelar instancia en Google si hay master vinculado
+      if (canUseGoogleSync && activeIsConnected && result.eventData?.google_event_id) {
+        try {
+          await fetch('/api/google/sync', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectId: result.eventData.project_id,
+              googleEventId: result.googleInstanceId || null,
+              eventId: result.exceptionId || null,
+              eventTitle: result.eventData.title,
+              startDate: (result.occurrenceStart || '').split('T')[0],
+            }),
+          });
+        } catch {
+          // soft-fail: local ya canceló
+        }
       }
     },
     onError: (error) => {
@@ -678,50 +1010,255 @@ export const CalendarView: React.FC = () => {
     },
   });
 
-  const deleteEventsAndSync = async (eventIds: string[]) => {
+  /** Borrado en lote (Option 3): un toast, DB agrupada, Google en paralelo. */
+  const deleteOccurrencesBatch = async (occurrenceIds: string[]) => {
     if (isViewer) {
       toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
       return;
     }
-    const loadingToast = toast.loading(`Eliminando ${eventIds.length} evento(s)...`);
+    if (occurrenceIds.length === 0) return;
+
+    const loadingToast = toast.loading(
+      `Eliminando ${occurrenceIds.length} evento(s)...`,
+    );
 
     try {
-      const { data: eventsData } = await supabase
+      const uniqueIds = Array.from(new Set(occurrenceIds));
+      const parsedItems = uniqueIds.map((id) => ({
+        id,
+        ...parseOccurrenceId(id),
+      }));
+
+      const sourceIds = Array.from(
+        new Set(parsedItems.map((item) => item.sourceEventId)),
+      );
+
+      const { data: sourceRows, error: fetchError } = await supabase
         .from('events')
         .select('*')
-        .in('id', eventIds);
+        .in('id', sourceIds);
 
-      const { error } = await supabase
-        .from('events')
-        .delete()
-        .in('id', eventIds);
+      if (fetchError) throw fetchError;
 
-      if (error) throw error;
+      const rowById = new Map(
+        (sourceRows || []).map((row) => [row.id as string, row as Event]),
+      );
 
-      if (eventsData) {
-        for (const event of eventsData) {
-          await deleteEventFromGoogle(event);
+      // Series completas involucradas (para excepciones existentes)
+      const seriesIds = Array.from(
+        new Set(
+          (sourceRows || [])
+            .map((row) => (row.series_id as string) || (row.id as string))
+            .filter(Boolean),
+        ),
+      );
+
+      const { data: seriesRows } = seriesIds.length
+        ? await supabase.from('events').select('*').in('series_id', seriesIds)
+        : { data: [] as Event[] };
+
+      const exceptionsBySeriesDate = new Map<string, Event>();
+      for (const row of seriesRows || []) {
+        if (!row.is_exception) continue;
+        const dateKey = (
+          row.original_start_date ||
+          row.start_date ||
+          ''
+        ).split('T')[0];
+        exceptionsBySeriesDate.set(`${row.series_id}|${dateKey}`, row as Event);
+      }
+
+      const hardDeleteIds = new Set<string>();
+      const seriesDeleteIds = new Set<string>();
+      const cancelUpdates: string[] = [];
+      const cancelInserts: Array<Record<string, unknown>> = [];
+      type GoogleDeleteTarget = {
+        id?: string | null;
+        project_id?: string | null;
+        google_event_id?: string | null;
+        title?: string | null;
+        start_date?: string | null;
+      };
+      const googleDeletes: GoogleDeleteTarget[] = [];
+
+      const wallClockTime = (value: string, fallback = '00:00') => {
+        const raw = (value.split('T')[1] || fallback)
+          .replace(/\.\d+/, '')
+          .replace(/(Z|[+-]\d{2}:?\d{2})$/i, '');
+        return raw.slice(0, 5);
+      };
+
+      for (const item of parsedItems) {
+        const sourceRow = rowById.get(item.sourceEventId);
+        if (!sourceRow) continue;
+
+        // One-off real
+        if (!item.isVirtual && !sourceRow.is_recurring) {
+          hardDeleteIds.add(sourceRow.id);
+          googleDeletes.push(sourceRow);
+          continue;
+        }
+
+        // Master real (sin ::) → borrar serie completa
+        if (
+          !item.isVirtual &&
+          sourceRow.is_series_master &&
+          !sourceRow.is_exception
+        ) {
+          const seriesId = sourceRow.series_id || sourceRow.id;
+          seriesDeleteIds.add(seriesId);
+          continue;
+        }
+
+        // Cancelar ocurrencia (virtual o excepción)
+        const occurrenceDate =
+          item.occurrenceDate ||
+          (sourceRow.original_start_date || sourceRow.start_date).split('T')[0];
+        const masterTime = wallClockTime(sourceRow.start_date);
+        const occurrenceStart = `${occurrenceDate}T${masterTime}:00`;
+        const seriesId = (sourceRow.series_id || sourceRow.id) as string;
+
+        if (sourceRow.is_exception) {
+          cancelUpdates.push(sourceRow.id);
+          googleDeletes.push({
+            project_id: sourceRow.project_id,
+            google_event_id: sourceRow.google_event_id,
+            id: sourceRow.id,
+            title: sourceRow.title,
+            start_date: sourceRow.original_start_date || occurrenceStart,
+          });
+          continue;
+        }
+
+        const existing = exceptionsBySeriesDate.get(
+          `${seriesId}|${occurrenceDate}`,
+        );
+        if (existing) {
+          cancelUpdates.push(existing.id);
+          googleDeletes.push({
+            project_id: sourceRow.project_id,
+            google_event_id: existing.google_event_id,
+            id: existing.id,
+            title: sourceRow.title,
+            start_date: occurrenceStart,
+          });
+        } else {
+          const insertKey = `${seriesId}|${occurrenceDate}`;
+          if (!exceptionsBySeriesDate.has(insertKey)) {
+            const payload = {
+              project_id: sourceRow.project_id,
+              title: sourceRow.title,
+              description: sourceRow.description,
+              start_date: occurrenceStart,
+              end_date: occurrenceStart,
+              series_id: seriesId,
+              is_series_master: false,
+              is_exception: true,
+              is_cancelled: true,
+              is_recurring: true,
+              original_start_date: occurrenceStart,
+              created_by: user!.id,
+              google_event_id: null,
+              recurrence_rule: null,
+              recurrence_days: null,
+              recurrence_end_date: null,
+            };
+            cancelInserts.push(payload);
+            // Evitar duplicados en el mismo batch
+            exceptionsBySeriesDate.set(insertKey, {
+              id: `pending-${insertKey}`,
+              ...payload,
+            } as Event);
+          }
+          googleDeletes.push({
+            project_id: sourceRow.project_id,
+            google_event_id: null,
+            id: null,
+            title: sourceRow.title,
+            start_date: occurrenceStart,
+          });
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ['events'] });
+      // Cargar filas de series a borrar (para Google) antes del delete
+      for (const seriesId of seriesDeleteIds) {
+        const rows = (seriesRows || []).filter(
+          (row) => (row.series_id || row.id) === seriesId,
+        );
+        for (const row of rows) {
+          googleDeletes.push(row as Event);
+        }
+      }
+
+      if (hardDeleteIds.size > 0) {
+        const { error } = await supabase
+          .from('events')
+          .delete()
+          .in('id', Array.from(hardDeleteIds));
+        if (error) throw error;
+      }
+
+      if (seriesDeleteIds.size > 0) {
+        const { error } = await supabase
+          .from('events')
+          .delete()
+          .in('series_id', Array.from(seriesDeleteIds));
+        if (error) throw error;
+      }
+
+      if (cancelUpdates.length > 0) {
+        const { error } = await supabase
+          .from('events')
+          .update({ is_cancelled: true })
+          .in('id', Array.from(new Set(cancelUpdates)));
+        if (error) throw error;
+      }
+
+      if (cancelInserts.length > 0) {
+        const { error } = await supabase.from('events').insert(cancelInserts);
+        if (error) throw error;
+      }
+
+      if (canUseGoogleSync && activeIsConnected && googleDeletes.length > 0) {
+        const uniqueGoogle = new Map<string, GoogleDeleteTarget>();
+        for (const event of googleDeletes) {
+          const key = `${event.google_event_id || ''}|${event.id || ''}|${String(event.start_date || '').split('T')[0]}`;
+          uniqueGoogle.set(key, event);
+        }
+        const googleList = Array.from(uniqueGoogle.values());
+        const GOOGLE_DELETE_CONCURRENCY = 6;
+        for (let i = 0; i < googleList.length; i += GOOGLE_DELETE_CONCURRENCY) {
+          const chunk = googleList.slice(i, i + GOOGLE_DELETE_CONCURRENCY);
+          await Promise.all(chunk.map((event) => deleteEventFromGoogle(event)));
+        }
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+      await queryClient.refetchQueries({
+        queryKey: ['events', currentProject?.id],
+      });
+
       toast.dismiss(loadingToast);
-      toast.success(`${eventIds.length} evento(s) eliminado(s)`);
+      toast.success(`${uniqueIds.length} evento(s) eliminado(s)`);
     } catch (error: unknown) {
       toast.dismiss(loadingToast);
-      const errorMessage = error instanceof Error ? error.message : 'Error al eliminar eventos';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Error al eliminar eventos';
       toast.error(errorMessage);
     }
   };
 
   // Eliminar todos los eventos de una fecha
-  const handleDeleteAllEventsFromDate = async (_dateKey: string, eventIds: string[]) => {
-    await deleteEventsAndSync(eventIds);
+  const handleDeleteAllEventsFromDate = async (
+    _dateKey: string,
+    eventIds: string[],
+  ) => {
+    await deleteOccurrencesBatch(eventIds);
   };
 
   // Eliminar múltiples eventos seleccionados
   const handleDeleteMultipleEvents = async (eventIds: string[]) => {
-    await deleteEventsAndSync(eventIds);
+    await deleteOccurrencesBatch(eventIds);
   };
 
   // Eliminar todos los eventos que ya pasaron
@@ -730,40 +1267,50 @@ export const CalendarView: React.FC = () => {
       toast.error('Tu rol es Viewer: solo puedes visualizar el calendario');
       return;
     }
-    if (!events) return;
     const now = new Date();
     now.setHours(0, 0, 0, 0);
-    const pastEventIds = events
-      .filter(e => new Date(e.start_date) < now)
-      .map(e => e.id);
-    if (pastEventIds.length === 0) {
+    const pastOccurrenceIds = displayEvents
+      .filter((e) => {
+        const datePart = e.start_date.split('T')[0];
+        return new Date(`${datePart}T00:00:00`) < now;
+      })
+      .map((e) => e.id);
+    if (pastOccurrenceIds.length === 0) {
       toast.info('No hay eventos pasados para eliminar');
       return;
     }
-    await deleteEventsAndSync(pastEventIds);
+    await deleteOccurrencesBatch(pastOccurrenceIds);
   };
 
-  // Memoizar eventos agrupados por fecha
-  const groupedAndSortedEvents = useMemo(() => {
-    if (!events) return {};
-
-    return events.reduce((acc: Record<string, { events: Event[]; timestamp: number; }>, event: Event) => {
-      const datePart = event.start_date.split('T')[0];
-      const eventDate = new Date(`${datePart}T00:00:00`);
-      const dateKey = eventDate.toLocaleDateString('es-ES', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        weekday: 'long',
-      });
-
-      if (!acc[dateKey]) {
-        acc[dateKey] = { events: [], timestamp: eventDate.getTime() };
-      }
-      acc[dateKey].events.push(event);
-      return acc;
-    }, {});
+  // Option 3: expandir masters a ocurrencias virtuales para la UI
+  const displayEvents = useMemo(() => {
+    if (!events) return [] as CalendarOccurrence[];
+    return materializeEventsForUI(events as CalendarEventRow[]);
   }, [events]);
+
+  const groupedAndSortedEvents = useMemo(() => {
+    if (!displayEvents.length) return {};
+
+    return displayEvents.reduce(
+      (acc: Record<string, { events: CalendarOccurrence[]; timestamp: number }>, event) => {
+        const datePart = event.start_date.split('T')[0];
+        const eventDate = new Date(`${datePart}T00:00:00`);
+        const dateKey = eventDate.toLocaleDateString('es-ES', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          weekday: 'long',
+        });
+
+        if (!acc[dateKey]) {
+          acc[dateKey] = { events: [], timestamp: eventDate.getTime() };
+        }
+        acc[dateKey].events.push(event);
+        return acc;
+      },
+      {},
+    );
+  }, [displayEvents]);
 
   // Ordenar las fechas
   const sortedDates = useMemo(() => {
@@ -785,7 +1332,7 @@ export const CalendarView: React.FC = () => {
               </h2>
               <div className="mt-1 flex items-center gap-3">
                 <p className="text-sm text-[var(--text-secondary)]">
-                  { events?.length || 0 } evento{ events?.length !== 1 ? 's' : '' } en total
+                  { displayEvents.length } ocurrencia{ displayEvents.length !== 1 ? 's' : '' } en total
                 </p>
                 { isViewer && (
                   <p className="text-xs text-[var(--text-secondary)] mt-1">Modo solo lectura: tu rol Viewer no puede crear, eliminar ni sincronizar eventos.</p>
@@ -793,8 +1340,8 @@ export const CalendarView: React.FC = () => {
                 { (() => {
                   const now = new Date();
                   now.setHours(0, 0, 0, 0);
-                  const pastCount = events?.filter(e => new Date(e.start_date) < now).length ?? 0;
-                  const upcomingCount = (events?.length ?? 0) - pastCount;
+                  const pastCount = displayEvents.filter(e => new Date(e.start_date) < now).length;
+                  const upcomingCount = displayEvents.length - pastCount;
                   return pastCount > 0 ? (
                     <>
                       <span className="text-[var(--text-secondary)]/40">·</span>
@@ -871,8 +1418,13 @@ export const CalendarView: React.FC = () => {
                 { !isViewer && (
                   <Button
                     onClick={ () => {
+                      setEditingEvent(null);
+                      setEditScope('single');
                       setIsModalOpen(true);
-                      reset();
+                      reset({
+                        recurrence_type: 'none',
+                        selected_days: [],
+                      });
                       setSelectedDays([]);
                       setShowRecurrenceOptions(false);
                     } }
@@ -948,6 +1500,7 @@ export const CalendarView: React.FC = () => {
               sortedDates={ sortedDates }
               canManage={ !isViewer }
               onDeleteEvent={ (eventId) => deleteEventMutation.mutate(eventId) }
+              onEditEvent={ handleEditEvent }
               onDeleteAllEventsFromDate={ handleDeleteAllEventsFromDate }
               onDeleteMultipleEvents={ handleDeleteMultipleEvents }
               onDeletePastEvents={ handleDeletePastEvents }
@@ -980,11 +1533,7 @@ export const CalendarView: React.FC = () => {
         { !isViewer && (
           <EventModal
             isOpen={ isModalOpen }
-            onClose={ () => {
-              setIsModalOpen(false);
-              setShowRecurrenceOptions(false);
-              setSelectedDays([]);
-            } }
+            onClose={ closeEventModal }
             onSubmit={ (data) => {
               const formData = {
                 ...data,
@@ -993,6 +1542,24 @@ export const CalendarView: React.FC = () => {
 
               if (isEndBeforeStart(formData)) {
                 toast.error('La hora de fin no puede ser menor que la hora de inicio');
+                return;
+              }
+
+              if (editingEvent) {
+                if (editingEvent.is_recurring && editScope !== 'single') {
+                  const confirmEdit = confirm(
+                    'Vas a editar toda la serie. ¿Deseas continuar?',
+                  );
+                  if (!confirmEdit) {
+                    return;
+                  }
+                }
+
+                updateEventMutation.mutate({
+                  event: editingEvent,
+                  data: formData,
+                  scope: editingEvent.is_recurring ? editScope : 'single',
+                });
                 return;
               }
 
@@ -1007,7 +1574,11 @@ export const CalendarView: React.FC = () => {
             setSelectedDays={ setSelectedDays }
             showRecurrenceOptions={ showRecurrenceOptions }
             setShowRecurrenceOptions={ setShowRecurrenceOptions }
-            isLoading={ createEventMutation.isPending }
+            isLoading={ createEventMutation.isPending || updateEventMutation.isPending }
+            mode={ editingEvent ? 'edit' : 'create' }
+            editScope={ editScope }
+            setEditScope={ setEditScope }
+            isEditingRecurring={ !!editingEvent?.is_recurring }
           />
         ) }
       </div>

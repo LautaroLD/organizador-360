@@ -16,6 +16,7 @@ import { AnalyzeResourceModal } from '@/components/resources/AnalyzeResourceModa
 import type { LinkFormData, ResourceTab, Resource } from '@/models';
 import { checkStorageLimit, getUserPlanTier } from '@/lib/subscriptionUtils';
 import { StorageIndicator } from './StorageIndicator';
+import { useProjectPermissions } from '@/hooks/useProjectPermissions';
 
 type StoragePolicyResponse = {
   overLimit: boolean;
@@ -63,8 +64,8 @@ export const ResourcesView: React.FC = () => {
   const { user } = useAuthStore();
   const { currentProject, setCurrentProject } = useProjectStore();
   const queryClient = useQueryClient();
-  const normalizedRole = currentProject?.userRole?.toLowerCase();
-  const isViewer = normalizedRole === 'viewer';
+  const { canUploadResources, canDeleteResources } = useProjectPermissions(user?.id);
+  const isViewer = !canUploadResources;
 
   const { data: userPlanTier } = useQuery({
     queryKey: ['plan-tier', user?.id],
@@ -276,7 +277,7 @@ export const ResourcesView: React.FC = () => {
   // Delete resource mutation
   const deleteResourceMutation = useMutation({
     mutationFn: async (resource: Resource) => {
-      if (isViewer) {
+      if (!canDeleteResources) {
         throw new Error('No tienes permisos para eliminar recursos');
       }
       let fileSize = resource.size || 0;
@@ -319,6 +320,19 @@ export const ResourcesView: React.FC = () => {
         });
       }
 
+      if (currentProject?.id) {
+        await fetch(`/api/projects/${currentProject.id}/audit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'resource.delete',
+            entityType: 'resource',
+            entityId: resource.id,
+            metadata: { title: resource.title, type: resource.type },
+          }),
+        });
+      }
+
       return fileSize;
     },
     onSuccess: (fileSize) => {
@@ -342,7 +356,7 @@ export const ResourcesView: React.FC = () => {
   // Bulk delete mutation
   const bulkDeleteMutation = useMutation({
     mutationFn: async (resourcesToDelete: Resource[]) => {
-      if (isViewer) {
+      if (!canDeleteResources) {
         throw new Error('No tienes permisos para eliminar recursos');
       }
       let totalSize = 0;

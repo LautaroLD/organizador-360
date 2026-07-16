@@ -18,9 +18,13 @@ export interface Project {
   enabled: boolean;
 }
 
+export type ProjectTemplateId = 'startup' | 'agency' | 'product';
+
 export interface ProjectFormData {
   name: string;
   description: string;
+  /** PRO: optional team template applied after create */
+  templateId?: ProjectTemplateId | null;
 }
 
 export interface ProjectStore {

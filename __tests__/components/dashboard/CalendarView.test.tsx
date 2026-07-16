@@ -132,7 +132,7 @@ describe('CalendarView - Google Calendar PRO gating', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('desconecta automáticamente Google cuando deja de ser PRO', async () => {
+  it('no desconecta automáticamente Google cuando deja de ser PRO', async () => {
     mockGoogleIsConnected = true;
     mockGoogleTokens = { access_token: 'token-1' };
     (getUserPlanTier as jest.Mock).mockResolvedValue('free');
@@ -140,7 +140,9 @@ describe('CalendarView - Google Calendar PRO gating', () => {
     renderComponent();
 
     await waitFor(() => {
-      expect(mockDisconnectGoogleCalendar).toHaveBeenCalled();
+      expect(getUserPlanTier).toHaveBeenCalled();
     });
+
+    expect(mockDisconnectGoogleCalendar).not.toHaveBeenCalled();
   });
 });

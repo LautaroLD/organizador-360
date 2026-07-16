@@ -108,6 +108,9 @@ export function ProjectSettings() {
                 className="block text-sm font-medium text-[var(--text-primary)] mb-2"
               >
                 Descripción
+                <p className='text-sm text-[var(--text-secondary)]'>
+                  Sugerimos una descripción detallada y clara, esta información será utilizada por los modelos de IA para entender mejor el contexto de tu proyecto.
+                </p>
               </label>
               <div className="flex gap-1 p-1 bg-[var(--bg-primary)] border border-[var(--text-secondary)]/20 rounded-lg mb-3 text-xs">
                 { (['richtext', 'preview'] as const).map((tab) => (

@@ -154,7 +154,7 @@ export const Sidebar: React.FC = () => {
     {
       id: 'analytics',
       icon: <BarChart3 className="h-5 w-5" />,
-      label: 'Analíticas',
+      label: 'Salud del equipo',
       path: `/projects/${projectId}/analytics`
     },
     {

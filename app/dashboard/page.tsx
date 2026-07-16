@@ -1,12 +1,12 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import Link from 'next/link';
+import { Users } from 'lucide-react';
 import { Header } from '@/components/ui/Header';
 import { ProjectsView } from '@/components/dashboard/ProjectsView';
 import { InvitationsWidget } from '@/components/dashboard/InvitationsWidget';
+import { ApprovalsWidget } from '@/components/dashboard/ApprovalsWidget';
 import SubscriptionRealtimeRefresh from '@/components/dashboard/SubscriptionRealtimeRefresh';
-// import { supabaseAdmin } from '@/lib/supabase/admin';
-
-// type SearchParams = { [key: string]: string | string[] | undefined; };
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -34,6 +34,7 @@ export default async function DashboardPage() {
   const effectivePlanTier = contextPlanTier;
 
   const isPaid = effectivePlanTier !== 'free';
+  const isPro = effectivePlanTier === 'pro';
 
   const subtitleText = isPaid
     ? `Plan ${effectivePlanTier.toUpperCase()} Activo${planContext.source === 'manual' ? ' (Manual)' : ''}`
@@ -47,18 +48,27 @@ export default async function DashboardPage() {
       />
 
       <main className='m-6 space-y-6'>
-        {/* {planTier === 'free' && (
-          <div className=' rounded-md'>
-            <div className="p-3 bg-[var(--accent-warning)]/10  rounded-md border border-[var(--accent-warning)]">
-              <p className="text-[var(--accent-warning)] text-sm">
-                Estás limitado a 3 proyectos.
-                <a href="/settings/subscription" className="font-bold underline ml-1">Ver planes</a>
+        <SubscriptionRealtimeRefresh />
+        {isPro && (
+          <Link
+            href="/team"
+            className="flex items-center gap-3 rounded-lg border border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] px-4 py-3 hover:bg-[var(--bg-primary)] transition-colors"
+          >
+            <div className="rounded-md bg-[var(--bg-primary)] p-2 text-[var(--text-secondary)]">
+              <Users className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">
+                Workspace del equipo
+              </p>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Directorio, tareas multi-proyecto, calendario unificado y riesgos
               </p>
             </div>
-          </div>
-        )} */}
-        <SubscriptionRealtimeRefresh />
+          </Link>
+        )}
         <InvitationsWidget />
+        <ApprovalsWidget />
         <ProjectsView />
       </main>
     </div>

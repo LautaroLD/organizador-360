@@ -1,38 +1,30 @@
 'use client';
 
 import React from 'react';
-import { CalendarClock, ChevronDown, ChevronRight, Clock, History, Repeat, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { CalendarClock, ChevronDown, ChevronRight, Clock, History, Pencil, Repeat, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { DateRangePicker } from '../ui/DateRangePicker';
+import type { CalendarOccurrence } from '@/types/calendarOccurrence';
 
-interface Event {
-  id: string;
-  title: string;
-  description?: string;
-  start_date: string;
-  end_date: string;
-  is_recurring?: boolean;
-  recurrence_rule?: string;
-  creator?: {
-    name: string;
-    email: string;
-  };
-}
+export type CalendarListEvent = CalendarOccurrence;
 
 interface EventListProps {
-  groupedEvents: Record<string, { events: Event[]; timestamp: number; }>;
+  groupedEvents: Record<string, { events: CalendarListEvent[]; timestamp: number; }>;
   sortedDates: string[];
   canManage?: boolean;
   onDeleteEvent: (eventId: string) => void;
+  onEditEvent?: (event: CalendarListEvent) => void;
   onDeleteAllEventsFromDate?: (dateKey: string, eventIds: string[]) => void;
   onDeleteMultipleEvents?: (eventIds: string[]) => void;
   onDeletePastEvents?: () => void;
 }
 
 const formatTimeHM = (iso: string) => {
-  const timePart = (iso.split('T')[1] || '00:00:00').split('+')[0];
+  const timePart = (iso.split('T')[1] || '00:00:00')
+    .replace(/\.\d+/, '')
+    .replace(/(Z|[+-]\d{2}:?\d{2})$/i, '');
   const [h, m] = timePart.split(':');
-  return `${h}:${m}`;
+  return `${h || '00'}:${m || '00'}`;
 };
 
 const getRelativeLabel = (timestamp: number): string | null => {
@@ -48,6 +40,7 @@ export const EventList: React.FC<EventListProps> = ({
   sortedDates,
   canManage = true,
   onDeleteEvent,
+  onEditEvent,
   onDeleteAllEventsFromDate,
   onDeleteMultipleEvents,
   onDeletePastEvents,
@@ -297,18 +290,30 @@ export const EventList: React.FC<EventListProps> = ({
                         </p>
                       </div>
                       { canManage && (
-                        <button
-                          onClick={ () => {
-                            if (confirm('¿Eliminar este evento?')) {
-                              onDeleteEvent(event.id);
-                            }
-                          } }
-                          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 text-red-500 transition-all flex-shrink-0"
-                          aria-label="Eliminar evento"
-                          title="Eliminar evento"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all flex-shrink-0">
+                          { onEditEvent && (
+                            <button
+                              onClick={ () => onEditEvent(event) }
+                              className="p-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/20 text-blue-500 transition-all"
+                              aria-label="Editar evento"
+                              title="Editar evento"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          ) }
+                          <button
+                            onClick={ () => {
+                              if (confirm('¿Eliminar este evento?')) {
+                                onDeleteEvent(event.id);
+                              }
+                            } }
+                            className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 text-red-500 transition-all"
+                            aria-label="Eliminar evento"
+                            title="Eliminar evento"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       ) }
                     </div>
                   </div>

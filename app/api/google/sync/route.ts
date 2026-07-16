@@ -272,6 +272,7 @@ const getLocalEventLink = async (
 const buildLinkedGoogleEvent = (
   event: SyncEventPayload,
   localEvent: LocalEventLink | null,
+  options?: { asException?: boolean },
 ) => {
   const linkedEvent = {
     ...event,
@@ -281,7 +282,9 @@ const buildLinkedGoogleEvent = (
   };
 
   return attachGoogleEventLinkMetadata(
-    formatEventForGoogle(linkedEvent),
+    formatEventForGoogle(linkedEvent, {
+      asException: options?.asException,
+    }),
     linkedEvent,
   );
 };
@@ -592,6 +595,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
+
+export { PATCH } from './patchHandler';
 
 // Obtener eventos de Google Calendar
 export async function GET() {

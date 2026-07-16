@@ -98,6 +98,24 @@ export class GoogleCalendarService {
     }
   }
 
+  async getEvent(eventId: string): Promise<calendar_v3.Schema$Event> {
+    const calendar = this.getCalendar();
+
+    try {
+      const response = await calendar.events.get({
+        calendarId: 'primary',
+        eventId,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener evento de Google Calendar:', {
+        ...extractGoogleErrorDetails(error),
+        eventId,
+      });
+      throw error;
+    }
+  }
+
   // Obtener eventos de Google Calendar
   async getEvents(
     timeMin?: string,
@@ -119,6 +137,31 @@ export class GoogleCalendarService {
         'Error al obtener eventos de Google Calendar:',
         extractGoogleErrorDetails(error),
       );
+      throw error;
+    }
+  }
+
+  async listEventInstances(
+    recurringEventId: string,
+    options?: { timeMin?: string; timeMax?: string; maxResults?: number },
+  ): Promise<calendar_v3.Schema$Event[]> {
+    const calendar = this.getCalendar();
+
+    try {
+      const response = await calendar.events.instances({
+        calendarId: 'primary',
+        eventId: recurringEventId,
+        timeMin: options?.timeMin,
+        timeMax: options?.timeMax,
+        maxResults: options?.maxResults ?? 100,
+        showDeleted: false,
+      });
+      return response.data.items || [];
+    } catch (error) {
+      console.error('Error al listar instancias de Google Calendar:', {
+        ...extractGoogleErrorDetails(error),
+        recurringEventId,
+      });
       throw error;
     }
   }
@@ -163,6 +206,28 @@ export class GoogleCalendarService {
       return response.data;
     } catch (error) {
       console.error('Error al actualizar evento en Google Calendar:', {
+        ...extractGoogleErrorDetails(error),
+        eventId,
+      });
+      throw error;
+    }
+  }
+
+  async patchEvent(
+    eventId: string,
+    patch: calendar_v3.Schema$Event,
+  ): Promise<calendar_v3.Schema$Event> {
+    const calendar = this.getCalendar();
+
+    try {
+      const response = await calendar.events.patch({
+        calendarId: 'primary',
+        eventId,
+        requestBody: patch,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error al parchear evento de Google Calendar:', {
         ...extractGoogleErrorDetails(error),
         eventId,
       });
