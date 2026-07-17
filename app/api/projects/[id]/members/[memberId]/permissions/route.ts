@@ -118,9 +118,12 @@ export async function PUT(
     }
 
     const targetRole = String(target.role ?? '').toLowerCase();
-    if (targetRole === 'owner') {
+    if (targetRole === 'owner' || targetRole === 'admin') {
       return NextResponse.json(
-        { error: 'No se pueden editar permisos del Owner' },
+        {
+          error:
+            'Solo se pueden editar permisos de Collaborator o Viewer (Admin/Owner ya tienen acceso completo)',
+        },
         { status: 400 },
       );
     }

@@ -48,7 +48,7 @@ export const ManageMemberModal: React.FC<ManageMemberModalProps> = ({
     canEditPermissions &&
     !!projectId &&
     !!member &&
-    member.role !== 'Owner';
+    (member.role === 'Collaborator' || member.role === 'Viewer');
 
   // Reset local edits when switching members (adjust state during render).
   if (memberId !== draftMemberId) {
@@ -105,6 +105,7 @@ export const ManageMemberModal: React.FC<ManageMemberModalProps> = ({
       queryClient.invalidateQueries({
         queryKey: ['member-permissions', projectId, memberId],
       });
+      // Invalidate all members' effective permissions in this project (local client).
       queryClient.invalidateQueries({ queryKey: ['my-permissions', projectId] });
       queryClient.invalidateQueries({ queryKey: ['project-audit', projectId] });
     },

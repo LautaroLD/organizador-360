@@ -48,4 +48,18 @@ describe('permissions', () => {
     ]);
     expect(viewerGranted.has('resources.upload')).toBe(true);
   });
+
+  it('niega permiso de Collaborator y otorga invite a Viewer', () => {
+    expect(
+      hasPermission('Collaborator', 'chat.write', [
+        { permission: 'chat.write', granted: false },
+      ]),
+    ).toBe(false);
+
+    expect(
+      hasPermission('Viewer', 'members.invite', [
+        { permission: 'members.invite', granted: true },
+      ]),
+    ).toBe(true);
+  });
 });
