@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { writeAuditLog } from '@/lib/auditLog';
+import { memberHasPermission } from '@/lib/memberPermissions';
 
 type SendInvitationPayload = {
   projectId?: string;
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
 
     const { data: member, error: memberError } = await supabase
       .from('project_members')
-      .select('role, project:projects(owner_id)')
+      .select('role')
       .eq('project_id', reqBody.projectId)
       .eq('user_id', user.id)
       .single();
@@ -130,13 +131,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // @ts-expect-error - project structure
-    const ownerId = member.project.owner_id;
-    const canManageMembers = ownerId === user.id || member.role === 'Admin';
+    const canInvite = await memberHasPermission(
+      supabase,
+      reqBody.projectId,
+      user.id,
+      'members.invite',
+    );
 
-    if (!canManageMembers) {
+    if (!canInvite) {
       return NextResponse.json(
-        { success: false, error: 'Solo Owner o Admin pueden invitar miembros' },
+        { success: false, error: 'No tienes permiso para invitar miembros' },
         { status: 403 },
       );
     }

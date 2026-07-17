@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { canAddMemberToProject } from '@/lib/subscriptionUtils';
+import { memberHasPermission } from '@/lib/memberPermissions';
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
@@ -44,11 +45,16 @@ export async function POST(request: NextRequest) {
 
     // @ts-expect-error - project structure
     const ownerId = member.project.owner_id;
-    const canManageMembers = ownerId === user.id || member.role === 'Admin';
+    const canInvite = await memberHasPermission(
+      supabase,
+      projectId,
+      user.id,
+      'members.invite',
+    );
 
-    if (!canManageMembers) {
+    if (!canInvite) {
       return NextResponse.json(
-        { error: 'Solo Owner o Admin pueden invitar miembros' },
+        { error: 'No tienes permiso para invitar miembros' },
         { status: 403 },
       );
     }

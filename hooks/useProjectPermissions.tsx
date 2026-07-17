@@ -14,19 +14,26 @@ async function fetchMyOverrides(
   userId: string,
 ): Promise<PermissionOverride[]> {
   const supabase = createClient();
-  const { data: member } = await supabase
+
+  // Prefer DB function via member id + permissions table (same source as RLS).
+  const { data: member, error: memberError } = await supabase
     .from('project_members')
     .select('id')
     .eq('project_id', projectId)
     .eq('user_id', userId)
     .maybeSingle();
 
-  if (!member?.id) return [];
+  if (memberError || !member?.id) return [];
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('project_member_permissions')
     .select('permission, granted')
     .eq('member_id', member.id);
+
+  if (error) {
+    console.error('Error loading permission overrides:', error);
+    return [];
+  }
 
   return (data ?? []).map((row) => ({
     permission: row.permission as Permission,
@@ -39,11 +46,12 @@ export function useProjectPermissions(userId?: string | null) {
   const role = currentProject?.userRole;
   const projectId = currentProject?.id;
 
-  const { data: overrides = [] } = useQuery({
+  const { data: overrides = [], isFetched } = useQuery({
     queryKey: ['my-permissions', projectId, userId],
     queryFn: () => fetchMyOverrides(projectId!, userId!),
     enabled: !!projectId && !!userId,
-    staleTime: 60_000,
+    staleTime: 15_000,
+    refetchOnMount: 'always',
   });
 
   const can = (permission: Permission) =>
@@ -52,6 +60,7 @@ export function useProjectPermissions(userId?: string | null) {
   return {
     role,
     overrides,
+    isFetched,
     can,
     canWriteChat: can('chat.write'),
     canEditKanban: can('kanban.edit'),
