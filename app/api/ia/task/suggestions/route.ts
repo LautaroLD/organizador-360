@@ -211,6 +211,12 @@ const buildProjectStateSummary = (
     .map((task) => task.title);
   const topDone = tasksByStatus.done.slice(0, 8).map((task) => task.title);
 
+  const hasActiveWork =
+    tasksByStatus['in-progress'].length > 0 || tasksByStatus.done.length > 0;
+  // When the board is only backlog, the model tends to restate existing todos.
+  // Flag this so the prompt can ask for complementary new work instead.
+  const boardStage = hasActiveWork ? 'in_motion' : 'backlog_only';
+
   return {
     totals: {
       total,
@@ -219,6 +225,7 @@ const buildProjectStateSummary = (
       done: tasksByStatus.done.length,
       donePct,
     },
+    boardStage,
     priorities,
     overdueCount: overdue.length,
     bottlenecks,
@@ -344,6 +351,7 @@ export async function POST(req: NextRequest) {
       tasksByStatus,
       suggestionPayload,
     );
+    const isBacklogOnly = projectStateSummary.boardStage === 'backlog_only';
 
     // Nivel 2: sugerencias analíticas de tareas
     await consumeAICredits(supabase, {
@@ -359,11 +367,29 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const res = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite',
-      contents: [
+    const systemInstruction = [
+      'Eres un PM técnico senior especializado en gestión ágil. Tu objetivo es sugerir las tareas de mayor impacto para el equipo según el estado actual del tablero.',
+      isBacklogOnly
+        ? 'El tablero está solo en backlog (todas las tareas en por hacer, sin progreso ni hechas). No digas "empezar" o "priorizar" tareas ya listadas: inventa tareas NUEVAS y complementarias que cierren huecos del proyecto (integración, calidad, riesgos, dependencias, entregables faltantes).'
+        : 'Prioriza: (1) desbloqueo de tareas bloqueadas, (2) reducción de riesgos activos, (3) avance de hitos próximos con fecha definida.',
+      'Debes basarte en el estado real del proyecto (backlog, progreso, prioridades, vencimientos, fases y epicas).',
+      'Evita tareas genéricas o abstractas sin acción concreta.',
+      'Cada sugerencia debe ser un título concreto y ejecutable, no una categoría.',
+      'Responde solo en español.',
+      'Cada tarea debe ser un título breve (idealmente entre 5 y 12 palabras).',
+      'Devuelve la respuesta en formato JSON como un array de strings.',
+      'No agregues texto adicional fuera de la estructura solicitada. No uses bloques de codigo.',
+      'No repitas tareas existentes (ni parafrasees su título), ni tareas hechas, ni duplicados entre sugerencias.',
+      'Los títulos en topTodo / topInProgress / topDone ya existen: no los reutilices ni los reescribas.',
+      'Sugiere entre 3 y 5 tareas.',
+    ];
+
+    const generateOnce = async (extraUserHint?: string) => {
+      const contents = [
         {
-          text: 'Sugiere las siguientes tareas mas valiosas para el estado actual del proyecto.',
+          text: isBacklogOnly
+            ? 'Sugiere tareas nuevas y complementarias al backlog actual del proyecto.'
+            : 'Sugiere las siguientes tareas mas valiosas para el estado actual del proyecto.',
         },
         {
           text: `Proyecto: ${JSON.stringify({
@@ -375,28 +401,39 @@ export async function POST(req: NextRequest) {
         {
           text: `Estado actual del tablero: ${JSON.stringify(projectStateSummary)}`,
         },
-      ],
-      config: {
-        systemInstruction: [
-          'Eres un PM técnico senior especializado en gestión ágil. Tu objetivo es sugerir las tareas de mayor impacto para el equipo según el estado actual del tablero, priorizando: (1) desbloqueo de tareas bloqueadas, (2) reducción de riesgos activos, (3) avance de hitos próximos con fecha definida.',
-          'Debes basarte en el estado real del proyecto (backlog, progreso, prioridades, vencimientos, fases y epicas).',
-          'Evita tareas genéricas o abstractas sin acción concreta.',
-          'Cada sugerencia debe ser un título concreto y ejecutable, no una categoría.',
-          'Responde solo en español.',
-          'Cada tarea debe ser un título breve (idealmente entre 5 y 12 palabras).',
-          'Devuelve la respuesta en formato JSON como un array de strings.',
-          'No agregues texto adicional fuera de la estructura solicitada. No uses bloques de codigo.',
-          'No repitas tareas existentes, ni tareas hechas, ni duplicados entre sugerencias.',
-          'Sugiere entre 3 y 5 tareas.',
-        ],
-      },
-    });
+      ];
 
-    const suggestionsRaw = parseSuggestionsText(res.text || '');
-    const suggestions = cleanAndDeduplicateSuggestions(
+      if (extraUserHint) {
+        contents.push({ text: extraUserHint });
+      }
+
+      return ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite',
+        contents,
+        config: {
+          systemInstruction,
+        },
+      });
+    };
+
+    const res = await generateOnce();
+    let suggestionsRaw = parseSuggestionsText(res.text || '');
+    let suggestions = cleanAndDeduplicateSuggestions(
       suggestionsRaw,
       existingTitles,
     );
+
+    // Soft retry: backlog-only boards often get restated titles that dedupe to [].
+    if (suggestions.length === 0 && isBacklogOnly) {
+      const retry = await generateOnce(
+        'Intento anterior devolvió solo duplicados del backlog. Genera 3 a 5 títulos completamente distintos a topTodo, sin sinónimos ni reformulaciones de esas tareas.',
+      );
+      suggestionsRaw = parseSuggestionsText(retry.text || '');
+      suggestions = cleanAndDeduplicateSuggestions(
+        suggestionsRaw,
+        existingTitles,
+      );
+    }
 
     return NextResponse.json({ suggestions });
   } catch (error: unknown) {
