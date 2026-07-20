@@ -11,6 +11,7 @@ type LemonSubscriptionAttributes = {
   trial_ends_at?: string | null;
   cancelled?: boolean;
   product_name?: string;
+  variant_id?: number | string | null;
   variant_name?: string;
   card_brand?: string | null;
   card_last_four?: string | null;
@@ -95,6 +96,7 @@ export async function GET() {
         hasSubscription: false,
         source: null,
         details: null,
+        currentVariantId: null,
         planContext: {
           plan_tier: 'free',
           source: 'free',
@@ -102,6 +104,11 @@ export async function GET() {
         } satisfies PlanContextResponse,
       });
     }
+
+    const storedVariantId =
+      typeof subscription.lemon_squeezy_variant_id === 'string'
+        ? subscription.lemon_squeezy_variant_id.trim() || null
+        : null;
 
     const { data: planContextRaw } = await supabase.rpc(
       'get_user_plan_context',
@@ -129,6 +136,7 @@ export async function GET() {
         internalPlanId,
         source: 'database',
         planContext,
+        currentVariantId: storedVariantId,
         details: {
           id: subscription.lemon_squeezy_subscription_id,
           status: subscription.status,
@@ -136,6 +144,7 @@ export async function GET() {
           currentPeriodStart: subscription.current_period_start,
           currentPeriodEnd: subscription.current_period_end,
           cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          variantId: storedVariantId,
           provider: 'lemon_squeezy',
         },
         error: 'LEMON_SQUEEZY_API_KEY no está configurada',
@@ -166,6 +175,12 @@ export async function GET() {
 
       const attributes = lsSubscription?.attributes;
 
+      const lemonVariantId =
+        attributes?.variant_id != null && attributes.variant_id !== ''
+          ? String(attributes.variant_id)
+          : null;
+      const currentVariantId = lemonVariantId ?? storedVariantId;
+
       const details = {
         id: lsSubscription?.id ?? subscription.lemon_squeezy_subscription_id,
         status: attributes?.status ?? subscription.status,
@@ -188,6 +203,7 @@ export async function GET() {
         cancelAtPeriodEnd:
           attributes?.cancelled ?? subscription.cancel_at_period_end ?? false,
         productName: attributes?.product_name ?? null,
+        variantId: currentVariantId,
         variantName: attributes?.variant_name ?? null,
         userEmail: attributes?.user_email ?? user.email ?? null,
         paymentMethod:
@@ -212,6 +228,7 @@ export async function GET() {
         internalPlanId,
         source: 'lemon_squeezy',
         planContext,
+        currentVariantId,
         details,
       });
     } catch (lemonError) {
@@ -228,6 +245,7 @@ export async function GET() {
         internalPlanId,
         source: 'database',
         planContext,
+        currentVariantId: storedVariantId,
         details: {
           id: subscription.lemon_squeezy_subscription_id,
           status: subscription.status,
@@ -235,6 +253,7 @@ export async function GET() {
           currentPeriodStart: subscription.current_period_start,
           currentPeriodEnd: subscription.current_period_end,
           cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          variantId: storedVariantId,
           provider: 'lemon_squeezy',
         },
         error: 'No se pudo obtener información actualizada de Lemon Squeezy',

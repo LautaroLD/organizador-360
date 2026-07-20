@@ -1,8 +1,5 @@
 import { PlanTier } from '@/types/planTypes';
-
 import { SupabaseClient } from '@supabase/supabase-js';
-
-// (Se eliminará esta línea)
 
 export type SubscriptionProvider = 'lemon_squeezy';
 
@@ -12,6 +9,47 @@ type SubscriptionAccessSnapshot = {
   status?: string | null;
   cancel_at_period_end?: boolean | null;
   current_period_end?: string | null;
+};
+
+export type PlanLimits = {
+  max_projects: number;
+  max_members_per_project: number;
+  max_storage_bytes: number;
+  ai_features_enabled: boolean;
+  ai_monthly_credits: number;
+  workspace_enabled: boolean;
+  google_calendar_sync: boolean;
+};
+
+/** Display/offline fallback only — must stay aligned with plans.limits seed. */
+export const FALLBACK_PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
+  free: {
+    max_projects: 3,
+    max_members_per_project: 10,
+    max_storage_bytes: 100 * 1024 * 1024,
+    ai_features_enabled: false,
+    ai_monthly_credits: 0,
+    workspace_enabled: false,
+    google_calendar_sync: false,
+  },
+  starter: {
+    max_projects: 5,
+    max_members_per_project: 15,
+    max_storage_bytes: 1024 * 1024 * 1024,
+    ai_features_enabled: false,
+    ai_monthly_credits: 0,
+    workspace_enabled: false,
+    google_calendar_sync: false,
+  },
+  pro: {
+    max_projects: 10,
+    max_members_per_project: 30,
+    max_storage_bytes: 5 * 1024 * 1024 * 1024,
+    ai_features_enabled: true,
+    ai_monthly_credits: 250,
+    workspace_enabled: true,
+    google_calendar_sync: true,
+  },
 };
 
 const KNOWN_PAID_TIERS: ReadonlyArray<PlanTier> = ['starter', 'pro'];
@@ -24,57 +62,156 @@ function normalizeTier(value?: string | null): PlanTier {
   return 'free';
 }
 
-function buildPlanIdMap(
-  useServerEnv: boolean,
-): Record<'starter' | 'pro', string[]> {
-  const env = process.env;
-  const pick = (serverName: string, publicName: string) => {
-    const serverValue = useServerEnv ? env[serverName] : undefined;
-    return serverValue ?? env[publicName] ?? '';
+export function parsePlanLimits(value: unknown): PlanLimits {
+  const raw =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+
+  const numberOr = (key: string, fallback: number) => {
+    const n = Number(raw[key]);
+    return Number.isFinite(n) ? n : fallback;
   };
+
+  const boolOr = (key: string, fallback: boolean) => {
+    const v = raw[key];
+    if (typeof v === 'boolean') return v;
+    if (v === 'true') return true;
+    if (v === 'false') return false;
+    return fallback;
+  };
+
+  const fallback = FALLBACK_PLAN_LIMITS.free;
 
   return {
-    starter: [
-      pick('MP_STARTER_MENSUAL_PLAN_ID', 'NEXT_PUBLIC_LEMON_STARTER_PLAN_ID'),
-    ].filter(Boolean),
-    pro: [
-      pick('MP_PRO_MENSUAL_PLAN_ID', 'NEXT_PUBLIC_LEMON_PRO_PLAN_ID'),
-    ].filter(Boolean),
+    max_projects: numberOr('max_projects', fallback.max_projects),
+    max_members_per_project: numberOr(
+      'max_members_per_project',
+      fallback.max_members_per_project,
+    ),
+    max_storage_bytes: numberOr('max_storage_bytes', fallback.max_storage_bytes),
+    ai_features_enabled: boolOr(
+      'ai_features_enabled',
+      fallback.ai_features_enabled,
+    ),
+    ai_monthly_credits: numberOr(
+      'ai_monthly_credits',
+      fallback.ai_monthly_credits,
+    ),
+    workspace_enabled: boolOr('workspace_enabled', fallback.workspace_enabled),
+    google_calendar_sync: boolOr(
+      'google_calendar_sync',
+      fallback.google_calendar_sync,
+    ),
   };
 }
 
-function buildLemonVariantIdMap(): Record<'starter' | 'pro', string[]> {
-  const env = process.env;
+/** Merge base plan limits with a partial variant override (override wins). */
+export function mergePlanLimits(
+  base: PlanLimits,
+  override?: unknown | null,
+): PlanLimits {
+  if (!override || typeof override !== 'object' || Array.isArray(override)) {
+    return base;
+  }
 
+  const raw = override as Record<string, unknown>;
+  const next: PlanLimits = { ...base };
+
+  const assignNumber = (key: keyof PlanLimits) => {
+    if (!(key in raw) || raw[key] === null || raw[key] === undefined) return;
+    const n = Number(raw[key]);
+    if (Number.isFinite(n)) {
+      (next as Record<string, number | boolean>)[key] = n;
+    }
+  };
+
+  const assignBool = (key: keyof PlanLimits) => {
+    if (!(key in raw) || raw[key] === null || raw[key] === undefined) return;
+    const v = raw[key];
+    if (typeof v === 'boolean') {
+      (next as Record<string, number | boolean>)[key] = v;
+    } else if (v === 'true') {
+      (next as Record<string, number | boolean>)[key] = true;
+    } else if (v === 'false') {
+      (next as Record<string, number | boolean>)[key] = false;
+    }
+  };
+
+  assignNumber('max_projects');
+  assignNumber('max_members_per_project');
+  assignNumber('max_storage_bytes');
+  assignNumber('ai_monthly_credits');
+  assignBool('ai_features_enabled');
+  assignBool('workspace_enabled');
+  assignBool('google_calendar_sync');
+
+  return next;
+}
+
+/**
+ * Build marketing bullets from effective limits, preserving non-quota lines
+ * from the catalog (IA, sync, soporte, etc.).
+ */
+export function buildDisplayFeatures(
+  limits: PlanLimits,
+  catalogFeatures: string[] = [],
+): string[] {
+  const projectsLine = `Hasta ${limits.max_projects} proyectos`;
+  const storageLine = `Hasta ${formatBytes(limits.max_storage_bytes, 0)} de recursos`;
+  const membersLine = `Hasta ${limits.max_members_per_project} miembros por proyecto`;
+
+  if (catalogFeatures.length === 0) {
+    return [projectsLine, storageLine, membersLine];
+  }
+
+  let sawProjects = false;
+  let sawStorage = false;
+  let sawMembers = false;
+
+  const mapped = catalogFeatures.map((feature) => {
+    const lower = feature.toLowerCase();
+    if (lower.includes('hasta') && lower.includes('miembro')) {
+      sawMembers = true;
+      return membersLine;
+    }
+    if (lower.includes('hasta') && lower.includes('recurso')) {
+      sawStorage = true;
+      return storageLine;
+    }
+    if (
+      lower.includes('hasta') &&
+      lower.includes('proyecto') &&
+      !lower.includes('miembro')
+    ) {
+      sawProjects = true;
+      return projectsLine;
+    }
+    return feature;
+  });
+
+  const prefix: string[] = [];
+  if (!sawProjects) prefix.push(projectsLine);
+  if (!sawStorage) prefix.push(storageLine);
+  if (!sawMembers) prefix.push(membersLine);
+
+  return [...prefix, ...mapped];
+}
+
+/** Sync fallback by tier for UI that only has a denormalized plan_tier. */
+export function getFallbackPlanLimits(tier: PlanTier): PlanLimits {
+  return FALLBACK_PLAN_LIMITS[tier] ?? FALLBACK_PLAN_LIMITS.free;
+}
+
+/** @deprecated Use getFallbackPlanLimits / getEffectiveLimits */
+export function getPlanLimits(tier: PlanTier) {
+  const limits = getFallbackPlanLimits(tier);
   return {
-    starter: [env.NEXT_PUBLIC_LEMON_STARTER_VARIANT_ID ?? ''].filter(Boolean),
-    pro: [env.NEXT_PUBLIC_LEMON_PRO_VARIANT_ID ?? ''].filter(Boolean),
+    MAX_PROJECTS: limits.max_projects,
+    MAX_MEMBERS_PER_PROJECT: limits.max_members_per_project,
+    MAX_STORAGE_BYTES: limits.max_storage_bytes,
+    AI_FEATURES_ENABLED: limits.ai_features_enabled,
   };
-}
-
-export function mapLemonVariantIdToTier(
-  variantId?: string | number | null,
-): PlanTier {
-  if (variantId === null || variantId === undefined) return 'free';
-
-  const normalizedVariantId = String(variantId).trim();
-  if (!normalizedVariantId) return 'free';
-
-  const map = buildLemonVariantIdMap();
-  if (map.starter.includes(normalizedVariantId)) return 'starter';
-  if (map.pro.includes(normalizedVariantId)) return 'pro';
-  return 'free';
-}
-
-export function maplemon_squeezyPlanIdToTier(
-  planId?: string | null,
-  useServerEnv = false,
-): PlanTier {
-  if (!planId) return 'free';
-  const map = buildPlanIdMap(useServerEnv);
-  if (map.starter.includes(planId)) return 'starter';
-  if (map.pro.includes(planId)) return 'pro';
-  return 'free';
 }
 
 export function resolveEffectivePlanTier(input: {
@@ -188,39 +325,6 @@ export function hasPaidAccess(
   return false;
 }
 
-export const SUBSCRIPTION_LIMITS = {
-  FREE: {
-    MAX_PROJECTS: 3,
-    MAX_MEMBERS_PER_PROJECT: 10,
-    MAX_STORAGE_BYTES: 100 * 1024 * 1024, // 100 MB
-    AI_FEATURES_ENABLED: false,
-  },
-  STARTER: {
-    MAX_PROJECTS: 5,
-    MAX_MEMBERS_PER_PROJECT: 15,
-    MAX_STORAGE_BYTES: 1024 * 1024 * 1024, // 1 GB
-    AI_FEATURES_ENABLED: false,
-  },
-  PRO: {
-    MAX_PROJECTS: 10,
-    MAX_MEMBERS_PER_PROJECT: 30,
-    MAX_STORAGE_BYTES: 5 * 1024 * 1024 * 1024, // 5 GB
-    AI_FEATURES_ENABLED: true,
-  },
-} as const;
-
-export function getPlanLimits(tier: PlanTier) {
-  switch (tier) {
-    case 'starter':
-      return SUBSCRIPTION_LIMITS.STARTER;
-    case 'pro':
-      return SUBSCRIPTION_LIMITS.PRO;
-    case 'free':
-    default:
-      return SUBSCRIPTION_LIMITS.FREE;
-  }
-}
-
 export function formatBytes(bytes: number | null, decimals = 2) {
   if (bytes === null) return 'Ilimitado';
   if (!+bytes) return '0 Bytes';
@@ -234,9 +338,6 @@ export function formatBytes(bytes: number | null, decimals = 2) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
-/**
- * Verifica si un usuario es premium
- */
 export async function getUserPlanTier(
   supabase: SupabaseClient,
   userId: string,
@@ -261,6 +362,58 @@ export async function getUserPlanTier(
   } catch (error) {
     console.error('Error getting user plan:', error);
     return 'free';
+  }
+}
+
+export async function getEffectiveLimits(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<{ tier: PlanTier; limits: PlanLimits }> {
+  const tier = await getUserPlanTier(supabase, userId);
+
+  try {
+    const { data, error } = await supabase.rpc('get_effective_limits', {
+      p_user_id: userId,
+    });
+
+    if (error || data == null) {
+      if (error) {
+        console.error('Error getting effective limits:', error);
+      }
+      return { tier, limits: getFallbackPlanLimits(tier) };
+    }
+
+    return { tier, limits: parsePlanLimits(data) };
+  } catch (error) {
+    console.error('Error getting effective limits:', error);
+    return { tier, limits: getFallbackPlanLimits(tier) };
+  }
+}
+
+export async function getPlanLimitsByCode(
+  supabase: SupabaseClient,
+  code: PlanTier | string,
+): Promise<PlanLimits> {
+  const tier = normalizeTier(code);
+
+  try {
+    const { data, error } = await supabase
+      .from('plans')
+      .select('limits')
+      .eq('code', tier)
+      .maybeSingle();
+
+    if (error || !data) {
+      if (error) {
+        console.error('Error loading plan limits by code:', error);
+      }
+      return getFallbackPlanLimits(tier);
+    }
+
+    return parsePlanLimits(data.limits);
+  } catch (error) {
+    console.error('Error loading plan limits by code:', error);
+    return getFallbackPlanLimits(tier);
   }
 }
 
@@ -293,9 +446,6 @@ export async function canUseAIFeatures(
   }
 }
 
-/**
- * Obtiene el número actual de miembros en un proyecto
- */
 export async function getProjectMemberCount(
   supabase: SupabaseClient,
   projectId: string,
@@ -318,9 +468,6 @@ export async function getProjectMemberCount(
   }
 }
 
-/**
- * Verifica si se puede agregar un miembro al proyecto
- */
 export async function canAddMemberToProject(
   supabase: SupabaseClient,
   projectId: string,
@@ -364,9 +511,6 @@ export async function canAddMemberToProject(
   }
 }
 
-/**
- * Verifica si se puede agregar almacenamiento al proyecto
- */
 export async function checkStorageLimit(
   supabase: SupabaseClient,
   projectId: string,
@@ -379,7 +523,6 @@ export async function checkStorageLimit(
   plan?: PlanTier;
 }> {
   try {
-    // Obtener proyecto para ver si es premium y uso actual
     const { data: project, error } = await supabase
       .from('projects')
       .select('owner_id, storage_used')
@@ -391,10 +534,12 @@ export async function checkStorageLimit(
       return { canAdd: false, reason: 'Error al verificar proyecto' };
     }
 
-    const tier = await getUserPlanTier(supabase, project.owner_id);
-    const limits = getPlanLimits(tier);
+    const { tier, limits } = await getEffectiveLimits(
+      supabase,
+      project.owner_id,
+    );
     const currentUsed = project.storage_used || 0;
-    const limit = limits.MAX_STORAGE_BYTES;
+    const limit = limits.max_storage_bytes;
 
     if (limit !== null && currentUsed + newBytes > limit) {
       return {
@@ -416,20 +561,21 @@ export async function checkStorageLimit(
   }
 }
 
-/**
- * Obtiene los límites de suscripción actuales para un usuario
- */
 export async function getUserSubscriptionLimits(
   supabase: SupabaseClient,
   userId: string,
 ) {
-  const tier = await getUserPlanTier(supabase, userId);
-  const limits = getPlanLimits(tier);
+  const { tier, limits } = await getEffectiveLimits(supabase, userId);
   const isPaid = tier !== 'free';
 
   return {
     tier,
     isPaid,
-    limits,
+    limits: {
+      MAX_PROJECTS: limits.max_projects,
+      MAX_MEMBERS_PER_PROJECT: limits.max_members_per_project,
+      MAX_STORAGE_BYTES: limits.max_storage_bytes,
+      AI_FEATURES_ENABLED: limits.ai_features_enabled,
+    },
   };
 }

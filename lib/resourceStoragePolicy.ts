@@ -1,15 +1,12 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
-
-const STORAGE_LIMITS_BYTES = {
-  free: 100 * 1024 * 1024,
-  starter: 1024 * 1024 * 1024,
-  pro: 5 * 1024 * 1024 * 1024,
-} as const;
+import {
+  getEffectiveLimits,
+  type PlanLimits,
+} from '@/lib/subscriptionUtils';
+import type { PlanTier } from '@/types/planTypes';
 
 const GRACE_DAYS = 60;
 const GRACE_MS = GRACE_DAYS * 24 * 60 * 60 * 1000;
-
-type PlanTier = 'free' | 'starter' | 'pro';
 
 type ProjectStorageRow = {
   id: string;
@@ -29,13 +26,6 @@ export type StoragePolicyResult = {
   autoDeleted: boolean;
 };
 
-function normalizeTier(value?: string | null): PlanTier {
-  if (value === 'starter' || value === 'pro') {
-    return value;
-  }
-  return 'free';
-}
-
 function parseResourcePath(url: string): string | null {
   try {
     const parsedUrl = new URL(url);
@@ -51,21 +41,11 @@ function parseResourcePath(url: string): string | null {
   }
 }
 
-async function resolveOwnerPlan(ownerId: string): Promise<PlanTier> {
-  const { data: tierData, error: tierError } = await supabaseAdmin.rpc(
-    'get_user_plan',
-    {
-      p_user_id: ownerId,
-    },
-  );
-
-  if (tierError) {
-    throw new Error('No se pudo resolver el plan del owner');
-  }
-
-  return normalizeTier(
-    typeof tierData === 'string' ? tierData.toLowerCase() : null,
-  );
+async function resolveOwnerLimits(
+  ownerId: string,
+): Promise<{ plan: PlanTier; limits: PlanLimits }> {
+  const { tier, limits } = await getEffectiveLimits(supabaseAdmin, ownerId);
+  return { plan: tier, limits };
 }
 
 async function fetchProjectStorageRow(
@@ -88,9 +68,9 @@ export async function enforceProjectStoragePolicy(
   projectId: string,
 ): Promise<StoragePolicyResult> {
   const project = await fetchProjectStorageRow(projectId);
-  const plan = await resolveOwnerPlan(project.owner_id);
+  const { plan, limits } = await resolveOwnerLimits(project.owner_id);
 
-  const limit = STORAGE_LIMITS_BYTES[plan];
+  const limit = limits.max_storage_bytes;
   const used = Number(project.storage_used ?? 0);
   const overLimit = used > limit;
 

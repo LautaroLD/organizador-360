@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import {
-  mapLemonStatusToDbStatus,
-  mapLemonVariantIdToTier,
-} from '@/lib/subscriptionUtils';
+import { mapLemonStatusToDbStatus } from '@/lib/subscriptionUtils';
 import { PlanTier } from '@/types/planTypes';
 
 type LemonWebhookPayload = {
@@ -13,7 +10,6 @@ type LemonWebhookPayload = {
     custom_data?: {
       user_id?: string;
       user_email?: string;
-      plan_tier?: string;
     };
   };
   data?: {
@@ -33,6 +29,12 @@ type LemonWebhookPayload = {
       cancelled?: boolean;
     };
   };
+};
+
+type ResolvedPlan = {
+  planId: string;
+  planTier: PlanTier;
+  variantId: string;
 };
 
 function safePeriodEnd(
@@ -63,33 +65,59 @@ function parseDateOrNow(value?: string | null): string {
   return new Date().toISOString();
 }
 
-async function parseTier(
-  payload: LemonWebhookPayload,
-): Promise<'free' | 'starter' | 'pro'> {
-  const fromCustomData = payload.meta?.custom_data?.plan_tier?.toLowerCase();
-  if (fromCustomData === 'starter' || fromCustomData === 'pro') {
-    return fromCustomData;
+function normalizeTier(code?: string | null): PlanTier {
+  const normalized = code?.toLowerCase();
+  if (normalized === 'starter' || normalized === 'pro') {
+    return normalized;
+  }
+  return 'free';
+}
+
+async function resolvePlanByVariant(
+  variantId?: string | number | null,
+): Promise<ResolvedPlan | null> {
+  if (variantId === null || variantId === undefined) {
+    return null;
   }
 
-  const variantId = payload.data?.attributes?.product_id;
-  if (variantId !== null && variantId !== undefined) {
-    const { data: catalogTier } = await supabaseAdmin.rpc(
-      'resolve_plan_tier_by_provider',
-      {
-        p_provider: 'lemon_squeezy',
-        p_external_id: String(variantId),
-      },
-    );
-
-    if (catalogTier === 'starter' || catalogTier === 'pro') {
-      return catalogTier;
-    }
+  const normalizedVariantId = String(variantId).trim();
+  if (!normalizedVariantId) {
+    return null;
   }
 
-  const mappedTier = mapLemonVariantIdToTier(variantId);
-  return ['free', 'starter', 'pro'].includes(mappedTier)
-    ? mappedTier
-    : ('free' as PlanTier);
+  const { data, error } = await supabaseAdmin.rpc('get_plan_by_variant', {
+    p_provider: 'lemon_squeezy',
+    p_variant_id: normalizedVariantId,
+  });
+
+  if (error) {
+    console.error('Error resolving plan by variant:', error);
+    return null;
+  }
+
+  if (!data || typeof data !== 'object') {
+    return null;
+  }
+
+  const payload = data as {
+    plan_id?: string;
+    code?: string;
+  };
+
+  if (!payload.plan_id) {
+    return null;
+  }
+
+  const planTier = normalizeTier(payload.code);
+  if (planTier === 'free') {
+    return null;
+  }
+
+  return {
+    planId: payload.plan_id,
+    planTier,
+    variantId: normalizedVariantId,
+  };
 }
 
 function parseUserId(payload: LemonWebhookPayload): string | null {
@@ -171,19 +199,6 @@ async function resolveUserIdWithFallback(
   return data?.user_id ?? null;
 }
 
-async function getPlanIdByCode(code: string): Promise<string | null> {
-  // 🦄 Ponytail: Naive cache-less lookup. Upgrade to Redis/LRU if hit rate is high.
-  const { data, error } = await supabaseAdmin
-    .from('plans')
-    .select('id')
-    .eq('code', code)
-    .single();
-
-  return error ? null : data.id;
-}
-
-// Self-check: Ensure function returns null for non-existent codes
-// console.assert((await getPlanIdByCode('non-existent')) === null, 'Failed to handle missing code');
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const signature = req.headers.get('x-signature');
@@ -221,7 +236,6 @@ export async function POST(req: NextRequest) {
 
   console.log(`Event ${eventName} received for user ${userId ?? 'unknown'}`);
 
-  // Manejar eventos de suscripción
   try {
     switch (eventName) {
       case 'subscription_created':
@@ -239,14 +253,24 @@ export async function POST(req: NextRequest) {
           );
         }
 
+        const resolvedPlan = await resolvePlanByVariant(attributes.variant_id);
+        if (!resolvedPlan) {
+          console.error(
+            `Unknown Lemon variant_id=${attributes.variant_id ?? 'null'} for subscription ${lemonSubscriptionId}`,
+          );
+          return NextResponse.json(
+            {
+              error:
+                'variant_id desconocido. Verifica plan_provider_mappings.external_id.',
+            },
+            { status: 400 },
+          );
+        }
+
         const dbStatus =
           eventName === 'subscription_expired'
             ? 'cancelled'
             : mapLemonStatusToDbStatus(attributes.status);
-        const planTier = await parseTier(data);
-        console.log(planTier);
-        const planId = await getPlanIdByCode(planTier);
-        console.log(planId, 'plan_id');
 
         const { data: existingSubscription } = await supabaseAdmin
           .from('subscriptions')
@@ -305,7 +329,9 @@ export async function POST(req: NextRequest) {
             user_id: userId,
             status: dbStatus,
             payment_provider: 'lemon_squeezy',
-            plan_tier: planTier,
+            plan_tier: resolvedPlan.planTier,
+            plan_id: resolvedPlan.planId,
+            lemon_squeezy_variant_id: resolvedPlan.variantId,
             lemon_squeezy_subscription_id: String(lemonSubscriptionId),
             lemon_squeezy_order_id: attributes.order_id
               ? String(attributes.order_id)
@@ -317,7 +343,6 @@ export async function POST(req: NextRequest) {
             current_period_end: currentPeriodEnd,
             cancel_at_period_end: cancelAtPeriodEnd,
             canceled_at: cancelAtPeriodEnd ? new Date().toISOString() : null,
-            plan_id: planId,
           },
           { onConflict: 'user_id' },
         );
@@ -331,7 +356,7 @@ export async function POST(req: NextRequest) {
         }
 
         console.log(
-          `Subscription ${lemonSubscriptionId} synced for user ${userId}`,
+          `Subscription ${lemonSubscriptionId} synced for user ${userId} (variant ${resolvedPlan.variantId} → ${resolvedPlan.planTier})`,
         );
         break;
       }
