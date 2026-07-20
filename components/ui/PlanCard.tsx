@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Check, CheckCircle2, Loader2, Star, Zap } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button } from './Button';
 import { Modal } from './Modal';
 import type { PlanLimits } from '@/lib/subscriptionUtils';
@@ -137,27 +137,19 @@ export default function PlanCard({
     return [] as PlanVariantOption[];
   }, [variants, external_id, checkout_url]);
 
-  const [selectedVariantId, setSelectedVariantId] = useState(() =>
-    pickInitialVariantId(variantOptions, currentVariantId),
-  );
+  const [userSelectedVariantId, setUserSelectedVariantId] = useState<
+    string | null
+  >(null);
 
-  useEffect(() => {
-    if (variantOptions.length === 0) return;
-
+  const selectedVariantId = useMemo(() => {
     if (
-      currentVariantId &&
-      variantOptions.some((item) => item.external_id === currentVariantId)
+      userSelectedVariantId &&
+      variantOptions.some((item) => item.external_id === userSelectedVariantId)
     ) {
-      setSelectedVariantId(currentVariantId);
-      return;
+      return userSelectedVariantId;
     }
-
-    setSelectedVariantId((prev) =>
-      variantOptions.some((item) => item.external_id === prev)
-        ? prev
-        : pickDefaultVariantId(variantOptions),
-    );
-  }, [variantOptions, currentVariantId]);
+    return pickInitialVariantId(variantOptions, currentVariantId);
+  }, [userSelectedVariantId, variantOptions, currentVariantId]);
 
   const selectedVariant =
     variantOptions.find((item) => item.external_id === selectedVariantId) ??
@@ -419,7 +411,7 @@ export default function PlanCard({
                           className='h-4 w-4 accent-[var(--accent-primary)]'
                           checked={checked}
                           onChange={() =>
-                            setSelectedVariantId(option.external_id)
+                            setUserSelectedVariantId(option.external_id)
                           }
                         />
                         <span className='whitespace-nowrap font-medium text-[var(--text-primary)]'>
