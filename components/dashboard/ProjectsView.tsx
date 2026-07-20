@@ -27,7 +27,11 @@ import { formatDate } from '@/lib/utils';
 import type { ProjectFormData, Project, ProjectTemplateId } from '@/models';
 import { InviteMemberModal } from '@/components/members/InviteMemberModal';
 import { StorageIndicator } from './StorageIndicator';
-import { getPlanLimits, getUserPlanTier } from '@/lib/subscriptionUtils';
+import {
+  getEffectiveLimits,
+  getFallbackPlanLimits,
+  getUserPlanTier,
+} from '@/lib/subscriptionUtils';
 import { listProjectTemplates } from '@/lib/projectTemplates';
 import { MessageContent } from '@/components/ui/MessageContent';
 import clsx from 'clsx';
@@ -138,15 +142,42 @@ export const ProjectsView: React.FC = () => {
     enabled: !!user?.id,
   });
 
+  const ownerIds = Array.from(
+    new Set((projects ?? []).map((project) => project.owner_id).filter(Boolean)),
+  ).sort();
+
+  const { data: ownerStorageLimits = {} } = useQuery({
+    queryKey: ['owner-storage-limits', ownerIds],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        ownerIds.map(async (ownerId) => {
+          const { limits } = await getEffectiveLimits(supabase, ownerId);
+          return [ownerId, limits.max_storage_bytes] as const;
+        }),
+      );
+      return Object.fromEntries(entries) as Record<string, number>;
+    },
+    enabled: ownerIds.length > 0,
+    staleTime: 60_000,
+  });
+
   // Calculate disabled projects count
   const disabledProjectsCount = projects?.filter(p => !p.enabled && p.userRole === 'Owner').length || 0;
 
-  const getProjectTier = (project: Project) => {
-    const tier = (project as Project & { plan_tier?: string; }).plan_tier;
-    if (tier === 'starter' || tier === 'pro') {
-      return tier;
+  const getProjectStorageLimit = (project: Project) => {
+    const ownerLimit = ownerStorageLimits[project.owner_id];
+    if (typeof ownerLimit === 'number') {
+      return ownerLimit;
     }
-    return project.is_premium ? 'pro' : 'free';
+
+    const tier =
+      project.plan_tier === 'starter' || project.plan_tier === 'pro'
+        ? project.plan_tier
+        : project.is_premium
+          ? 'pro'
+          : 'free';
+
+    return getFallbackPlanLimits(tier).max_storage_bytes;
   };
 
   // Create project mutation
@@ -413,7 +444,7 @@ export const ProjectsView: React.FC = () => {
                 {/* Storage */ }
                 <StorageIndicator
                   used={ project.storage_used || 0 }
-                  limit={ getPlanLimits(getProjectTier(project)).MAX_STORAGE_BYTES }
+                  limit={ getProjectStorageLimit(project) }
                 />
 
                 {/* Action buttons */ }

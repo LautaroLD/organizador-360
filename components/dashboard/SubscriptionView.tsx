@@ -14,17 +14,29 @@ import {
   CardTitle,
 } from '@/components/ui/Card';
 import PlanCard from '@/components/ui/PlanCard';
+import { formatBytes, type PlanLimits } from '@/lib/subscriptionUtils';
 import type { PlanTier } from '@/types/planTypes';
 
-interface ProviderPlan {
-  provider: 'lemon_squeezy';
-  external_id: string;
-  plan_code?: 'starter' | 'pro';
+interface CatalogPlan {
+  provider: 'lemon_squeezy' | 'local';
+  plan_code: PlanTier;
+  name: string;
+  description: string | null;
+  features: string[];
+  feature_catalog?: string[];
+  limits: PlanLimits;
+  limits_override?: Record<string, unknown>;
+  sort_order: number;
+  external_id?: string;
+  checkout_url?: string | null;
+  is_default?: boolean;
+  interval?: string | null;
 }
 
 interface PlansByProvidersResponse {
-  lemon_squeezy?: ProviderPlan[];
-  [key: string]: ProviderPlan[] | undefined;
+  free?: CatalogPlan;
+  lemon_squeezy?: CatalogPlan[];
+  all_lemon_squeezy?: CatalogPlan[];
 }
 
 interface PlanContextResponse {
@@ -51,6 +63,7 @@ interface LemonSqueezyDetails {
   currentPeriodEnd?: string | null;
   trialEndsAt?: string | null;
   cancelAtPeriodEnd?: boolean;
+  variantId?: string | null;
   variantName?: string | null;
   paymentMethod?: string | null;
   customerPortalUrl?: string | null;
@@ -62,6 +75,7 @@ interface SubscriptionDetailsResponse {
   hasSubscription?: boolean;
   source?: 'lemon_squeezy' | 'database' | null;
   planContext?: PlanContextResponse;
+  currentVariantId?: string | null;
   details?: LemonSqueezyDetails | null;
 }
 
@@ -150,16 +164,46 @@ export const SubscriptionView: React.FC = () => {
     staleTime: 30_000,
   });
 
-  const orderByTier = (plans: ProviderPlan[]) => {
-    const rank: Record<'starter' | 'pro', number> = { starter: 0, pro: 1 };
-    return [...plans].sort((a, b) => {
-      const aRank = a.plan_code ? rank[a.plan_code] : Number.MAX_SAFE_INTEGER;
-      const bRank = b.plan_code ? rank[b.plan_code] : Number.MAX_SAFE_INTEGER;
-      return aRank - bRank;
-    });
-  };
+  const freePlan = plansGroupByProviders?.free;
+  const allLemonPlans =
+    plansGroupByProviders?.all_lemon_squeezy ??
+    plansGroupByProviders?.lemon_squeezy ??
+    [];
 
-  const lsPlans = orderByTier(plansGroupByProviders?.lemon_squeezy ?? []);
+  const lsPlans = (() => {
+    const byCode = new Map<
+      PlanTier,
+      {
+        plan: CatalogPlan;
+        variants: NonNullable<CatalogPlan[]>;
+      }
+    >();
+
+    for (const plan of allLemonPlans) {
+      if (plan.plan_code !== 'starter' && plan.plan_code !== 'pro') continue;
+      const existing = byCode.get(plan.plan_code);
+      if (!existing) {
+        byCode.set(plan.plan_code, { plan, variants: [plan] });
+        continue;
+      }
+      existing.variants.push(plan);
+      if (plan.is_default) {
+        existing.plan = plan;
+      }
+    }
+
+    return [...byCode.values()].sort(
+      (a, b) => a.plan.sort_order - b.plan.sort_order,
+    );
+  })();
+
+  const planLimitsByCode = new Map<PlanTier, PlanLimits>();
+  if (freePlan) {
+    planLimitsByCode.set('free', freePlan.limits);
+  }
+  for (const { plan } of lsPlans) {
+    planLimitsByCode.set(plan.plan_code, plan.limits);
+  }
   const lemonDetails = lemonData?.details;
   const planContext = lemonData?.planContext ?? {
     plan_tier: 'free',
@@ -168,6 +212,8 @@ export const SubscriptionView: React.FC = () => {
   };
   const contextTier = normalizeTier(planContext?.plan_tier);
   const currentPlanTier: PlanTier = contextTier;
+  const currentVariantId =
+    lemonData?.currentVariantId ?? lemonDetails?.variantId ?? null;
   const isManualAccess = planContext?.source === 'manual';
   const periodEndDate = lemonDetails?.currentPeriodEnd ?? null;
   const hasFuturePeriodEnd = Boolean(
@@ -430,19 +476,42 @@ export const SubscriptionView: React.FC = () => {
         <div className='flex gap-6 overflow-x-auto px-4 pb-2 pt-14 flex-col md:flex-row'>
           <PlanCard
             key='free_local_plan'
-            forceTier='free'
+            planCode='free'
+            name={ freePlan?.name ?? 'Free' }
+            description={ freePlan?.description }
+            features={ freePlan?.features ?? [] }
+            limits={ freePlan?.limits }
+            provider='local'
             isCurrent={ currentPlanTier === 'free' }
             isCanceled={ false }
             payerEmail={ user?.email }
             hidePaidActions={ Boolean(isPaid && !isManualAccess) }
           />
 
-          { lsPlans.map((plan) => (
+          { lsPlans.map(({ plan, variants }) => (
             <PlanCard
-              key={ `ls_${plan.external_id}` }
+              key={ `ls_${plan.plan_code}` }
+              planCode={ plan.plan_code }
+              name={ plan.name }
+              description={ plan.description }
+              features={ plan.features }
+              limits={ plan.limits }
               external_id={ plan.external_id }
-              provider={ plan.provider }
-              isCurrent={ currentPlanTier === (plan.plan_code ?? 'free') }
+              checkout_url={ plan.checkout_url }
+              variants={ variants
+                .filter((item) => Boolean(item.external_id))
+                .map((item) => ({
+                  external_id: item.external_id as string,
+                  checkout_url: item.checkout_url,
+                  interval: item.interval,
+                  is_default: item.is_default,
+                  limits: item.limits,
+                  limits_override: item.limits_override,
+                  feature_catalog: item.feature_catalog ?? item.features,
+                })) }
+              provider='lemon_squeezy'
+              isCurrent={ currentPlanTier === plan.plan_code }
+              currentVariantId={ currentVariantId }
               isCanceled={ isCanceled }
               payerEmail={ user?.email }
               payerId={ user?.id }
@@ -461,15 +530,18 @@ export const SubscriptionView: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className='space-y-2 text-sm text-[var(--text-secondary)]'>
-            <p>
-              <strong>Gratuito:</strong> Hasta 100 MB por proyecto
-            </p>
-            <p>
-              <strong>Starter:</strong> Hasta 1 GB por proyecto
-            </p>
-            <p>
-              <strong>Pro:</strong> Hasta 5 GB por proyecto
-            </p>
+            { (['free', 'starter', 'pro'] as PlanTier[]).map((code) => {
+              const limits = planLimitsByCode.get(code);
+              if (!limits) return null;
+              const label =
+                code === 'free' ? 'Gratuito' : code === 'starter' ? 'Starter' : 'Pro';
+              return (
+                <p key={ `storage_${code}` }>
+                  <strong>{ label }:</strong>{ ' ' }
+                  Hasta { formatBytes(limits.max_storage_bytes, 0) } por proyecto
+                </p>
+              );
+            }) }
             <p className='text-xs mt-4'>
               El almacenamiento se calcula a partir de tus recursos y archivos subidos.
             </p>
@@ -484,15 +556,18 @@ export const SubscriptionView: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className='space-y-2 text-sm text-[var(--text-secondary)]'>
-            <p>
-              <strong>Gratuito:</strong> Hasta 10 miembros por proyecto
-            </p>
-            <p>
-              <strong>Starter:</strong> Hasta 15 miembros por proyecto
-            </p>
-            <p>
-              <strong>Pro:</strong> Hasta 30 miembros por proyecto
-            </p>
+            { (['free', 'starter', 'pro'] as PlanTier[]).map((code) => {
+              const limits = planLimitsByCode.get(code);
+              if (!limits) return null;
+              const label =
+                code === 'free' ? 'Gratuito' : code === 'starter' ? 'Starter' : 'Pro';
+              return (
+                <p key={ `members_${code}` }>
+                  <strong>{ label }:</strong>{ ' ' }
+                  Hasta { limits.max_members_per_project } miembros por proyecto
+                </p>
+              );
+            }) }
             <p className='text-xs mt-4'>
               Invita a tu equipo a colaborar en proyectos. Los permisos se asignan por rol.
             </p>

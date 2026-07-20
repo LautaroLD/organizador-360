@@ -369,6 +369,7 @@ export type Database = {
           code: string;
           created_at: string;
           description: string | null;
+          features: Json;
           id: string;
           is_active: boolean;
           limits: Json;
@@ -380,6 +381,7 @@ export type Database = {
           code: string;
           created_at?: string;
           description?: string | null;
+          features?: Json;
           id?: string;
           is_active?: boolean;
           limits?: Json;
@@ -391,6 +393,7 @@ export type Database = {
           code?: string;
           created_at?: string;
           description?: string | null;
+          features?: Json;
           id?: string;
           is_active?: boolean;
           limits?: Json;
@@ -402,26 +405,47 @@ export type Database = {
       };
       plan_provider_mappings: {
         Row: {
+          checkout_url: string | null;
           created_at: string;
+          currency: string | null;
           external_id: string;
+          external_product_id: string | null;
           id: string;
+          interval: string | null;
+          is_default: boolean;
+          limits_override: Json;
           plan_id: string;
+          price_amount: number | null;
           provider: string;
           updated_at: string;
         };
         Insert: {
+          checkout_url?: string | null;
           created_at?: string;
+          currency?: string | null;
           external_id: string;
+          external_product_id?: string | null;
           id?: string;
+          interval?: string | null;
+          is_default?: boolean;
+          limits_override?: Json;
           plan_id: string;
+          price_amount?: number | null;
           provider: string;
           updated_at?: string;
         };
         Update: {
+          checkout_url?: string | null;
           created_at?: string;
+          currency?: string | null;
           external_id?: string;
+          external_product_id?: string | null;
           id?: string;
+          interval?: string | null;
+          is_default?: boolean;
+          limits_override?: Json;
           plan_id?: string;
+          price_amount?: number | null;
           provider?: string;
           updated_at?: string;
         };
@@ -744,6 +768,7 @@ export type Database = {
           lemon_squeezy_customer_id: string | null;
           lemon_squeezy_order_id: string | null;
           lemon_squeezy_subscription_id: string | null;
+          lemon_squeezy_variant_id: string | null;
           payment_provider: string | null;
           plan_id: string | null;
           plan_tier: string | null;
@@ -766,6 +791,7 @@ export type Database = {
           lemon_squeezy_customer_id?: string | null;
           lemon_squeezy_order_id?: string | null;
           lemon_squeezy_subscription_id?: string | null;
+          lemon_squeezy_variant_id?: string | null;
 
           payment_provider?: string | null;
           plan_id?: string | null;
@@ -789,6 +815,7 @@ export type Database = {
           lemon_squeezy_customer_id?: string | null;
           lemon_squeezy_order_id?: string | null;
           lemon_squeezy_subscription_id?: string | null;
+          lemon_squeezy_variant_id?: string | null;
 
           payment_provider?: string | null;
           plan_id?: string | null;
@@ -857,14 +884,45 @@ export type Database = {
         Args: { invitation_token: string };
         Returns: Json;
       };
+      can_add_member_to_project: {
+        Args: { p_project_id: string; p_owner_id: string };
+        Returns: Json;
+      };
+      can_use_ai_features: {
+        Args: { p_user_id: string };
+        Returns: boolean;
+      };
+      check_enabled_projects_limit: {
+        Args: { p_user_id: string };
+        Returns: {
+          can_enable: boolean;
+          enabled_count: number;
+          max_limit: number;
+          is_premium: boolean;
+        }[];
+      };
       check_membership: { Args: { p_id: string }; Returns: boolean };
       cleanup_expired_invitations: { Args: never; Returns: undefined };
       fn_is_project_member: { Args: { p_id: string }; Returns: boolean };
       fn_is_project_owner: { Args: { p_id: string }; Returns: boolean };
+      get_effective_limits: {
+        Args: { p_user_id: string };
+        Returns: Json;
+      };
+      get_plan_by_variant: {
+        Args: { p_provider: string; p_variant_id: string };
+        Returns: Json;
+      };
       get_project_count: { Args: { p_user_id: string }; Returns: number };
+      get_user_plan: { Args: { p_user_id: string }; Returns: string };
+      get_user_plan_context: { Args: { p_user_id: string }; Returns: Json };
       is_member: { Args: { p_id: string }; Returns: boolean };
       is_premium_user: { Args: { p_user_id: string }; Returns: boolean };
       is_project_owner: { Args: { p_id: string }; Returns: boolean };
+      resolve_plan_tier_by_provider: {
+        Args: { p_provider: string; p_external_id: string };
+        Returns: string;
+      };
     };
     Enums: {
       [_ in never]: never;

@@ -3,7 +3,6 @@ import { render, screen } from '@testing-library/react';
 import { SubscriptionView } from '@/components/dashboard/SubscriptionView';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Mocks
 jest.mock('@/lib/supabase/client', () => ({
   createClient: jest.fn(() => ({})),
 }));
@@ -12,7 +11,6 @@ jest.mock('@/store/authStore', () => ({
   useAuthStore: () => ({ user: { id: 'user-123', email: 'test@example.com' } }),
 }));
 
-// Mock useQuery para controlar estados directamente
 const mockUseQuery = jest.fn();
 
 jest.mock('@tanstack/react-query', () => {
@@ -23,7 +21,6 @@ jest.mock('@tanstack/react-query', () => {
   };
 });
 
-// Mock global fetch
 global.fetch = jest.fn();
 
 const queryClient = new QueryClient({
@@ -34,42 +31,86 @@ const queryClient = new QueryClient({
   },
 });
 
+const freePlan = {
+  provider: 'local',
+  plan_code: 'free',
+  name: 'Free',
+  description: 'Perfecto para comenzar',
+  features: ['Hasta 3 proyectos'],
+  limits: {
+    max_projects: 3,
+    max_members_per_project: 10,
+    max_storage_bytes: 104857600,
+    ai_features_enabled: false,
+    ai_monthly_credits: 0,
+    workspace_enabled: false,
+    google_calendar_sync: false,
+  },
+  sort_order: 0,
+};
+
+const starterPlan = {
+  provider: 'lemon_squeezy',
+  plan_code: 'starter',
+  name: 'Starter',
+  description: 'Para usuarios intermedios',
+  features: ['Hasta 5 proyectos'],
+  limits: {
+    max_projects: 5,
+    max_members_per_project: 15,
+    max_storage_bytes: 1073741824,
+    ai_features_enabled: false,
+    ai_monthly_credits: 0,
+    workspace_enabled: false,
+    google_calendar_sync: false,
+  },
+  sort_order: 10,
+  external_id: 'starter-ext',
+  checkout_url: 'https://example.com/starter',
+};
+
+const proPlan = {
+  provider: 'lemon_squeezy',
+  plan_code: 'pro',
+  name: 'Pro',
+  description: 'Para usuarios avanzados',
+  features: ['Hasta 10 proyectos'],
+  limits: {
+    max_projects: 10,
+    max_members_per_project: 30,
+    max_storage_bytes: 5368709120,
+    ai_features_enabled: true,
+    ai_monthly_credits: 250,
+    workspace_enabled: true,
+    google_calendar_sync: true,
+  },
+  sort_order: 20,
+  external_id: 'pro-ext',
+  checkout_url: 'https://example.com/pro',
+};
+
 describe('SubscriptionView', () => {
-  const originalEnv = process.env;
-
-  beforeAll(() => {
-    // Solo Lemon Squeezy con FREE, STARTER y PRO (sin MercadoPago ni Enterprise)
-    process.env = {
-      ...originalEnv,
-      NEXT_PUBLIC_LEMON_STARTER_VARIANT_ID: 'starter-variant',
-      NEXT_PUBLIC_LEMON_PRO_VARIANT_ID: 'pro-variant',
-    };
-  });
-
-  afterAll(() => {
-    process.env = originalEnv;
-  });
-
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   const renderComponent = () =>
     render(
-      <QueryClientProvider client={ queryClient }>
+      <QueryClientProvider client={queryClient}>
         <SubscriptionView />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
   it('renders loading state initially', () => {
-    // Primera llamada (subscription-details): loading
     mockUseQuery.mockReturnValue({
       data: undefined,
       isLoading: true,
     });
 
     renderComponent();
-    expect(screen.getByText('Cargando datos de suscripción...')).toBeInTheDocument();
+    expect(
+      screen.getByText('Cargando datos de suscripción...'),
+    ).toBeInTheDocument();
   });
 
   it('renders plans when no subscription is active', () => {
@@ -77,10 +118,8 @@ describe('SubscriptionView', () => {
       if (options.queryKey[0] === 'plans') {
         return {
           data: {
-            lemon_squeezy: [
-              { provider: 'lemon_squeezy', external_id: 'starter-ext', plan_code: 'starter' },
-              { provider: 'lemon_squeezy', external_id: 'pro-ext', plan_code: 'pro' },
-            ],
+            free: freePlan,
+            lemon_squeezy: [starterPlan, proPlan],
           },
           isLoading: false,
         };
@@ -96,20 +135,29 @@ describe('SubscriptionView', () => {
           isLoading: false,
         };
       }
+      if (options.queryKey[0] === 'lemon-variant') {
+        return {
+          data: {
+            name: 'Plan',
+            price: '$6/month',
+            hasFreeTrial: false,
+            trialDays: 0,
+            buy_url: 'https://example.com/buy',
+          },
+          isLoading: false,
+        };
+      }
       return { data: null, isLoading: false };
     });
 
     renderComponent();
 
     expect(screen.getByText('Planes y Suscripción')).toBeInTheDocument();
-    // Debe renderizar al menos un plan actual y opciones de planes pagos.
     expect(screen.getAllByText('Plan actual').length).toBeGreaterThan(0);
+    expect(screen.getByText('Hasta 100 MB por proyecto')).toBeInTheDocument();
   });
 
-  // El test de redirección debe adaptarse a la nueva lógica de PlanCard, se recomienda testear en PlanCard.test.tsx
-
   it('renders active subscription details correctly', () => {
-    // Mock suscripción activa
     const mockSub = {
       id: 'sub-123',
       status: 'active',
@@ -124,15 +172,39 @@ describe('SubscriptionView', () => {
     };
 
     mockUseQuery.mockImplementation((options) => {
+      if (options.queryKey[0] === 'plans') {
+        return {
+          data: {
+            free: freePlan,
+            lemon_squeezy: [starterPlan, proPlan],
+          },
+          isLoading: false,
+        };
+      }
       if (options.queryKey[0] === 'lemon-subscription-details') {
         return {
           data: {
             hasSubscription: true,
             source: 'lemon_squeezy',
-            planContext: { plan_tier: 'pro', source: 'subscription', expires_at: null },
+            planContext: {
+              plan_tier: 'pro',
+              source: 'subscription',
+              expires_at: null,
+            },
             details: mockSub,
           },
-          isLoading: false
+          isLoading: false,
+        };
+      }
+      if (options.queryKey[0] === 'lemon-variant') {
+        return {
+          data: {
+            name: 'Plan PRO',
+            price: '$12/month',
+            hasFreeTrial: false,
+            trialDays: 0,
+          },
+          isLoading: false,
         };
       }
       return { data: null, isLoading: false };
@@ -143,24 +215,17 @@ describe('SubscriptionView', () => {
     expect(screen.getAllByText('Plan PRO').length).toBeGreaterThan(0);
     expect(screen.getByText('Activa')).toBeInTheDocument();
     expect(screen.getByText('sub-123')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Cambiar plan en Lemon' })).toHaveAttribute(
+    expect(
+      screen.getByRole('link', { name: 'Cambiar plan en Lemon' }),
+    ).toHaveAttribute(
       'href',
       'https://billing.lemonsqueezy.com/subscription',
-    );
-    expect(screen.getByRole('link', { name: 'Actualizar método de pago' })).toHaveAttribute(
-      'href',
-      'https://billing.lemonsqueezy.com/payment-method',
-    );
-    expect(screen.getByRole('link', { name: 'Abrir portal de facturación' })).toHaveAttribute(
-      'href',
-      'https://billing.lemonsqueezy.com/portal',
     );
   });
 
   it('renders cancelled but still active subscription correctly', () => {
-    // Fecha futura
     const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + 10); // 10 days from now
+    futureDate.setDate(futureDate.getDate() + 10);
 
     const mockSubscription = {
       status: 'cancelled',
@@ -172,15 +237,39 @@ describe('SubscriptionView', () => {
     };
 
     mockUseQuery.mockImplementation((options) => {
+      if (options.queryKey[0] === 'plans') {
+        return {
+          data: {
+            free: freePlan,
+            lemon_squeezy: [starterPlan, proPlan],
+          },
+          isLoading: false,
+        };
+      }
       if (options.queryKey[0] === 'lemon-subscription-details') {
         return {
           data: {
             hasSubscription: true,
             source: 'lemon_squeezy',
-            planContext: { plan_tier: 'pro', source: 'subscription', expires_at: null },
+            planContext: {
+              plan_tier: 'pro',
+              source: 'subscription',
+              expires_at: null,
+            },
             details: mockSubscription,
           },
-          isLoading: false
+          isLoading: false,
+        };
+      }
+      if (options.queryKey[0] === 'lemon-variant') {
+        return {
+          data: {
+            name: 'Plan PRO',
+            price: '$12/month',
+            hasFreeTrial: false,
+            trialDays: 0,
+          },
+          isLoading: false,
         };
       }
       return { data: null, isLoading: false };
@@ -188,7 +277,6 @@ describe('SubscriptionView', () => {
 
     renderComponent();
 
-    // Check for "Cancelado" badge (puede aparecer en el status label y en el badge del PlanCard)
     expect(screen.getAllByText('Cancelado').length).toBeGreaterThan(0);
   });
 });

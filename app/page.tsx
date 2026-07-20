@@ -15,17 +15,22 @@ import Logo from '@/components/ui/Logo';
 
 type PlanTier = 'free' | 'starter' | 'pro';
 
-type ProviderPlan = {
-  provider: 'lemon_squeezy';
-  external_id: string;
-  plan_code?: 'starter' | 'pro';
+type CatalogPlan = {
+  provider: 'lemon_squeezy' | 'local';
+  plan_code: PlanTier;
+  name: string;
+  description: string | null;
+  features: string[];
+  external_id?: string;
+  checkout_url?: string | null;
 };
 
 type PlansByProvidersResponse = {
-  lemon_squeezy?: ProviderPlan[];
+  free?: CatalogPlan;
+  lemon_squeezy?: CatalogPlan[];
 };
 
-type LemonProductResponse = {
+type LemonVariantResponse = {
   name?: string;
   price?: string;
   hasFreeTrial?: boolean;
@@ -37,6 +42,9 @@ type LemonPlanDetails = {
   price?: string;
   hasFreeTrial: boolean;
   trialDays: number;
+  features: string[];
+  description: string | null;
+  name: string;
 };
 
 function scrollToId(id: string) {
@@ -60,7 +68,10 @@ export default function HomePage() {
 
   const { data: lemonPlanDetails, isLoading: lemonPlansLoading } = useQuery({
     queryKey: ['landing-lemon-plans'],
-    queryFn: async (): Promise<Partial<Record<'starter' | 'pro', LemonPlanDetails>>> => {
+    queryFn: async (): Promise<{
+      free?: CatalogPlan;
+      paid: Partial<Record<'starter' | 'pro', LemonPlanDetails>>;
+    }> => {
       const res = await fetch('/api/plans');
       if (!res.ok) {
         throw new Error('Error cargando planes');
@@ -68,30 +79,44 @@ export default function HomePage() {
 
       const plansByProvider = (await res.json()) as PlansByProvidersResponse;
       const lemonPlans = plansByProvider.lemon_squeezy ?? [];
-
-      const result: Partial<Record<'starter' | 'pro', LemonPlanDetails>> = {};
+      const paid: Partial<Record<'starter' | 'pro', LemonPlanDetails>> = {};
 
       await Promise.all(
         lemonPlans.map(async (plan) => {
           if (plan.plan_code !== 'starter' && plan.plan_code !== 'pro') {
             return;
           }
+          if (!plan.external_id) return;
 
-          const productRes = await fetch(`/api/lemon-squeezy/product/${plan.external_id}`);
-          if (!productRes.ok) return;
+          const variantRes = await fetch(
+            `/api/lemon-squeezy/variant/${plan.external_id}`,
+          );
+          if (!variantRes.ok) {
+            paid[plan.plan_code] = {
+              price: undefined,
+              hasFreeTrial: false,
+              trialDays: 0,
+              features: plan.features,
+              description: plan.description,
+              name: plan.name,
+            };
+            return;
+          }
 
-          const product = (await productRes.json()) as LemonProductResponse;
-          if (!product.price || product.error) return;
+          const variant = (await variantRes.json()) as LemonVariantResponse;
 
-          result[plan.plan_code] = {
-            price: formatLemonPrice(product.price) ?? undefined,
-            hasFreeTrial: Boolean(product.hasFreeTrial),
-            trialDays: product.trialDays ?? 0,
+          paid[plan.plan_code] = {
+            price: formatLemonPrice(variant.price) ?? undefined,
+            hasFreeTrial: Boolean(variant.hasFreeTrial),
+            trialDays: variant.trialDays ?? 0,
+            features: plan.features,
+            description: plan.description,
+            name: plan.name,
           };
         }),
       );
 
-      return result;
+      return { free: plansByProvider.free, paid };
     },
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
@@ -149,72 +174,79 @@ export default function HomePage() {
   ];
 
   const plans = useMemo(() => {
-    const starter = lemonPlanDetails?.starter;
-    const pro = lemonPlanDetails?.pro;
+    const free = lemonPlanDetails?.free;
+    const starter = lemonPlanDetails?.paid?.starter;
+    const pro = lemonPlanDetails?.paid?.pro;
 
     return [
       {
         tier: 'free' as PlanTier,
-        name: 'Free',
+        name: free?.name ?? 'Free',
         price: 'Gratis',
         priceLoading: false,
         trialLabel: null as string | null,
-        description: 'Para empezar sin costo',
+        description: free?.description ?? 'Para empezar sin costo',
         icon: <Zap className="h-5 w-5" />,
-        features: [
-          '3 proyectos',
-          'Chat ilimitado',
-          '100 MB de recursos',
-          'Hasta 10 miembros/proyecto',
-        ],
+        features: free?.features?.length
+          ? free.features
+          : [
+              '3 proyectos',
+              'Chat ilimitado',
+              '100 MB de recursos',
+              'Hasta 10 miembros/proyecto',
+            ],
         cta: 'Comenzar gratis',
         highlighted: false,
       },
       {
         tier: 'starter' as PlanTier,
-        name: 'Starter',
+        name: starter?.name ?? 'Starter',
         price: starter?.price ?? 'Por proyecto',
         priceLoading: lemonPlansLoading,
         trialLabel:
           starter?.hasFreeTrial && starter.trialDays > 0
             ? `${starter.trialDays} días de prueba gratis`
             : null,
-        description: 'Para equipos en crecimiento',
+        description: starter?.description ?? 'Para equipos en crecimiento',
         icon: <Sparkles className="h-5 w-5" />,
-        features: [
-          '5 proyectos',
-          'Chat ilimitado',
-          '1 GB de recursos',
-          'Hasta 15 miembros/proyecto',
-          'Soporte prioritario',
-        ],
+        features: starter?.features?.length
+          ? starter.features
+          : [
+              '5 proyectos',
+              'Chat ilimitado',
+              '1 GB de recursos',
+              'Hasta 15 miembros/proyecto',
+              'Soporte prioritario',
+            ],
         cta: 'Empezar con Starter',
         highlighted: false,
       },
       {
         tier: 'pro' as PlanTier,
-        name: 'Pro',
+        name: pro?.name ?? 'Pro',
         price: pro?.price ?? 'Por proyecto',
         priceLoading: lemonPlansLoading,
         trialLabel:
           pro?.hasFreeTrial && pro.trialDays > 0
             ? `${pro.trialDays} días de prueba gratis`
             : null,
-        description: 'Para quien lidera equipos',
+        description: pro?.description ?? 'Para quien lidera equipos',
         icon: (
           <>
             <Sparkles className="h-5 w-5" />
             <Sparkles className="h-5 w-5" />
           </>
         ),
-        features: [
-          '10 proyectos · 30 miembros · 5 GB',
-          'Asistente IA + analítica avanzada',
-          'Salud del equipo y workload',
-          'Workspace y directorio multi-proyecto',
-          'Sync Google Calendar y exportar datos',
-          'Plantillas, aprobaciones y permisos',
-        ],
+        features: pro?.features?.length
+          ? pro.features
+          : [
+              '10 proyectos · 30 miembros · 5 GB',
+              'Asistente IA + analítica avanzada',
+              'Salud del equipo y workload',
+              'Workspace y directorio multi-proyecto',
+              'Sync Google Calendar y exportar datos',
+              'Plantillas, aprobaciones y permisos',
+            ],
         cta: 'Empezar con Pro',
         highlighted: true,
       },
