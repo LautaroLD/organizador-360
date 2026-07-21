@@ -211,6 +211,12 @@ describe('API Route: /api/ia/agent', () => {
     expect(geminiCall.config.systemInstruction).toContain(
       'Pendiente de revisión',
     );
+    expect(geminiCall.config.systemInstruction).toContain(
+      'No propongas acciones que no puedas ejecutar',
+    );
+    expect(geminiCall.config.systemInstruction).toContain(
+      'no puedes crear, editar ni eliminar tareas',
+    );
   });
 
   it('debe manejar errores de Supabase o Gemini', async () => {
