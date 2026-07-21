@@ -29,7 +29,6 @@ describe('API Route: /api/ia/agent', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Mock Supabase chain
     mockSupabase = {
       auth: {
         getUser: jest.fn().mockResolvedValue({
@@ -45,8 +44,9 @@ describe('API Route: /api/ia/agent', () => {
       gt: jest.fn().mockReturnThis(),
       gte: jest.fn().mockReturnThis(),
       order: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockResolvedValue({ data: [] }),
       single: jest.fn(),
+      maybeSingle: jest.fn().mockResolvedValue({ data: null }),
       rpc: jest.fn().mockResolvedValue({
         data: {
           ok: true,
@@ -83,43 +83,19 @@ describe('API Route: /api/ia/agent', () => {
 
   it('debe procesar la solicitud correctamente y llamar a Gemini', async () => {
     const req = {
-      json: async () => ({ 
-        message: '¿Qué tareas tengo?', 
-        history: [], 
-        projectId: 'proj-1' 
+      json: async () => ({
+        message: '¿Qué tareas tengo?',
+        history: [],
+        projectId: 'proj-1',
       }),
     } as unknown as NextRequest;
 
-    // Mock responses for Supabase queries
-    mockSupabase.single.mockResolvedValue({ data: { name: 'Proyecto Test', description: 'Desc' } }); // Project
-    
-    // We need to return specific data for the Promise.all array destructuring
-    // 1. Tasks, 2. Messages, 3. Members, 4. Resources, 5. Events
-    // But since `from` returns `this`, we can't easily distinguish calls unless we use `mockImplementationOnce` on the chain terminator.
-    // However, the Promise.all calls execute in parallel.
-    // Simplifying the mock for all queries to return empty arrays/nulls for now, except the project
-    
-    // NOTE: Testing parallel supabase queries is tricky with a single mock object instance if calls are not sequential.
-    // But typically the same `mockSupabase` object is reused.
-    // Let's rely on `mockImplementation` returning a promise that resolves to data.
-    
-    // Mocking the specific results for the Promise.all
-    // The code does:
-    // const [tasksResult, messagesResult, membersResult, resourcesResult, eventsResult] = await Promise.all([...])
-    
-    // We can just make every `.limit()` or terminator return a default structure.
-    // But wait, `single()` is called first for project.
-    
-    // Let's refine the mock.
-    mockSupabase.single.mockResolvedValue({ data: { name: 'Test Project', description: 'Test Desc' } });
-    
-    // For the list queries (limit, order, etc), we need to ensure they return { data: [] }
-    // Since `limit` is the last call in the chain for most of them.
+    mockSupabase.single.mockResolvedValue({
+      data: { name: 'Test Project', description: 'Test Desc' },
+    });
     mockSupabase.limit.mockResolvedValue({ data: [] });
-    // For messages (which might not have limit if channelIds is empty), handle that case. 
-    // Actually the code handles channelIds check. 
-    
-    // Mock Gemini Response
+    mockSupabase.maybeSingle.mockResolvedValue({ data: null });
+
     (ai.models.generateContent as jest.Mock).mockResolvedValue({
       text: 'Respuesta Simulada de Gemini',
     });
@@ -132,18 +108,124 @@ describe('API Route: /api/ia/agent', () => {
     expect(data.response).toBe('Respuesta Simulada de Gemini');
   });
 
+  it('debe incluir estado de revisión, asignados y fechas en el contexto de Gemini', async () => {
+    const req = {
+      json: async () => ({
+        message: '¿Qué tareas están pendientes de revisión?',
+        history: [],
+        projectId: 'proj-1',
+        requestId: 'req-context-1',
+      }),
+    } as unknown as NextRequest;
+
+    mockSupabase.single.mockResolvedValue({
+      data: { name: 'Proyecto Review', description: 'Desc' },
+    });
+
+    mockSupabase.from.mockImplementation((table: string) => {
+      const result = { data: [] as unknown };
+      const chain: Record<string, unknown> = {};
+      const api = {
+        select: jest.fn(() => chain),
+        eq: jest.fn(() => chain),
+        in: jest.fn(() => chain),
+        gte: jest.fn(() => chain),
+        order: jest.fn(() => chain),
+        limit: jest.fn(() => Promise.resolve(result)),
+        single: jest.fn(() => Promise.resolve(result)),
+        maybeSingle: jest.fn(() => Promise.resolve(result)),
+        then: (
+          onfulfilled?: (value: unknown) => unknown,
+          onrejected?: (reason: unknown) => unknown,
+        ) => Promise.resolve(result).then(onfulfilled, onrejected),
+      };
+      Object.assign(chain, api);
+
+      if (table === 'projects') {
+        result.data = { name: 'Proyecto Review', description: 'Desc' };
+      } else if (table === 'tasks') {
+        result.data = [
+          {
+            id: 'task-1',
+            title: 'Entregar informe',
+            description: 'Informe final del sprint',
+            status: 'done',
+            priority: 'alta',
+            done_estimated_at: '2026-07-20',
+            done_at: '2026-07-19',
+            phase_roadmap_id: 10,
+            epic_id: 'epic-1',
+            assignments: [
+              { user: { name: 'Ana', email: 'ana@test.com' } },
+            ],
+            tags: [{ tag: { label: 'docs' } }],
+            checklist: [
+              { content: 'Borrador', is_completed: true },
+              { content: 'Revisión', is_completed: false },
+            ],
+          },
+        ];
+      } else if (table === 'approval_requests') {
+        result.data = [
+          {
+            entity_type: 'task',
+            entity_id: 'task-1',
+            status: 'pending',
+            request_note: 'Por favor revisá el informe',
+            created_at: '2026-07-19T12:00:00Z',
+            requester: { name: 'Ana', email: 'ana@test.com' },
+            reviewer: { name: 'Luis', email: 'luis@test.com' },
+          },
+        ];
+      } else if (table === 'epics') {
+        result.data = [{ id: 'epic-1', title: 'Cierre de sprint' }];
+      } else if (table === 'roadmap') {
+        result.data = { id: 'road-1' };
+      } else if (table === 'phase_roadmap') {
+        result.data = [{ id: 10, name: 'Fase final' }];
+      }
+
+      return api;
+    });
+
+    (ai.models.generateContent as jest.Mock).mockResolvedValue({
+      text: 'Hay 1 tarea pendiente de revisión',
+    });
+
+    const res = await POST(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.usedContext.pendingReviewCount).toBe(1);
+
+    const geminiCall = (ai.models.generateContent as jest.Mock).mock.calls[0][0];
+    const contextText = geminiCall.contents[0].parts[0].text as string;
+
+    expect(contextText).toContain('Entregar informe');
+    expect(contextText).toContain('Pendiente de revisión');
+    expect(contextText).toContain('Ana');
+    expect(contextText).toContain('Luis');
+    expect(contextText).toContain('Cierre de sprint');
+    expect(contextText).toContain('Fase final');
+    expect(contextText).toContain('1/2');
+    expect(geminiCall.config.systemInstruction).toContain(
+      'Pendiente de revisión',
+    );
+  });
+
   it('debe manejar errores de Supabase o Gemini', async () => {
-     const req = {
+    const req = {
       json: async () => ({ message: 'Hola', projectId: 'proj-1' }),
     } as unknown as NextRequest;
 
-    // Mock project error
-    mockSupabase.single.mockResolvedValue({ data: null, error: { message: 'DB Error' } });
+    mockSupabase.single.mockResolvedValue({
+      data: null,
+      error: { message: 'DB Error' },
+    });
 
     const res = await POST(req);
-    await res.json(); // Consumir promesa pero no asignar si no se usa
+    await res.json();
 
-    // If project not found devuelve 404
     expect(res.status).toBe(404);
   });
 });
