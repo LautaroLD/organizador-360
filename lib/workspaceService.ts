@@ -40,6 +40,36 @@ function asRelation<T>(value: unknown): T | null {
   return unwrapRelation(value as T | T[] | null | undefined);
 }
 
+/** Link workspace_members.user_id from users.email when the account already exists. */
+async function resolveMemberUserId(
+  supabase: SupabaseClient,
+  member: Pick<WorkspaceMember, 'id' | 'user_id' | 'email'>,
+): Promise<string | null> {
+  if (member.user_id) return member.user_id;
+
+  const email = normalizeEmail(member.email);
+  if (!email) return null;
+
+  const { data: existingUser } = await supabase
+    .from('users')
+    .select('id, name')
+    .ilike('email', email)
+    .maybeSingle();
+
+  if (!existingUser?.id) return null;
+
+  await supabase
+    .from('workspace_members')
+    .update({
+      user_id: existingUser.id,
+      display_name: existingUser.name ?? null,
+    })
+    .eq('id', member.id)
+    .is('user_id', null);
+
+  return existingUser.id;
+}
+
 function mapMemberRow(row: Record<string, unknown>): WorkspaceMember {
   const user = unwrapRelation(row.user as WorkspaceMember['user'] | WorkspaceMember['user'][]);
   return {
@@ -295,7 +325,49 @@ export async function getOrCreateWorkspaceBundle(
     return { ok: false, missingSchema: false, error: 'No se pudo cargar el directorio' };
   }
 
-  const members = (membersRes.data ?? []).map((row) => mapMemberRow(row as Record<string, unknown>));
+  let members = (membersRes.data ?? []).map((row) =>
+    mapMemberRow(row as Record<string, unknown>),
+  );
+
+  // Backfill user_id for directory rows whose email already has an account
+  const unlinked = members.filter((m) => !m.user_id);
+  if (unlinked.length > 0) {
+    await Promise.all(
+      unlinked.map(async (member) => {
+        const userId = await resolveMemberUserId(supabase, member);
+        if (userId) member.user_id = userId;
+      }),
+    );
+
+    const newlyLinkedIds = unlinked.filter((m) => m.user_id).map((m) => m.id);
+    if (newlyLinkedIds.length > 0) {
+      const { data: refreshed } = await supabase
+        .from('workspace_members')
+        .select(
+          `
+          id,
+          workspace_id,
+          user_id,
+          email,
+          display_name,
+          created_at,
+          updated_at,
+          user:users(id, name, email, avatar_url)
+        `,
+        )
+        .in('id', newlyLinkedIds);
+      if (refreshed) {
+        const byId = new Map(
+          refreshed.map((row) => [
+            String(row.id),
+            mapMemberRow(row as Record<string, unknown>),
+          ]),
+        );
+        members = members.map((m) => byId.get(m.id) ?? m);
+      }
+    }
+  }
+
   const projects = (projectsRes.data ?? []).map((row) =>
     mapProjectRow(row as Record<string, unknown>),
   );
@@ -376,7 +448,8 @@ export async function buildWorkspaceHomeSnapshot(
   const { count: memberCount } = await supabase
     .from('workspace_members')
     .select('id', { count: 'exact', head: true })
-    .eq('workspace_id', workspaceId);
+    .eq('workspace_id', workspaceId)
+    .neq('user_id', currentUserId);
 
   if (projectIds.length === 0) {
     return {
@@ -703,6 +776,19 @@ export async function assignWorkspaceMemberToProjects(params: {
   const invited: string[] = [];
   const skipped: Array<{ projectId: string; reason: string }> = [];
 
+  const userId = await resolveMemberUserId(supabase, member);
+  if (!userId) {
+    return {
+      assigned,
+      invited,
+      skipped: projectIds.map((projectId) => ({
+        projectId,
+        reason:
+          'Esta persona aún no tiene cuenta registrada. Invítala al proyecto desde Miembros.',
+      })),
+    };
+  }
+
   const { data: links } = await supabase
     .from('workspace_projects')
     .select('project_id')
@@ -728,20 +814,11 @@ export async function assignWorkspaceMemberToProjects(params: {
       continue;
     }
 
-    if (!member.user_id) {
-      skipped.push({
-        projectId,
-        reason:
-          'Esta persona aún no tiene cuenta vinculada. Invítala al proyecto desde Miembros.',
-      });
-      continue;
-    }
-
     const { data: existing } = await supabase
       .from('project_members')
       .select('id')
       .eq('project_id', projectId)
-      .eq('user_id', member.user_id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (existing) {
@@ -760,7 +837,7 @@ export async function assignWorkspaceMemberToProjects(params: {
 
     const { error } = await supabase.from('project_members').insert({
       project_id: projectId,
-      user_id: member.user_id,
+      user_id: userId,
       role,
     });
 

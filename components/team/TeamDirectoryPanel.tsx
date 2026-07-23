@@ -23,7 +23,7 @@ type Props = {
 };
 
 function memberLabel(member: WorkspaceMember) {
-  return member.display_name || member.user?.name || member.email;
+  return member.user?.name || member.display_name || member.email;
 }
 
 function getActiveProjects(member: WorkspaceMember) {
@@ -44,7 +44,6 @@ export function TeamDirectoryPanel({ bundle }: Props) {
   const [openProjectLists, setOpenProjectLists] = useState<Set<string>>(() => new Set());
 
   const [email, setEmail] = useState('');
-  const [displayName, setDisplayName] = useState('');
 
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [assignRole, setAssignRole] = useState<'Admin' | 'Collaborator' | 'Viewer'>(
@@ -59,6 +58,14 @@ export function TeamDirectoryPanel({ bundle }: Props) {
       return next;
     });
   };
+
+  const directoryMembers = useMemo(
+    () =>
+      bundle.members.filter(
+        (member) => member.user_id !== bundle.workspace.owner_id,
+      ),
+    [bundle.members, bundle.workspace.owner_id],
+  );
 
   const roleByProjectId = useMemo(() => {
     const map = new Map<string, string>();
@@ -79,10 +86,7 @@ export function TeamDirectoryPanel({ bundle }: Props) {
       const res = await fetch(`/api/workspaces/${bundle.workspace.id}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          displayName: displayName || null,
-        }),
+        body: JSON.stringify({ email }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || 'No se pudo agregar');
@@ -92,7 +96,6 @@ export function TeamDirectoryPanel({ bundle }: Props) {
       toast.success('Persona agregada al directorio');
       setIsAddOpen(false);
       setEmail('');
-      setDisplayName('');
       invalidate();
     },
     onError: (err: Error) => toast.error(err.message),
@@ -188,7 +191,7 @@ export function TeamDirectoryPanel({ bundle }: Props) {
         </Button>
       </div>
 
-      {bundle.members.length === 0 ? (
+      {directoryMembers.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-sm text-[var(--text-secondary)]">
             El directorio está vacío. Agregá personas o vinculá proyectos para sembrar
@@ -197,7 +200,7 @@ export function TeamDirectoryPanel({ bundle }: Props) {
         </Card>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {bundle.members.map((member) => {
+          {directoryMembers.map((member) => {
             const activeProjects = getActiveProjects(member);
             return (
               <Card key={member.id}>
@@ -306,12 +309,6 @@ export function TeamDirectoryPanel({ bundle }: Props) {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="persona@empresa.com"
           />
-          <Input
-            label="Nombre"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Opcional"
-          />
           <p className="text-xs text-[var(--text-secondary)]">
             El rol/permiso se elige al asignar la persona a cada proyecto.
           </p>
@@ -347,8 +344,8 @@ export function TeamDirectoryPanel({ bundle }: Props) {
 
           {!assigning?.user_id && (
             <p className="text-sm text-[var(--accent-warning)]">
-              Esta persona aún no tiene cuenta vinculada. Primero debe aceptar una
-              invitación a algún proyecto.
+              Esta persona aún no tiene cuenta registrada. Primero debe crear una
+              cuenta (por ejemplo aceptando una invitación a un proyecto).
             </p>
           )}
 
