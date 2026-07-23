@@ -6,6 +6,7 @@ import {
   toISODateLocal,
 } from '@/lib/teamHealth';
 import { canAddMemberToProject } from '@/lib/subscriptionUtils';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isMissingWorkspaceRelation } from '@/lib/workspaceAccess';
 import type {
   Workspace,
@@ -38,6 +39,85 @@ function unwrapRelation<T>(value: T | T[] | null | undefined): T | null {
 
 function asRelation<T>(value: unknown): T | null {
   return unwrapRelation(value as T | T[] | null | undefined);
+}
+
+/** Link workspace_members.user_id from users.email when the account already exists. */
+async function resolveMemberUserId(
+  supabase: SupabaseClient,
+  member: Pick<WorkspaceMember, 'id' | 'user_id' | 'email'>,
+): Promise<string | null> {
+  if (member.user_id) return member.user_id;
+
+  const email = normalizeEmail(member.email);
+  if (!email) return null;
+
+  // Admin bypasses users RLS (profiles are not readable by email for other users).
+  const { data: existingUser } = await supabaseAdmin
+    .from('users')
+    .select('id, name')
+    .ilike('email', email)
+    .maybeSingle();
+
+  if (!existingUser?.id) return null;
+
+  const { error } = await supabase
+    .from('workspace_members')
+    .update({
+      user_id: existingUser.id,
+      display_name: existingUser.name ?? null,
+    })
+    .eq('id', member.id)
+    .is('user_id', null);
+
+  if (error) {
+    console.error('Error linking workspace member to user:', error);
+  }
+
+  return existingUser.id;
+}
+
+/** Attach live user profiles (admin) so directory names stay in sync despite users RLS. */
+async function hydrateMemberUsers(
+  members: WorkspaceMember[],
+): Promise<WorkspaceMember[]> {
+  const userIds = [
+    ...new Set(members.map((m) => m.user_id).filter(Boolean) as string[]),
+  ];
+  if (userIds.length === 0) return members;
+
+  const { data: users, error } = await supabaseAdmin
+    .from('users')
+    .select('id, name, email, avatar_url')
+    .in('id', userIds);
+
+  if (error) {
+    console.error('Error hydrating workspace member users:', error);
+    return members;
+  }
+
+  const byId = new Map(
+    (users ?? []).map((u) => [
+      u.id,
+      {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        avatar_url: u.avatar_url,
+      } satisfies NonNullable<WorkspaceMember['user']>,
+    ]),
+  );
+
+  return members.map((member) => {
+    if (!member.user_id) return member;
+    const user = byId.get(member.user_id);
+    if (!user) return member;
+    return {
+      ...member,
+      user,
+      // Keep display_name aligned with live profile for any consumers of the column.
+      display_name: user.name ?? member.display_name,
+    };
+  });
 }
 
 function mapMemberRow(row: Record<string, unknown>): WorkspaceMember {
@@ -295,7 +375,23 @@ export async function getOrCreateWorkspaceBundle(
     return { ok: false, missingSchema: false, error: 'No se pudo cargar el directorio' };
   }
 
-  const members = (membersRes.data ?? []).map((row) => mapMemberRow(row as Record<string, unknown>));
+  let members = (membersRes.data ?? []).map((row) =>
+    mapMemberRow(row as Record<string, unknown>),
+  );
+
+  // Backfill user_id for directory rows whose email already has an account
+  const unlinked = members.filter((m) => !m.user_id);
+  if (unlinked.length > 0) {
+    await Promise.all(
+      unlinked.map(async (member) => {
+        const userId = await resolveMemberUserId(supabase, member);
+        if (userId) member.user_id = userId;
+      }),
+    );
+  }
+
+  members = await hydrateMemberUsers(members);
+
   const projects = (projectsRes.data ?? []).map((row) =>
     mapProjectRow(row as Record<string, unknown>),
   );
@@ -376,7 +472,8 @@ export async function buildWorkspaceHomeSnapshot(
   const { count: memberCount } = await supabase
     .from('workspace_members')
     .select('id', { count: 'exact', head: true })
-    .eq('workspace_id', workspaceId);
+    .eq('workspace_id', workspaceId)
+    .neq('user_id', currentUserId);
 
   if (projectIds.length === 0) {
     return {
@@ -703,6 +800,19 @@ export async function assignWorkspaceMemberToProjects(params: {
   const invited: string[] = [];
   const skipped: Array<{ projectId: string; reason: string }> = [];
 
+  const userId = await resolveMemberUserId(supabase, member);
+  if (!userId) {
+    return {
+      assigned,
+      invited,
+      skipped: projectIds.map((projectId) => ({
+        projectId,
+        reason:
+          'Esta persona aún no tiene cuenta registrada. Invítala al proyecto desde Miembros.',
+      })),
+    };
+  }
+
   const { data: links } = await supabase
     .from('workspace_projects')
     .select('project_id')
@@ -728,20 +838,11 @@ export async function assignWorkspaceMemberToProjects(params: {
       continue;
     }
 
-    if (!member.user_id) {
-      skipped.push({
-        projectId,
-        reason:
-          'Esta persona aún no tiene cuenta vinculada. Invítala al proyecto desde Miembros.',
-      });
-      continue;
-    }
-
     const { data: existing } = await supabase
       .from('project_members')
       .select('id')
       .eq('project_id', projectId)
-      .eq('user_id', member.user_id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (existing) {
@@ -760,7 +861,7 @@ export async function assignWorkspaceMemberToProjects(params: {
 
     const { error } = await supabase.from('project_members').insert({
       project_id: projectId,
-      user_id: member.user_id,
+      user_id: userId,
       role,
     });
 

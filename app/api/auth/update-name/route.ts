@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const MAX_NAME_LENGTH = 80;
 
@@ -63,6 +64,16 @@ export async function PUT(request: Request) {
         { error: 'Nombre actualizado en autenticación, pero no en perfil público' },
         { status: 500 }
       );
+    }
+
+    // Keep directory display_name in sync (admin: owners own those rows, not the member)
+    const { error: directoryError } = await supabaseAdmin
+      .from('workspace_members')
+      .update({ display_name: trimmedName })
+      .eq('user_id', user.id);
+
+    if (directoryError) {
+      console.error('Error syncing workspace_members display_name:', directoryError);
     }
 
     return NextResponse.json({ 

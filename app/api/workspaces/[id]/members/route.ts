@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireAuthUser } from '@/lib/projectAccess';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   requireProWorkspaceAccess,
   requireWorkspaceOwner,
@@ -39,7 +40,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Email inválido' }, { status: 400 });
     }
 
-    const { data: existingUser } = await supabase
+    // Admin bypasses users RLS so we can link existing accounts by email.
+    const { data: existingUser } = await supabaseAdmin
       .from('users')
       .select('id, name, email')
       .ilike('email', email)
