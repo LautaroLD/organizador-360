@@ -6,6 +6,7 @@ import {
   toISODateLocal,
 } from '@/lib/teamHealth';
 import { canAddMemberToProject } from '@/lib/subscriptionUtils';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isMissingWorkspaceRelation } from '@/lib/workspaceAccess';
 import type {
   Workspace,
@@ -50,7 +51,8 @@ async function resolveMemberUserId(
   const email = normalizeEmail(member.email);
   if (!email) return null;
 
-  const { data: existingUser } = await supabase
+  // Admin bypasses users RLS (profiles are not readable by email for other users).
+  const { data: existingUser } = await supabaseAdmin
     .from('users')
     .select('id, name')
     .ilike('email', email)
@@ -58,7 +60,7 @@ async function resolveMemberUserId(
 
   if (!existingUser?.id) return null;
 
-  await supabase
+  const { error } = await supabase
     .from('workspace_members')
     .update({
       user_id: existingUser.id,
@@ -66,6 +68,10 @@ async function resolveMemberUserId(
     })
     .eq('id', member.id)
     .is('user_id', null);
+
+  if (error) {
+    console.error('Error linking workspace member to user:', error);
+  }
 
   return existingUser.id;
 }
