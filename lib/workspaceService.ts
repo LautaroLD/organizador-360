@@ -76,6 +76,50 @@ async function resolveMemberUserId(
   return existingUser.id;
 }
 
+/** Attach live user profiles (admin) so directory names stay in sync despite users RLS. */
+async function hydrateMemberUsers(
+  members: WorkspaceMember[],
+): Promise<WorkspaceMember[]> {
+  const userIds = [
+    ...new Set(members.map((m) => m.user_id).filter(Boolean) as string[]),
+  ];
+  if (userIds.length === 0) return members;
+
+  const { data: users, error } = await supabaseAdmin
+    .from('users')
+    .select('id, name, email, avatar_url')
+    .in('id', userIds);
+
+  if (error) {
+    console.error('Error hydrating workspace member users:', error);
+    return members;
+  }
+
+  const byId = new Map(
+    (users ?? []).map((u) => [
+      u.id,
+      {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        avatar_url: u.avatar_url,
+      } satisfies NonNullable<WorkspaceMember['user']>,
+    ]),
+  );
+
+  return members.map((member) => {
+    if (!member.user_id) return member;
+    const user = byId.get(member.user_id);
+    if (!user) return member;
+    return {
+      ...member,
+      user,
+      // Keep display_name aligned with live profile for any consumers of the column.
+      display_name: user.name ?? member.display_name,
+    };
+  });
+}
+
 function mapMemberRow(row: Record<string, unknown>): WorkspaceMember {
   const user = unwrapRelation(row.user as WorkspaceMember['user'] | WorkspaceMember['user'][]);
   return {
@@ -344,35 +388,9 @@ export async function getOrCreateWorkspaceBundle(
         if (userId) member.user_id = userId;
       }),
     );
-
-    const newlyLinkedIds = unlinked.filter((m) => m.user_id).map((m) => m.id);
-    if (newlyLinkedIds.length > 0) {
-      const { data: refreshed } = await supabase
-        .from('workspace_members')
-        .select(
-          `
-          id,
-          workspace_id,
-          user_id,
-          email,
-          display_name,
-          created_at,
-          updated_at,
-          user:users(id, name, email, avatar_url)
-        `,
-        )
-        .in('id', newlyLinkedIds);
-      if (refreshed) {
-        const byId = new Map(
-          refreshed.map((row) => [
-            String(row.id),
-            mapMemberRow(row as Record<string, unknown>),
-          ]),
-        );
-        members = members.map((m) => byId.get(m.id) ?? m);
-      }
-    }
   }
+
+  members = await hydrateMemberUsers(members);
 
   const projects = (projectsRes.data ?? []).map((row) =>
     mapProjectRow(row as Record<string, unknown>),
