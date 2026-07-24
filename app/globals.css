@@ -197,3 +197,68 @@ body {
     @apply font-sans;
   }
 }
+
+/* Landing motion */
+@keyframes landing-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-preview-fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-preview-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-primary) 35%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent-primary) 0%, transparent);
+  }
+}
+
+.landing-fade-up {
+  animation: landing-fade-up 0.7s ease-out both;
+}
+
+.landing-fade-up-delay-1 {
+  animation-delay: 0.12s;
+}
+
+.landing-fade-up-delay-2 {
+  animation-delay: 0.24s;
+}
+
+.landing-fade-up-delay-3 {
+  animation-delay: 0.36s;
+}
+
+.landing-preview-fade {
+  animation: landing-preview-fade 0.45s ease-out both;
+}
+
+.landing-preview-pulse {
+  animation: landing-preview-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-fade-up,
+  .landing-preview-fade,
+  .landing-preview-pulse {
+    animation: none;
+  }
+}
