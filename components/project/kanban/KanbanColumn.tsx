@@ -54,8 +54,8 @@ const KanbanColumnComponent: React.FC<KanbanColumnProps> = ({
   const theme = columnTheme[id] ?? columnTheme.todo;
 
   return (
-    <div id={ id } className={ `flex flex-col w-80 md:w-96 rounded-xl border ${theme.ring} h-fit max-h-full flex-shrink-0` }>
-      <h3 className="font-semibold text-[var(--text-primary)] px-4 py-3 flex justify-between items-center flex-none border-b border-[var(--text-secondary)]/10">
+    <div id={ id } className={ `flex flex-col w-80 md:w-96 rounded-xl border ${theme.ring} h-full max-h-full min-h-0 flex-shrink-0 overflow-hidden` }>
+      <h3 className="font-semibold text-[var(--text-primary)] px-3 py-2.5 flex justify-between items-center flex-none border-b border-[var(--text-secondary)]/10">
         <span className="flex items-center gap-2">
           <span className={ `h-2.5 w-2.5 rounded-full ${theme.dot}` } />
           { title }
@@ -65,7 +65,7 @@ const KanbanColumnComponent: React.FC<KanbanColumnProps> = ({
         </span>
       </h3>
 
-      <div ref={ setNodeRef } className="flex-1 p-3 overflow-y-auto space-y-2 min-h-[140px]">
+      <div ref={ setNodeRef } className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-2.5 space-y-2">
         <SortableContext items={ sortableTaskIds } strategy={ verticalListSortingStrategy }>
           { tasks.length === 0 ? (
             <div className="h-24 rounded-lg border border-dashed border-[var(--text-secondary)]/25 bg-[var(--bg-primary)]/50 flex items-center justify-center text-xs text-[var(--text-secondary)] text-center px-3">

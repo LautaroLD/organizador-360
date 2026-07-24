@@ -9,11 +9,16 @@ import { useAuthStore } from '@/store/authStore';
 import {
   Code2, MessageSquare, FolderKanban, Calendar, Sparkles,
   BarChart3, Check, Zap, ArrowRight,
-  Users, FileText, Bell,
+  Users, FileText, Bell, Rocket, UserPlus, Bot,
 } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
+import { ProductPreview } from '@/components/landing/ProductPreview';
 
 type PlanTier = 'free' | 'starter' | 'pro';
+
+type PlanLimits = {
+  max_storage_bytes?: number;
+};
 
 type CatalogPlan = {
   provider: 'lemon_squeezy' | 'local';
@@ -21,6 +26,7 @@ type CatalogPlan = {
   name: string;
   description: string | null;
   features: string[];
+  limits?: PlanLimits;
   external_id?: string;
   checkout_url?: string | null;
 };
@@ -28,6 +34,7 @@ type CatalogPlan = {
 type PlansByProvidersResponse = {
   free?: CatalogPlan;
   lemon_squeezy?: CatalogPlan[];
+  all_lemon_squeezy?: CatalogPlan[];
 };
 
 type LemonVariantResponse = {
@@ -56,6 +63,53 @@ function formatLemonPrice(price?: string) {
   return price.replace(/month/gi, 'mes');
 }
 
+function isStorageFeature(feature: string) {
+  const lower = feature.toLowerCase();
+  return lower.includes('recurso') || (lower.includes('gb') && lower.includes('hasta'));
+}
+
+function formatStorageLabel(bytes: number) {
+  const gb = bytes / (1024 * 1024 * 1024);
+  if (gb >= 1) {
+    const rounded = Number.isInteger(gb) ? gb : Number(gb.toFixed(1));
+    return `${rounded} GB`;
+  }
+  const mb = bytes / (1024 * 1024);
+  const rounded = Number.isInteger(mb) ? mb : Number(mb.toFixed(0));
+  return `${rounded} MB`;
+}
+
+/** Keep quotas first and guarantee the storage line stays in the visible list. */
+function prioritizeLandingFeatures(features: string[], max = 4) {
+  if (features.length <= max) return features;
+  const storage = features.find(isStorageFeature);
+  const rest = features.filter((f) => !isStorageFeature(f));
+  if (!storage) return features.slice(0, max);
+  return [rest[0], storage, ...rest.slice(1)].filter(Boolean).slice(0, max);
+}
+
+function withProStorageOptions(features: string[], proVariants: CatalogPlan[]) {
+  const storageBytes = [
+    ...new Set(
+      proVariants
+        .map((plan) => plan.limits?.max_storage_bytes)
+        .filter((value): value is number => typeof value === 'number' && value > 0),
+    ),
+  ].sort((a, b) => a - b);
+
+  const labels = storageBytes.map(formatStorageLabel);
+  const storageLine =
+    labels.length > 1
+      ? `Hasta ${labels.join(' o ')} de recursos`
+      : labels.length === 1
+        ? `Hasta ${labels[0]} de recursos`
+        : 'Hasta 5 GB o 10 GB de recursos';
+
+  const withoutStorage = features.filter((f) => !isStorageFeature(f));
+  if (withoutStorage.length === 0) return [storageLine];
+  return [withoutStorage[0], storageLine, ...withoutStorage.slice(1)];
+}
+
 export default function HomePage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuthStore();
@@ -79,6 +133,7 @@ export default function HomePage() {
 
       const plansByProvider = (await res.json()) as PlansByProvidersResponse;
       const lemonPlans = plansByProvider.lemon_squeezy ?? [];
+      const allLemonPlans = plansByProvider.all_lemon_squeezy ?? lemonPlans;
       const paid: Partial<Record<'starter' | 'pro', LemonPlanDetails>> = {};
 
       await Promise.all(
@@ -88,6 +143,14 @@ export default function HomePage() {
           }
           if (!plan.external_id) return;
 
+          const features =
+            plan.plan_code === 'pro'
+              ? withProStorageOptions(
+                  plan.features,
+                  allLemonPlans.filter((p) => p.plan_code === 'pro'),
+                )
+              : plan.features;
+
           const variantRes = await fetch(
             `/api/lemon-squeezy/variant/${plan.external_id}`,
           );
@@ -96,7 +159,7 @@ export default function HomePage() {
               price: undefined,
               hasFreeTrial: false,
               trialDays: 0,
-              features: plan.features,
+              features,
               description: plan.description,
               name: plan.name,
             };
@@ -109,7 +172,7 @@ export default function HomePage() {
             price: formatLemonPrice(variant.price) ?? undefined,
             hasFreeTrial: Boolean(variant.hasFreeTrial),
             trialDays: variant.trialDays ?? 0,
-            features: plan.features,
+            features,
             description: plan.description,
             name: plan.name,
           };
@@ -177,16 +240,35 @@ export default function HomePage() {
     const free = lemonPlanDetails?.free;
     const starter = lemonPlanDetails?.paid?.starter;
     const pro = lemonPlanDetails?.paid?.pro;
+    const MAX_FEATURES = 4;
+
+    const toPlan = (
+      tier: PlanTier,
+      opts: {
+        name: string;
+        price: string;
+        priceLoading: boolean;
+        trialLabel: string | null;
+        description: string;
+        icon: React.ReactNode;
+        features: string[];
+        cta: string;
+        highlighted: boolean;
+      },
+    ) => {
+      const features = prioritizeLandingFeatures(opts.features, MAX_FEATURES);
+      const moreCount = Math.max(0, opts.features.length - features.length);
+      return { tier, ...opts, features, moreCount };
+    };
 
     return [
-      {
-        tier: 'free' as PlanTier,
+      toPlan('free', {
         name: free?.name ?? 'Free',
         price: 'Gratis',
         priceLoading: false,
-        trialLabel: null as string | null,
+        trialLabel: null,
         description: free?.description ?? 'Para empezar sin costo',
-        icon: <Zap className="h-5 w-5" />,
+        icon: <Zap className="h-4 w-4" />,
         features: free?.features?.length
           ? free.features
           : [
@@ -197,9 +279,8 @@ export default function HomePage() {
             ],
         cta: 'Comenzar gratis',
         highlighted: false,
-      },
-      {
-        tier: 'starter' as PlanTier,
+      }),
+      toPlan('starter', {
         name: starter?.name ?? 'Starter',
         price: starter?.price ?? 'Por proyecto',
         priceLoading: lemonPlansLoading,
@@ -208,7 +289,7 @@ export default function HomePage() {
             ? `${starter.trialDays} días de prueba gratis`
             : null,
         description: starter?.description ?? 'Para equipos en crecimiento',
-        icon: <Sparkles className="h-5 w-5" />,
+        icon: <Sparkles className="h-4 w-4" />,
         features: starter?.features?.length
           ? starter.features
           : [
@@ -220,9 +301,8 @@ export default function HomePage() {
             ],
         cta: 'Empezar con Starter',
         highlighted: false,
-      },
-      {
-        tier: 'pro' as PlanTier,
+      }),
+      toPlan('pro', {
         name: pro?.name ?? 'Pro',
         price: pro?.price ?? 'Por proyecto',
         priceLoading: lemonPlansLoading,
@@ -231,25 +311,19 @@ export default function HomePage() {
             ? `${pro.trialDays} días de prueba gratis`
             : null,
         description: pro?.description ?? 'Para quien lidera equipos',
-        icon: (
-          <>
-            <Sparkles className="h-5 w-5" />
-            <Sparkles className="h-5 w-5" />
-          </>
-        ),
+        icon: <Sparkles className="h-4 w-4" />,
         features: pro?.features?.length
           ? pro.features
           : [
-              '10 proyectos · 30 miembros · 5 GB',
+              '10 proyectos',
+              'Hasta 5 GB o 10 GB de recursos',
+              'Hasta 30 miembros/proyecto',
               'Asistente IA + analítica avanzada',
-              'Salud del equipo y workload',
-              'Workspace y directorio multi-proyecto',
-              'Sync Google Calendar y exportar datos',
-              'Plantillas, aprobaciones y permisos',
+              'Workspace multi-proyecto',
             ],
         cta: 'Empezar con Pro',
         highlighted: true,
-      },
+      }),
     ];
   }, [lemonPlanDetails, lemonPlansLoading]);
 
@@ -271,6 +345,27 @@ export default function HomePage() {
     },
   ];
 
+  const howItWorks = [
+    {
+      step: '01',
+      icon: <Rocket className="h-5 w-5" />,
+      title: 'Crea tu proyecto',
+      description: 'Armá el espacio en minutos: tareas, calendario y docs en un solo lugar.',
+    },
+    {
+      step: '02',
+      icon: <UserPlus className="h-5 w-5" />,
+      title: 'Invita al equipo',
+      description: 'Sumá miembros sin pagar por asiento. Todos colaboran desde el mismo workspace.',
+    },
+    {
+      step: '03',
+      icon: <Bot className="h-5 w-5" />,
+      title: 'Dejá que la IA ayude',
+      description: 'Resúmenes, tareas y respuestas con contexto real de tu proyecto.',
+    },
+  ];
+
   return (
     <div className="min-h-dvh bg-[var(--bg-primary)]">
       {/* Header */ }
@@ -278,6 +373,13 @@ export default function HomePage() {
         <div className="container mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <Logo />
           <nav className="hidden sm:flex items-center gap-6 text-sm">
+            <button
+              type="button"
+              onClick={ () => scrollToId('how-it-works') }
+              className="text-[var(--text-secondary)] hover:text-[var(--accent-primary)] transition-colors"
+            >
+              Cómo funciona
+            </button>
             <button
               type="button"
               onClick={ () => scrollToId('features') }
@@ -310,29 +412,39 @@ export default function HomePage() {
         <div className="absolute inset-0 pointer-events-none" aria-hidden>
           <div className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full bg-[var(--accent-primary)]/10 blur-3xl" />
           <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full bg-[var(--accent-primary)]/8 blur-3xl" />
+          <div
+            className="absolute inset-0 opacity-[0.035]"
+            style={ {
+              backgroundImage:
+                'radial-gradient(circle at 1px 1px, var(--text-primary) 1px, transparent 0)',
+              backgroundSize: '28px 28px',
+            } }
+          />
         </div>
-        <div className="relative container mx-auto px-4 py-24 md:py-36 text-center">
-          <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border border-[var(--accent-primary)]/40 bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] mb-6">
-            <Sparkles className="h-3.5 w-3.5" />
-            Chat · Proyectos · Calendario · IA
-          </span>
-          <h1 className="text-5xl md:text-7xl font-extrabold text-[var(--text-primary)] mb-6 leading-tight tracking-tight">
-            El workspace que tu
-            <br />
-            <span className="text-[var(--accent-primary)]">equipo necesitaba</span>
-          </h1>
-          <p className="text-xl text-[var(--text-secondary)] mb-10 max-w-2xl mx-auto leading-relaxed">
-            Organiza el trabajo del equipo en un solo lugar. Menos fricción, más foco.
+        <div className="relative container mx-auto px-4 pt-20 pb-16 md:pt-28 md:pb-24 text-center">
+          <p className="landing-fade-up mb-4 text-2xl md:text-3xl font-extrabold tracking-tight text-[var(--accent-primary)]">
+            Veenzo
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <h1 className="landing-fade-up landing-fade-up-delay-1 text-4xl md:text-6xl font-extrabold text-[var(--text-primary)] mb-5 leading-tight tracking-tight">
+            El workspace que tu equipo necesitaba
+          </h1>
+          <p className="landing-fade-up landing-fade-up-delay-2 text-lg md:text-xl text-[var(--text-secondary)] mb-8 max-w-2xl mx-auto leading-relaxed">
+            Chat, kanban, calendario e IA en un solo lugar. Menos fricción, más foco.
+          </p>
+          <div className="landing-fade-up landing-fade-up-delay-3 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button size="lg" onClick={ () => router.push('/auth') } className="gap-2 px-8">
               Crear cuenta gratis <ArrowRight className="h-4 w-4" />
             </Button>
-            <Button size="lg" variant="secondary" onClick={ () => scrollToId('features') }>
-              Ver funciones
+            <Button size="lg" variant="secondary" onClick={ () => scrollToId('how-it-works') }>
+              Cómo funciona
             </Button>
           </div>
-          <p className="text-xs text-[var(--text-secondary)] mt-4">Sin tarjeta de crédito. Plan gratuito real.</p>
+          <p className="landing-fade-up landing-fade-up-delay-3 text-xs text-[var(--text-secondary)] mt-4">
+            Sin tarjeta de crédito. Plan gratuito real.
+          </p>
+          <div className="landing-fade-up landing-fade-up-delay-3">
+            <ProductPreview />
+          </div>
         </div>
       </section>
 
@@ -350,33 +462,65 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Why Veenzo */ }
-      <section className="container mx-auto px-4 py-24">
+      {/* How it works */ }
+      <section id="how-it-works" className="container mx-auto px-4 py-24">
         <div className="max-w-2xl mx-auto text-center mb-14">
           <h2 className="text-4xl font-bold text-[var(--text-primary)] mb-4">
-            ¿Por qué Veenzo?
+            Cómo funciona
           </h2>
           <p className="text-[var(--text-secondary)] text-lg">
-            Tres razones por las que equipos eligen un solo workspace.
+            Tres pasos para tener al equipo alineado.
           </p>
         </div>
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          { whyVeenzo.map((item, i) => (
-            <div key={ i } className="flex flex-col gap-4 p-6 rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] hover:border-[var(--accent-primary)]/40 transition-colors">
-              <div className="w-12 h-12 rounded-lg bg-[var(--accent-primary)]/10 flex items-center justify-center text-[var(--accent-primary)]">
+        <div className="relative mx-auto grid max-w-5xl gap-10 md:grid-cols-3 md:gap-8">
+          <div
+            className="pointer-events-none absolute top-8 right-[16%] left-[16%] hidden h-px bg-[var(--text-secondary)]/20 md:block"
+            aria-hidden
+          />
+          { howItWorks.map((item, i) => (
+            <div key={ i } className="relative text-center md:text-left">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] md:mx-0">
                 { item.icon }
               </div>
-              <div>
-                <h3 className="font-semibold text-[var(--text-primary)] mb-1">{ item.title }</h3>
-                <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{ item.description }</p>
-              </div>
+              <p className="mb-1 text-xs font-bold tracking-widest text-[var(--accent-primary)]">
+                { item.step }
+              </p>
+              <h3 className="mb-2 text-xl font-semibold text-[var(--text-primary)]">{ item.title }</h3>
+              <p className="text-sm leading-relaxed text-[var(--text-secondary)]">{ item.description }</p>
             </div>
           )) }
         </div>
       </section>
 
+      {/* Why Veenzo */ }
+      <section className="bg-[var(--bg-secondary)] py-24">
+        <div className="container mx-auto px-4">
+          <div className="max-w-2xl mx-auto text-center mb-14">
+            <h2 className="text-4xl font-bold text-[var(--text-primary)] mb-4">
+              ¿Por qué Veenzo?
+            </h2>
+            <p className="text-[var(--text-secondary)] text-lg">
+              Tres razones por las que equipos eligen un solo workspace.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            { whyVeenzo.map((item, i) => (
+              <div key={ i } className="flex flex-col gap-4 p-6 rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)]/40 transition-colors">
+                <div className="w-12 h-12 rounded-lg bg-[var(--accent-primary)]/10 flex items-center justify-center text-[var(--accent-primary)]">
+                  { item.icon }
+                </div>
+                <div>
+                  <h3 className="font-semibold text-[var(--text-primary)] mb-1">{ item.title }</h3>
+                  <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{ item.description }</p>
+                </div>
+              </div>
+            )) }
+          </div>
+        </div>
+      </section>
+
       {/* Features */ }
-      <section id="features" className="bg-[var(--bg-secondary)] py-24">
+      <section id="features" className="py-24">
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mx-auto text-center mb-14">
             <h2 className="text-4xl font-bold text-[var(--text-primary)] mb-4">
@@ -390,7 +534,7 @@ export default function HomePage() {
             { features.map((feature, i) => (
               <div
                 key={ i }
-                className="group p-6 rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)]/50 hover:shadow-lg transition-all"
+                className="group p-6 rounded-xl border border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)] hover:border-[var(--accent-primary)]/50 hover:shadow-lg transition-all"
               >
                 <div className="w-12 h-12 rounded-lg bg-[var(--accent-primary)]/10 flex items-center justify-center text-[var(--accent-primary)] mb-4 group-hover:bg-[var(--accent-primary)]/20 transition-colors">
                   { feature.icon }
@@ -405,56 +549,68 @@ export default function HomePage() {
 
       {/* Plans */ }
       <section id="pricing" className="container mx-auto px-4 py-24">
-        <div className="max-w-2xl mx-auto text-center mb-14">
-          <h2 className="text-4xl font-bold text-[var(--text-primary)] mb-4">
+        <div className="max-w-2xl mx-auto text-center mb-12">
+          <h2 className="text-4xl font-bold text-[var(--text-primary)] mb-3">
             Comienza gratis, escala cuando crezcas
           </h2>
           <p className="text-[var(--text-secondary)] text-lg">
             Precio por proyecto, no por asiento. Elige el plan al crear tu cuenta.
           </p>
         </div>
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <div className="grid md:grid-cols-3 gap-4 max-w-5xl mx-auto items-start">
           { plans.map((plan, i) => (
             <div
               key={ i }
-              className={ `relative rounded-xl border p-6 flex flex-col transition-all ${plan.highlighted
+              className={ `relative rounded-xl border px-5 py-5 flex flex-col gap-3 transition-all ${plan.highlighted
                 ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/5 shadow-lg'
                 : 'border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)]'
                 }` }
             >
               { plan.highlighted && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-bold px-3 py-1 rounded-full bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]">
+                <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]">
                   Más popular
                 </span>
               ) }
-              <div className="flex items-center mb-2 flex-col">
-                <span className="text-[var(--accent-primary)] flex gap-1">{ plan.icon }</span>
-                <h3 className="font-bold text-[var(--text-primary)] text-lg">{ plan.name }</h3>
+
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[var(--accent-primary)] shrink-0">{ plan.icon }</span>
+                  <h3 className="font-bold text-[var(--text-primary)] text-base truncate">{ plan.name }</h3>
+                </div>
+                <div className="shrink-0 text-right">
+                  { plan.priceLoading ? (
+                    <div className="h-6 w-20 animate-pulse rounded bg-[var(--text-secondary)]/15 ml-auto" />
+                  ) : (
+                    <p className="text-lg font-extrabold text-[var(--text-primary)] leading-tight">{ plan.price }</p>
+                  ) }
+                </div>
               </div>
-              <div className="mb-1 min-h-9 flex items-center justify-center">
-                { plan.priceLoading ? (
-                  <div className="h-7 w-28 animate-pulse rounded bg-[var(--text-secondary)]/15" />
-                ) : (
-                  <p className="text-2xl font-extrabold text-center text-[var(--text-primary)]">{ plan.price }</p>
-                ) }
-              </div>
+
+              <p className="text-xs text-[var(--text-secondary)] leading-snug">{ plan.description }</p>
               { plan.trialLabel && (
-                <p className="text-xs font-medium text-center text-[var(--accent-primary)] mb-1">
+                <p className="text-[11px] font-medium text-[var(--accent-primary)] -mt-1">
                   { plan.trialLabel }
                 </p>
               ) }
-              <p className="text-sm text-center text-[var(--text-secondary)] mb-5">{ plan.description }</p>
-              <ul className="space-y-2 mb-6 flex-1">
+
+              <ul className="space-y-1.5">
                 { plan.features.map((f, j) => (
-                  <li key={ j } className="flex items-start gap-2 text-sm text-[var(--text-secondary)]">
-                    <Check className="h-4 w-4 text-[var(--accent-primary)] shrink-0 mt-0.5" />
+                  <li key={ j } className="flex items-start gap-2 text-xs text-[var(--text-secondary)] leading-snug">
+                    <Check className="h-3.5 w-3.5 text-[var(--accent-primary)] shrink-0 mt-0.5" />
                     { f }
                   </li>
                 )) }
+                { plan.moreCount > 0 && (
+                  <li className="text-[11px] text-[var(--text-secondary)]/80 pl-5">
+                    +{ plan.moreCount } beneficios más al registrarte
+                  </li>
+                ) }
               </ul>
+
               <Button
                 variant={ plan.highlighted ? 'primary' : 'secondary' }
-                className="w-full mt-auto"
+                size="sm"
+                className="w-full mt-1"
                 onClick={ () => router.push('/auth') }
               >
                 { plan.cta }

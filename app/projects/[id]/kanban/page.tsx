@@ -8,7 +8,7 @@ export default function KanbanPage() {
   const projectId = params?.id as string;
 
   return (
-    <main className="flex grow overflow-hidden">
+    <main className="flex flex-1 min-h-0 flex-col overflow-hidden">
       <KanbanBoard projectId={projectId} />
     </main>
   );

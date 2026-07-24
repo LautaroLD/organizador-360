@@ -64,101 +64,102 @@ const KanbanTaskCardComponent: React.FC<KanbanTaskCardProps> = ({
   const approvalBadge = approvalStatus ? APPROVAL_BADGE[approvalStatus] : null;
 
   return (
-    <Card className="p-3 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)]/60 transition-all hover:shadow-md border border-transparent flex flex-col gap-2">
-      <div className="flex items-start justify-between gap-2">
-        <p className="font-semibold text-sm leading-snug text-[var(--text-primary)] line-clamp-2">{ task.title }</p>
+    <Card className="p-2 bg-[var(--bg-primary)] hover:border-[var(--accent-primary)]/60 transition-all hover:shadow-sm border border-transparent flex flex-col gap-1.5">
+      <div className="flex items-start justify-between gap-1.5">
+        <p className="font-medium text-xs leading-snug text-[var(--text-primary)] line-clamp-2">{ task.title }</p>
         { task.priority && (
-          <p className={ clsx('text-[11px] uppercase border py-1 px-2 rounded-full w-fit font-semibold shrink-0 inline-flex items-center gap-1', priorityStyles[task.priority]) }>
-            <Flag className="w-3 h-3" />
+          <p className={ clsx('text-[10px] uppercase border py-0.5 px-1.5 rounded-full w-fit font-semibold shrink-0 inline-flex items-center gap-0.5', priorityStyles[task.priority]) }>
+            <Flag className="w-2.5 h-2.5" />
             { task.priority }
           </p>
         ) }
       </div>
 
       { approvalBadge && (
-        <p className={ clsx('text-[11px] border py-1 px-2 rounded-full w-fit font-medium inline-flex items-center gap-1', approvalBadge.className) }>
-          <ClipboardCheck className="w-3 h-3" />
+        <p className={ clsx('text-[10px] border py-0.5 px-1.5 rounded-full w-fit font-medium inline-flex items-center gap-0.5', approvalBadge.className) }>
+          <ClipboardCheck className="w-2.5 h-2.5" />
           { approvalBadge.label }
         </p>
       ) }
 
-      { task.tags && task.tags.length > 0 && (
+      { ((task.tags && task.tags.length > 0) || phaseLabel || epicLabel) && (
         <div className="flex flex-wrap gap-1">
-          { task.tags.map((t) => (
+          { task.tags?.slice(0, 2).map((t) => (
             <span
               key={ t.id }
-              className="px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
+              className="px-1.5 py-0.5 rounded-full text-[9px] font-medium text-white"
               style={ { backgroundColor: t.tag.color } }
             >
               { t.tag.label }
             </span>
           )) }
+          { task.tags && task.tags.length > 2 && (
+            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-medium text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20">
+              +{ task.tags.length - 2 }
+            </span>
+          ) }
+          { phaseLabel && (
+            <span className="text-[9px] text-[var(--text-secondary)] line-clamp-1 border border-[var(--text-secondary)]/20 py-0.5 px-1.5 rounded-full bg-[var(--bg-secondary)] inline-flex items-center gap-1 max-w-[9rem]">
+              <Layers className="w-2.5 h-2.5 shrink-0" />
+              <span className="truncate">{ phaseLabel }</span>
+            </span>
+          ) }
+          { epicLabel && (
+            <span className="text-[9px] text-[var(--text-secondary)] line-clamp-1 border border-[var(--text-secondary)]/20 py-0.5 px-1.5 rounded-full bg-[var(--bg-secondary)] inline-flex items-center gap-1 max-w-[9rem]">
+              <FolderKanban className="w-2.5 h-2.5 shrink-0" />
+              <span className="truncate">{ epicLabel }</span>
+            </span>
+          ) }
         </div>
       ) }
 
-      { task.description && (
-        <p className="text-xs text-[var(--text-secondary)] line-clamp-2 leading-relaxed">
-          { task.description }
-        </p>
-      ) }
+      <div className="flex items-center justify-between gap-1.5">
+        <div className="flex items-center gap-1 min-w-0">
+          { task.done_estimated_at && (
+            <span className={ clsx(
+              'text-[9px] border py-0.5 px-1.5 rounded-full inline-flex items-center gap-1 shrink-0',
+              isOverdue
+                ? 'text-red-700 border-red-500/30 bg-red-500/10'
+                : 'text-[var(--text-secondary)] border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)]'
+            ) }>
+              <CalendarClock className="w-2.5 h-2.5" />
+              { formatLocalDate(task.done_estimated_at) }
+            </span>
+          ) }
 
-      <div className="flex flex-wrap gap-1.5">
-        { phaseLabel && (
-          <p className="text-[11px] text-[var(--text-secondary)] line-clamp-1 border border-[var(--text-secondary)]/20 py-1 px-2 rounded-full bg-[var(--bg-secondary)] inline-flex items-center gap-1.5">
-            <Layers className="w-3 h-3" />
-            { phaseLabel }
-          </p>
-        ) }
-        { epicLabel && (
-          <p className="text-[11px] text-[var(--text-secondary)] line-clamp-1 border border-[var(--text-secondary)]/20 py-1 px-2 rounded-full bg-[var(--bg-secondary)] inline-flex items-center gap-1.5">
-            <FolderKanban className="w-3 h-3" />
-            { epicLabel }
-          </p>
-        ) }
-      </div>
-
-      { task.done_estimated_at && (
-        <p className={ clsx(
-          'text-[11px] line-clamp-1 border py-1 px-2 rounded-full inline-flex items-center gap-1.5 w-fit',
-          isOverdue
-            ? 'text-red-700 border-red-500/30 bg-red-500/10'
-            : 'text-[var(--text-secondary)] border-[var(--text-secondary)]/20 bg-[var(--bg-secondary)]'
-        ) }>
-          <CalendarClock className="w-3 h-3" />
-          Cierre: { formatLocalDate(task.done_estimated_at) }
-        </p>
-      ) }
-
-      <div className="flex justify-between items-center mt-1 pt-1 border-t border-[var(--text-secondary)]/10">
-        <div className="flex items-center gap-2">
           { task.checklist && task.checklist.length > 0 && (
-            <div className="flex items-center text-xs text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/15 px-2 py-1 rounded-md">
-              <CheckSquare className="w-3 h-3 mr-1" />
-              <span>
-                { task.checklist.filter(i => i.is_completed).length }/{ task.checklist.length }
-              </span>
-            </div>
+            <span className="inline-flex items-center text-[9px] text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/15 px-1.5 py-0.5 rounded-md">
+              <CheckSquare className="w-2.5 h-2.5 mr-0.5" />
+              { task.checklist.filter(i => i.is_completed).length }/{ task.checklist.length }
+            </span>
           ) }
 
           { task.images && task.images.length > 0 && (
-            <div className="flex items-center text-xs text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/15 px-2 py-1 rounded-md">
-              <ImageIcon className="w-3 h-3 mr-1" />
-              <span>{ task.images.length }</span>
-            </div>
+            <span className="inline-flex items-center text-[9px] text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/15 px-1.5 py-0.5 rounded-md">
+              <ImageIcon className="w-2.5 h-2.5 mr-0.5" />
+              { task.images.length }
+            </span>
           ) }
         </div>
 
-        <div className="flex -space-x-2 ml-auto">
-          { task.assignments?.map((assignment) => (
-            <div
-              key={ assignment.user_id }
-              className="w-6 h-6 rounded-full bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] flex items-center justify-center text-xs border-2 border-[var(--bg-primary)]"
-              title={ assignment.user?.name }
-            >
-              { assignment.user?.name?.[0] || '?' }
-            </div>
-          )) }
-        </div>
+        { task.assignments && task.assignments.length > 0 && (
+          <div className="flex -space-x-1.5 shrink-0">
+            { task.assignments.slice(0, 3).map((assignment) => (
+              <div
+                key={ assignment.user_id }
+                className="w-5 h-5 rounded-full bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)] flex items-center justify-center text-[9px] border border-[var(--bg-primary)]"
+                title={ assignment.user?.name }
+              >
+                { assignment.user?.name?.[0] || '?' }
+              </div>
+            )) }
+            { task.assignments.length > 3 && (
+              <div className="w-5 h-5 rounded-full bg-[var(--bg-secondary)] text-[var(--text-secondary)] flex items-center justify-center text-[9px] border border-[var(--bg-primary)]">
+                +{ task.assignments.length - 3 }
+              </div>
+            ) }
+          </div>
+        ) }
       </div>
     </Card>
   );

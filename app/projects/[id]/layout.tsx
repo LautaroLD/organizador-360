@@ -100,7 +100,9 @@ export default function ProjectLayout({
       <Sidebar />
       <div className="lg:pl-56 min-h-dvh flex flex-col max-h-dvh overflow-hidden">
         <Header />
-        { children }
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+          { children }
+        </div>
       </div>
     </div>
   );
