@@ -203,18 +203,18 @@ export function TeamDirectoryPanel({ bundle }: Props) {
           {directoryMembers.map((member) => {
             const activeProjects = getActiveProjects(member);
             return (
-              <Card key={member.id}>
-                <CardContent className="p-4 space-y-3">
+              <Card key={member.id} className="min-w-0 overflow-hidden">
+                <CardContent className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-medium text-[var(--text-primary)]">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-[var(--text-primary)]">
                         {memberLabel(member)}
                       </p>
-                      <p className="text-xs text-[var(--text-secondary)]">
+                      <p className="truncate text-xs text-[var(--text-secondary)]">
                         {member.email}
                       </p>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex shrink-0 gap-1">
                       <Button
                         size="icon-sm"
                         variant="ghost"

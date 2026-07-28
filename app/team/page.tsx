@@ -16,7 +16,7 @@ export default async function TeamPage() {
   return (
     <div className="min-h-dvh bg-[var(--bg-primary)]">
       <Header title="Equipo" subtitle="Workspace · Directorio y mando multi-proyecto" />
-      <main className="m-6">
+      <main className="m-4 min-w-0 overflow-x-hidden sm:m-6">
         <TeamWorkspaceView />
       </main>
     </div>
