@@ -138,9 +138,9 @@ export function TeamWorkspaceView() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">
+    <div className="min-w-0 space-y-6">
+      <div className="min-w-0">
+        <h1 className="break-words text-xl font-semibold text-[var(--text-primary)]">
           {bundle.workspace.name}
         </h1>
         {bundle.workspace.description && (
@@ -150,14 +150,14 @@ export function TeamWorkspaceView() {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2 border-b border-[var(--text-secondary)]/20 pb-2">
+      <div className="-mx-1 flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain border-b border-[var(--text-secondary)]/20 px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => setTab(item.id)}
             className={clsx(
-              'inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors',
+              'inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors',
               tab === item.id
                 ? 'bg-[var(--accent-primary)] text-[var(--accent-primary-contrast)]'
                 : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]',

@@ -115,16 +115,16 @@ export function TeamProjectsPanel({ bundle }: Props) {
       ) : (
         <div className="space-y-2">
           {bundle.projects.map((link) => (
-            <Card key={link.id}>
-              <CardContent className="flex items-center justify-between gap-3 p-4">
-                <div>
+            <Card key={link.id} className="min-w-0 overflow-hidden">
+              <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                   <Link
                     href={`/projects/${link.project_id}/chat`}
-                    className="font-medium text-[var(--text-primary)] hover:underline"
+                    className="break-words font-medium text-[var(--text-primary)] hover:underline"
                   >
                     {link.project?.name ?? 'Proyecto'}
                   </Link>
-                  <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                  <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
                     {link.project?.enabled === false ? 'Deshabilitado · ' : ''}
                     Vinculado {new Date(link.added_at).toLocaleDateString('es-AR')}
                   </p>
@@ -132,6 +132,7 @@ export function TeamProjectsPanel({ bundle }: Props) {
                 <Button
                   size="sm"
                   variant="secondary"
+                  className="shrink-0 self-start"
                   onClick={() => {
                     if (confirm('¿Desvincular este proyecto del workspace?')) {
                       unlinkMutation.mutate(link.project_id);

@@ -89,15 +89,17 @@ function TaskRow({
   return (
     <Link
       href={`/projects/${task.project_id}/kanban`}
-      className="block rounded-md border border-[var(--text-secondary)]/20 px-3 py-2 hover:bg-[var(--bg-primary)] transition-colors"
+      className="block min-w-0 rounded-md border border-[var(--text-secondary)]/20 px-3 py-2 hover:bg-[var(--bg-primary)] transition-colors"
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-medium text-[var(--text-primary)]">{task.title}</p>
+        <p className="min-w-0 break-words text-sm font-medium text-[var(--text-primary)]">
+          {task.title}
+        </p>
         {task.is_overdue && (
           <span className="shrink-0 text-xs text-[var(--accent-danger)]">Vencida</span>
         )}
       </div>
-      <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+      <p className="mt-0.5 truncate text-xs text-[var(--text-secondary)]">
         {task.status}
         {showUnassigned && task.assignee_ids.length === 0 ? ' · sin asignar' : ''}
       </p>
@@ -293,12 +295,12 @@ function ProjectEventsAccordion({ events }: { events: WorkspaceHomeEvent[] }) {
                   <Link
                     key={event.id}
                     href={`/projects/${event.project_id}/calendar`}
-                    className="block rounded-md border border-[var(--text-secondary)]/20 px-3 py-2 hover:bg-[var(--bg-primary)] transition-colors"
+                    className="block min-w-0 rounded-md border border-[var(--text-secondary)]/20 px-3 py-2 hover:bg-[var(--bg-primary)] transition-colors"
                   >
-                    <p className="text-sm font-medium text-[var(--text-primary)]">
+                    <p className="min-w-0 break-words text-sm font-medium text-[var(--text-primary)]">
                       {event.title}
                     </p>
-                    <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                    <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
                       {formatEventWhen(event.start_date)}
                     </p>
                   </Link>
@@ -424,11 +426,11 @@ function ProjectRisksAccordion({ risks }: { risks: WorkspaceProjectRisk[] }) {
                   <Link
                     key={`${risk.projectId}-${risk.title}-${index}`}
                     href={`/projects/${risk.projectId}/analytics`}
-                    className="block rounded-md border px-3 py-2 transition-colors hover:opacity-90"
+                    className="block min-w-0 rounded-md border px-3 py-2 transition-colors hover:opacity-90"
                     style={severityStyle(risk.severity)}
                   >
-                    <p className="text-sm font-medium">{risk.title}</p>
-                    <p className="text-xs opacity-90 mt-0.5">{risk.detail}</p>
+                    <p className="min-w-0 break-words text-sm font-medium">{risk.title}</p>
+                    <p className="mt-0.5 break-words text-xs opacity-90">{risk.detail}</p>
                   </Link>
                 ))}
                 <Link
@@ -468,53 +470,84 @@ export function TeamHomePanel({ home, isLoading }: Props) {
 
   const { stats, myOpenTasks, teamOpenTasks, upcomingEvents, risks } = home;
 
-  return (
-    <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          {
-            label: 'Proyectos vinculados',
-            value: stats.linkedProjects,
-            icon: <FolderKanban className="h-4 w-4" />,
-          },
-          {
-            label: 'Personas en directorio',
-            value: stats.directoryMembers,
-            icon: <Users className="h-4 w-4" />,
-          },
-          {
-            label: 'Mis tareas abiertas',
-            value: stats.myOpenCount,
-            icon: <CheckSquare className="h-4 w-4" />,
-          },
-          {
-            label: 'Riesgos',
-            value: stats.riskCount,
-            icon: <AlertTriangle className="h-4 w-4" />,
-          },
-        ].map((stat) => (
-          <Card key={stat.label}>
-            <CardContent className="flex items-center gap-3 p-4">
-              <div className="rounded-md bg-[var(--bg-primary)] p-2 text-[var(--text-secondary)]">
-                {stat.icon}
-              </div>
-              <div>
-                <p className="text-2xl font-semibold text-[var(--text-primary)]">
-                  {stat.value}
-                </p>
-                <p className="text-xs text-[var(--text-secondary)]">{stat.label}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+  const metrics = [
+    {
+      label: 'Proyectos',
+      fullLabel: 'Proyectos vinculados',
+      value: stats.linkedProjects,
+      icon: FolderKanban,
+    },
+    {
+      label: 'Personas',
+      fullLabel: 'Personas en directorio',
+      value: stats.directoryMembers,
+      icon: Users,
+    },
+    {
+      label: 'Mis tareas',
+      fullLabel: 'Mis tareas abiertas',
+      value: stats.myOpenCount,
+      icon: CheckSquare,
+    },
+    {
+      label: 'Riesgos',
+      fullLabel: 'Riesgos',
+      value: stats.riskCount,
+      icon: AlertTriangle,
+      emphasize: stats.riskCount > 0,
+    },
+  ] as const;
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Mis tareas</CardTitle>
+  return (
+    <div className="min-w-0 space-y-4 sm:space-y-6">
+      <Card className="min-w-0 overflow-hidden">
+        <CardContent className="grid grid-cols-4 divide-x divide-[var(--text-secondary)]/15 p-0">
+          {metrics.map((stat) => {
+            const Icon = stat.icon;
+            const emphasize = 'emphasize' in stat && stat.emphasize;
+            return (
+              <div
+                key={stat.fullLabel}
+                title={stat.fullLabel}
+                className="flex min-w-0 flex-col items-center justify-center gap-0.5 px-1.5 py-3 text-center sm:flex-row sm:items-center sm:justify-start sm:gap-2.5 sm:px-4 sm:py-3.5 sm:text-left"
+              >
+                <Icon
+                  className={clsx(
+                    'h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4',
+                    emphasize
+                      ? 'text-[var(--accent-danger)]'
+                      : 'text-[var(--text-secondary)]',
+                  )}
+                  aria-hidden
+                />
+                <div className="min-w-0">
+                  <p
+                    className={clsx(
+                      'text-lg font-semibold leading-none sm:text-xl',
+                      emphasize
+                        ? 'text-[var(--accent-danger)]'
+                        : 'text-[var(--text-primary)]',
+                    )}
+                  >
+                    {stat.value}
+                  </p>
+                  <p className="mt-0.5 truncate text-[10px] leading-tight text-[var(--text-secondary)] sm:text-xs">
+                    <span className="sm:hidden">{stat.label}</span>
+                    <span className="hidden sm:inline">{stat.fullLabel}</span>
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-2">
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="space-y-0 p-4 pb-2 sm:p-6 sm:pb-2">
+            <CardTitle className="text-base leading-snug sm:text-lg">Mis tareas</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-w-0 p-4 pt-0 sm:p-6 sm:pt-0">
             <ProjectTasksAccordion
               key={`mine-${myOpenTasks.length}`}
               tasks={myOpenTasks}
@@ -523,11 +556,13 @@ export function TeamHomePanel({ home, isLoading }: Props) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Tareas del equipo</CardTitle>
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="space-y-0 p-4 pb-2 sm:p-6 sm:pb-2">
+            <CardTitle className="text-base leading-snug sm:text-lg">
+              Tareas del equipo
+            </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-w-0 p-4 pt-0 sm:p-6 sm:pt-0">
             <ProjectTasksAccordion
               key={`team-${teamOpenTasks.length}`}
               tasks={teamOpenTasks}
@@ -538,15 +573,20 @@ export function TeamHomePanel({ home, isLoading }: Props) {
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="min-h-0 overflow-hidden">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <CalendarDays className="h-4 w-4" />
-              Calendario del equipo (próximos 7 días)
+      <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-2">
+        <Card className="min-h-0 min-w-0 overflow-hidden">
+          <CardHeader className="space-y-0 p-4 pb-2 sm:p-6 sm:pb-2">
+            <CardTitle className="flex items-start gap-2 text-base leading-snug sm:text-lg">
+              <CalendarDays className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="min-w-0">
+                <span className="sm:hidden">Próximos 7 días</span>
+                <span className="hidden sm:inline">
+                  Calendario del equipo (próximos 7 días)
+                </span>
+              </span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="min-h-0">
+          <CardContent className="min-h-0 min-w-0 p-4 pt-0 sm:p-6 sm:pt-0">
             <ProjectEventsAccordion
               key={`events-${upcomingEvents.length}`}
               events={upcomingEvents}
@@ -554,14 +594,14 @@ export function TeamHomePanel({ home, isLoading }: Props) {
           </CardContent>
         </Card>
 
-        <Card className="min-h-0 overflow-hidden">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
+        <Card className="min-h-0 min-w-0 overflow-hidden">
+          <CardHeader className="space-y-0 p-4 pb-2 sm:p-6 sm:pb-2">
+            <CardTitle className="flex items-center gap-2 text-base leading-snug sm:text-lg">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
               Riesgos
             </CardTitle>
           </CardHeader>
-          <CardContent className="min-h-0">
+          <CardContent className="min-h-0 min-w-0 p-4 pt-0 sm:p-6 sm:pt-0">
             <ProjectRisksAccordion
               key={`risks-${risks.length}`}
               risks={risks}
