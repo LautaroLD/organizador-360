@@ -2,6 +2,7 @@ import { ai } from '@/lib/gemini';
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { AICreditError, consumeAICredits } from '@/lib/aiCredits';
+import { AI_MODEL, aiOutputConfig } from '@/lib/aiGeneration';
 
 export async function POST(req: NextRequest) {
   try {
@@ -327,9 +328,10 @@ ${tasks
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite',
+      model: AI_MODEL,
       contents: [{ role: 'user', parts: [{ text: summaryText }] }],
       config: {
+        ...aiOutputConfig('project_insights'),
         systemInstruction: `Eres un analista senior de proyectos ágiles. Se te proporciona un snapshot del estado del proyecto con métricas reales de rendimiento del equipo.
 
 Analiza los datos y responde en español con exactamente estas secciones en Markdown:

@@ -2,16 +2,18 @@ import {
   GENERIC_MEMBER_ONBOARDING,
   ONBOARDING_TASK_TITLE,
   PROJECT_TEMPLATES,
+  addDaysDateOnly,
   addDaysIso,
   computeOnboardingProgress,
   detectTemplateIdFromChannelNames,
+  getTemplatePreviewStats,
   isProjectTemplateId,
   listProjectTemplates,
   tagsForRole,
 } from '@/lib/projectTemplates';
 
 describe('projectTemplates', () => {
-  it('expone las 3 plantillas PRO con canales, tags y onboarding', () => {
+  it('expone las 3 plantillas PRO con canales, fases, tags y onboarding', () => {
     const templates = listProjectTemplates();
     expect(templates.map((t) => t.id).sort()).toEqual([
       'agency',
@@ -22,24 +24,26 @@ describe('projectTemplates', () => {
     for (const template of templates) {
       expect(template.channels.length).toBeGreaterThan(0);
       expect(template.roleTags.length).toBeGreaterThan(0);
-      expect(template.seedTasks.length).toBeGreaterThan(0);
+      expect(template.phases.length).toBeGreaterThanOrEqual(4);
+      expect(template.seedTasks.length).toBeGreaterThanOrEqual(6);
+      expect(template.suggestedDescription.length).toBeGreaterThan(0);
       expect(template.memberOnboarding.title).toBe(ONBOARDING_TASK_TITLE);
       expect(template.memberOnboarding.items.length).toBe(7);
+      expect(template.seedTasks.some((t) => t.status === 'in-progress')).toBe(true);
+      expect(template.seedTasks.some((t) => t.assignToActor)).toBe(true);
+      expect(
+        template.seedTasks.every(
+          (t) => t.phaseIndex !== undefined && t.phaseIndex < template.phases.length,
+        ),
+      ).toBe(true);
     }
   });
 
-  it('todas las plantillas dejan seed tasks en todo y tags de rol útiles', () => {
-    for (const template of listProjectTemplates()) {
-      expect(template.seedTasks.every((t) => t.status === 'todo')).toBe(true);
-      expect(
-        template.roleTags.every((t) => !t.label.toLowerCase().startsWith('plantilla')),
-      ).toBe(true);
-    }
-
+  it('usa tags en español (o términos de industria) y no auto-asigna especialidades a Collaborator', () => {
     expect(PROJECT_TEMPLATES.startup.roleTags.map((t) => t.label).sort()).toEqual([
-      'Engineering',
-      'Founder',
-      'Growth',
+      'Crecimiento',
+      'Fundador',
+      'Ingeniería',
       'Observador',
     ]);
     expect(PROJECT_TEMPLATES.agency.roleTags.map((t) => t.label).sort()).toEqual([
@@ -49,12 +53,31 @@ describe('projectTemplates', () => {
       'Producción',
     ]);
     expect(PROJECT_TEMPLATES.product.roleTags.map((t) => t.label).sort()).toEqual([
-      'Design',
       'Dev',
+      'Diseño',
       'PM',
       'QA',
       'Stakeholder',
     ]);
+
+    expect(tagsForRole(PROJECT_TEMPLATES.startup.roleTags, 'Collaborator')).toEqual([]);
+    expect(tagsForRole(PROJECT_TEMPLATES.agency.roleTags, 'Collaborator')).toEqual([]);
+    expect(tagsForRole(PROJECT_TEMPLATES.product.roleTags, 'Collaborator')).toEqual([]);
+
+    expect(tagsForRole(PROJECT_TEMPLATES.startup.roleTags, 'Owner')).toEqual([
+      expect.objectContaining({ label: 'Fundador' }),
+    ]);
+    expect(tagsForRole(PROJECT_TEMPLATES.product.roleTags, 'Viewer')).toEqual([
+      expect.objectContaining({ label: 'Stakeholder' }),
+    ]);
+  });
+
+  it('expone preview stats útiles', () => {
+    const stats = getTemplatePreviewStats(PROJECT_TEMPLATES.startup);
+    expect(stats.channels).toBe(3);
+    expect(stats.phases).toBe(4);
+    expect(stats.tasks).toBeGreaterThanOrEqual(6);
+    expect(stats.onboardingDays).toBe(7);
   });
 
   it('valida ids de plantilla', () => {
@@ -86,15 +109,6 @@ describe('projectTemplates', () => {
     expect(detectTemplateIdFromChannelNames(['general'])).toBeNull();
   });
 
-  it('mapea tags por rol', () => {
-    const tags = tagsForRole(PROJECT_TEMPLATES.product.roleTags, 'Collaborator');
-    const labels = tags.map((t) => t.label).sort();
-    expect(labels).toEqual(['Design', 'Dev', 'QA']);
-    expect(tagsForRole(PROJECT_TEMPLATES.product.roleTags, 'Viewer')).toEqual([
-      expect.objectContaining({ label: 'Stakeholder' }),
-    ]);
-  });
-
   it('calcula progreso de onboarding y overdue', () => {
     const progress = computeOnboardingProgress({
       userId: 'u1',
@@ -116,10 +130,11 @@ describe('projectTemplates', () => {
     expect(progress.isOverdue).toBe(true);
   });
 
-  it('suma 7 días para la ventana de onboarding', () => {
+  it('suma días para fechas ISO y date-only', () => {
     expect(addDaysIso(new Date('2026-07-15T10:00:00.000Z'), 7)).toBe(
       '2026-07-22T10:00:00.000Z',
     );
+    expect(addDaysDateOnly(new Date(2026, 6, 15), 7)).toBe('2026-07-22');
   });
 
   it('tiene checklist genérico con 7 items', () => {

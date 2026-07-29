@@ -3,6 +3,8 @@
  * Tipos relacionados con proyectos
  */
 
+export type ProjectTemplateId = 'startup' | 'agency' | 'product';
+
 export interface Project {
   id: string;
   name: string;
@@ -12,13 +14,12 @@ export interface Project {
   updated_at: string;
   is_premium?: boolean;
   plan_tier?: 'free' | 'starter' | 'pro';
+  template_id?: ProjectTemplateId | null;
   userRole?: string;
   storage_used?: number;
   storage_over_limit_since?: string | null;
   enabled: boolean;
 }
-
-export type ProjectTemplateId = 'startup' | 'agency' | 'product';
 
 export interface ProjectFormData {
   name: string;

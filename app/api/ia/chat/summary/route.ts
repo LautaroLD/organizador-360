@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 import { AICreditError, consumeAICredits } from '@/lib/aiCredits';
+import { AI_MODEL, aiOutputConfig } from '@/lib/aiGeneration';
 
 const CHAT_SUMMARY_MAX_MESSAGES = 100;
 
@@ -129,13 +130,14 @@ Instrucciones:
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite',
+      model: AI_MODEL,
       contents: [
         {
           text: prompt,
         },
       ],
       config: {
+        ...aiOutputConfig('chat_summary'),
         systemInstruction: [
           'Eres un asistente de IA especializado en resumir conversaciones de equipos de trabajo en herramientas de gestión de proyectos.',
           'Tu objetivo es generar resúmenes claros, estructurados y accionables que permitan a un miembro del equipo entender lo sucedido sin leer toda la conversación.',

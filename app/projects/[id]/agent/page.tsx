@@ -11,6 +11,7 @@ import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import Link from 'next/link';
+import { AGENT_HISTORY_MAX_MESSAGES } from '@/lib/aiGeneration';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -95,10 +96,10 @@ export default function AgentPage() {
     setInputValue('');
 
     try {
-      // Enviamos el historial previo (excluyendo el mensaje que acabamos de añadir localmente para evitar duplicados si la lógica cambia,
-      // pero idealmente enviamos todo lo anterior).
-      // Filtramos para enviar solo rol y contenido, eliminando timestamps para reducir carga
-      const historyToSend = messages.map(m => ({ role: m.role, content: m.content }));
+      // Solo últimos turnos + rol/contenido (el servidor también acota historial/longitud).
+      const historyToSend = messages
+        .slice(-AGENT_HISTORY_MAX_MESSAGES)
+        .map((m) => ({ role: m.role, content: m.content }));
 
       const response = await askAgent(userMsg.content, historyToSend);
       if (response) {

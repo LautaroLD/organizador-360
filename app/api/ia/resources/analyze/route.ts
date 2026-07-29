@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 import { AICreditError, consumeAICredits } from '@/lib/aiCredits';
+import { AI_MODEL, aiOutputConfig } from '@/lib/aiGeneration';
 
 export async function POST(req: NextRequest) {
   try {
@@ -102,8 +103,9 @@ export async function POST(req: NextRequest) {
       : '';
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite',
+      model: AI_MODEL,
       config: {
+        ...aiOutputConfig('resource_analyze'),
         systemInstruction: `Eres un analista experto en documentación de equipos de trabajo. Tu tarea es leer el archivo adjunto y generar un resumen conciso, claro y útil para los miembros del equipo. ${projectContext} Adapta el nivel técnico del resumen al tipo de documento: si es técnico, mantén los términos; si es de negocio, enfócate en decisiones e impacto.`,
       },
       contents: [

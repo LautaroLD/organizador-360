@@ -106,6 +106,62 @@ describe('API Route: /api/ia/agent', () => {
     expect(createClient).toHaveBeenCalled();
     expect(ai.models.generateContent).toHaveBeenCalled();
     expect(data.response).toBe('Respuesta Simulada de Gemini');
+
+    const geminiCall = (ai.models.generateContent as jest.Mock).mock.calls[0][0];
+    expect(geminiCall.config.maxOutputTokens).toBe(1024);
+    expect(geminiCall.config.systemInstruction).toContain(
+      'Prioriza hechos útiles',
+    );
+  });
+
+  it('debe rechazar mensajes vacíos', async () => {
+    const req = {
+      json: async () => ({
+        message: '   ',
+        history: [],
+        projectId: 'proj-1',
+      }),
+    } as unknown as NextRequest;
+
+    const res = await POST(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.error).toBe('Message is required');
+    expect(ai.models.generateContent).not.toHaveBeenCalled();
+  });
+
+  it('debe acotar el historial enviado a Gemini', async () => {
+    const longHistory = Array.from({ length: 20 }, (_, i) => ({
+      role: i % 2 === 0 ? 'user' : 'assistant',
+      content: `turno-${i}`,
+    }));
+
+    const req = {
+      json: async () => ({
+        message: '¿Estado?',
+        history: longHistory,
+        projectId: 'proj-1',
+      }),
+    } as unknown as NextRequest;
+
+    mockSupabase.single.mockResolvedValue({
+      data: { name: 'Test Project', description: 'Test Desc' },
+    });
+    mockSupabase.limit.mockResolvedValue({ data: [] });
+    mockSupabase.maybeSingle.mockResolvedValue({ data: null });
+
+    (ai.models.generateContent as jest.Mock).mockResolvedValue({
+      text: 'ok',
+    });
+
+    await POST(req);
+
+    const geminiCall = (ai.models.generateContent as jest.Mock).mock.calls[0][0];
+    // context + 12 history turns + current question
+    expect(geminiCall.contents).toHaveLength(14);
+    expect(geminiCall.contents[1].parts[0].text).toBe('turno-8');
+    expect(geminiCall.contents.at(-1).parts[0].text).toContain('¿Estado?');
   });
 
   it('debe incluir estado de revisión, asignados y fechas en el contexto de Gemini', async () => {

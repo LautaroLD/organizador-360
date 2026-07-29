@@ -595,6 +595,7 @@ export type Database = {
           is_premium: boolean | null;
           name: string;
           owner_id: string;
+          template_id: string | null;
           updated_at: string | null;
         };
         Insert: {
@@ -604,6 +605,7 @@ export type Database = {
           is_premium?: boolean | null;
           name: string;
           owner_id: string;
+          template_id?: string | null;
           updated_at?: string | null;
         };
         Update: {
@@ -613,6 +615,7 @@ export type Database = {
           is_premium?: boolean | null;
           name?: string;
           owner_id?: string;
+          template_id?: string | null;
           updated_at?: string | null;
         };
         Relationships: [
