@@ -21,7 +21,6 @@ import {
   Sparkles,
   ChevronRight,
   AlertTriangle,
-  LayoutTemplate,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import type { ProjectFormData, Project, ProjectTemplateId } from '@/models';
@@ -32,11 +31,10 @@ import {
   getFallbackPlanLimits,
   getUserPlanTier,
 } from '@/lib/subscriptionUtils';
-import { listProjectTemplates } from '@/lib/projectTemplates';
+import { getProjectTemplate } from '@/lib/projectTemplates';
+import { TemplatePicker } from '@/components/dashboard/TemplatePicker';
 import { MessageContent } from '@/components/ui/MessageContent';
 import clsx from 'clsx';
-
-const PROJECT_TEMPLATE_OPTIONS = listProjectTemplates();
 
 type ProjectLimitStatus = {
   can_enable: boolean;
@@ -63,6 +61,7 @@ export const ProjectsView: React.FC = () => {
     formState: { errors },
     reset,
     setValue,
+    getValues,
     control,
   } = useForm<ProjectFormData>({
     defaultValues: {
@@ -72,7 +71,31 @@ export const ProjectsView: React.FC = () => {
 
   const [descriptionTab, setDescriptionTab] = useState<'richtext' | 'preview'>('richtext');
   const descriptionValue = useWatch({ control, name: 'description' }) || '';
-  const selectedTemplateId = useWatch({ control, name: 'templateId' });
+  const selectedTemplateId = useWatch({ control, name: 'templateId' }) ?? null;
+
+  const handleTemplateSelect = (templateId: ProjectTemplateId | null) => {
+    const previousId = selectedTemplateId;
+    const previousSuggested = previousId
+      ? getProjectTemplate(previousId)?.suggestedDescription ?? ''
+      : '';
+    const currentDescription = getValues('description') || '';
+    const shouldReplaceDescription =
+      !currentDescription.trim() || currentDescription === previousSuggested;
+
+    setValue('templateId', templateId);
+
+    if (!shouldReplaceDescription) return;
+
+    if (!templateId) {
+      setValue('description', '');
+      return;
+    }
+
+    setValue(
+      'description',
+      getProjectTemplate(templateId)?.suggestedDescription ?? '',
+    );
+  };
 
   const { data: userPlanTier = 'free' } = useQuery({
     queryKey: ['user-plan-tier', user?.id],
@@ -563,73 +586,12 @@ export const ProjectsView: React.FC = () => {
             ) }
           </div>
 
-          <div>
-            <div className='flex items-center justify-between gap-2 mb-2'>
-              <label className='block text-sm font-medium text-[var(--text-primary)]'>
-                <span className='inline-flex items-center gap-1.5'>
-                  <LayoutTemplate className='h-4 w-4 text-[var(--accent-primary)]' />
-                  Plantilla de equipo
-                </span>
-              </label>
-              { !canUseTemplates && (
-                <a
-                  href='/settings/subscription'
-                  className='text-xs font-medium text-[var(--accent-primary)] underline'
-                >
-                  Disponible en PRO
-                </a>
-              ) }
-            </div>
-            <p className='text-xs text-[var(--text-secondary)] mb-3'>
-              Canales, tags de rol, tareas iniciales y checklist de onboarding para nuevos miembros.
-            </p>
-            <div className={ clsx(
-              'grid gap-2 sm:grid-cols-2',
-              !canUseTemplates && 'opacity-60',
-            ) }>
-              <button
-                type='button'
-                disabled={ !canUseTemplates }
-                onClick={ () => setValue('templateId', null) }
-                className={ clsx(
-                  'rounded-xl border p-3 text-left transition-colors',
-                  !selectedTemplateId
-                    ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10'
-                    : 'border-[var(--text-secondary)]/20 hover:border-[var(--accent-primary)]/40',
-                  !canUseTemplates && 'cursor-not-allowed',
-                ) }
-              >
-                <p className='text-sm font-medium text-[var(--text-primary)]'>En blanco</p>
-                <p className='text-xs text-[var(--text-secondary)] mt-1'>
-                  Solo el canal general, sin seeds.
-                </p>
-              </button>
-              { PROJECT_TEMPLATE_OPTIONS.map((template) => (
-                <button
-                  key={ template.id }
-                  type='button'
-                  disabled={ !canUseTemplates }
-                  onClick={ () =>
-                    setValue('templateId', template.id as ProjectTemplateId)
-                  }
-                  className={ clsx(
-                    'rounded-xl border p-3 text-left transition-colors',
-                    selectedTemplateId === template.id
-                      ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10'
-                      : 'border-[var(--text-secondary)]/20 hover:border-[var(--accent-primary)]/40',
-                    !canUseTemplates && 'cursor-not-allowed',
-                  ) }
-                >
-                  <p className='text-sm font-medium text-[var(--text-primary)]'>
-                    { template.name }
-                  </p>
-                  <p className='text-xs text-[var(--text-secondary)] mt-1 line-clamp-2'>
-                    { template.description }
-                  </p>
-                </button>
-              )) }
-            </div>
-          </div>
+          <TemplatePicker
+            selectedTemplateId={selectedTemplateId}
+            onSelect={handleTemplateSelect}
+            canUseTemplates={canUseTemplates}
+            showBlankOption
+          />
 
           <div className='flex justify-end space-x-2 pt-4'>
             <Button

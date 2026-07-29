@@ -11,26 +11,52 @@ export type TemplateRoleTag = {
   assignToRoles: ProjectMemberRole[];
 };
 
+export type TemplateSeedPhase = {
+  name: string;
+  description?: string;
+  /** Days from apply date for phase start (date-only) */
+  startOffsetDays: number;
+  /** Days from apply date for phase end (date-only) */
+  endOffsetDays: number;
+};
+
 export type TemplateSeedTask = {
   title: string;
   description?: string;
   status: 'todo' | 'in-progress' | 'done';
   priority: 'baja' | 'media' | 'alta' | null;
   checklist?: string[];
+  /** Index into template.phases */
+  phaseIndex?: number;
+  /** Due date offset in days from apply */
+  dueOffsetDays?: number;
+  /** Assign the applying actor (typically the owner) */
+  assignToActor?: boolean;
 };
 
 export type ProjectTemplate = {
   id: ProjectTemplateId;
   name: string;
   description: string;
+  /** Prefills project description when the field is empty */
+  suggestedDescription: string;
   channels: Array<{ name: string; description: string }>;
   roleTags: TemplateRoleTag[];
+  phases: TemplateSeedPhase[];
   seedTasks: TemplateSeedTask[];
   /** First-7-days checklist seeded for each new non-owner member */
   memberOnboarding: {
     title: string;
     items: string[];
   };
+};
+
+export type TemplatePreviewStats = {
+  channels: number;
+  tags: number;
+  tasks: number;
+  phases: number;
+  onboardingDays: number;
 };
 
 export const ONBOARDING_TASK_TITLE = 'Onboarding: primeros 7 días';
@@ -42,7 +68,20 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplateId, ProjectTemplate> = {
     id: 'startup',
     name: 'Startup',
     description:
-      'Canales de producto y growth, tags de rol y tareas iniciales para salir al mercado.',
+      'Validación → MVP → launch: canales, roadmap, métricas y onboarding para salir al mercado.',
+    suggestedDescription: [
+      '## Objetivo',
+      'Validar el problema, armar un MVP usable y medir tracción inicial.',
+      '',
+      '## Cómo usamos los canales',
+      '- **#producto** — priorización, discovery y decisiones de producto',
+      '- **#growth** — adquisición, métricas y experimentos',
+      '- **#standup** — sync diario del equipo',
+      '',
+      '## Rituales',
+      '- Check-in semanal de la métrica norte',
+      '- Standup corto en #standup',
+    ].join('\n'),
     channels: [
       {
         name: 'producto',
@@ -59,19 +98,19 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplateId, ProjectTemplate> = {
     ],
     roleTags: [
       {
-        label: 'Founder',
+        label: 'Fundador',
         color: '#EAB308',
         assignToRoles: ['Owner', 'Admin'],
       },
       {
-        label: 'Growth',
+        label: 'Crecimiento',
         color: '#8B5CF6',
-        assignToRoles: ['Admin', 'Collaborator'],
+        assignToRoles: [],
       },
       {
-        label: 'Engineering',
+        label: 'Ingeniería',
         color: '#22C55E',
-        assignToRoles: ['Collaborator'],
+        assignToRoles: [],
       },
       {
         label: 'Observador',
@@ -79,12 +118,41 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplateId, ProjectTemplate> = {
         assignToRoles: ['Viewer'],
       },
     ],
+    phases: [
+      {
+        name: 'Validación',
+        description: 'Problema, segmento e hipótesis a validar',
+        startOffsetDays: 0,
+        endOffsetDays: 7,
+      },
+      {
+        name: 'MVP',
+        description: 'Alcance mínimo y primer entregable usable',
+        startOffsetDays: 7,
+        endOffsetDays: 21,
+      },
+      {
+        name: 'Launch',
+        description: 'Salida al mercado y primeros usuarios',
+        startOffsetDays: 21,
+        endOffsetDays: 35,
+      },
+      {
+        name: 'Growth',
+        description: 'Experimentos y métricas de tracción',
+        startOffsetDays: 35,
+        endOffsetDays: 49,
+      },
+    ],
     seedTasks: [
       {
         title: 'Definir problema y propuesta de valor',
         description: 'Alinear al equipo en el problema que resolvemos y para quién.',
-        status: 'todo',
+        status: 'in-progress',
         priority: 'alta',
+        phaseIndex: 0,
+        dueOffsetDays: 3,
+        assignToActor: true,
         checklist: [
           'Escribir problema en una frase',
           'Definir segmento objetivo',
@@ -92,10 +160,25 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplateId, ProjectTemplate> = {
         ],
       },
       {
+        title: 'Entrevistar 5 usuarios potenciales',
+        description: 'Validar el problema con conversaciones reales.',
+        status: 'todo',
+        priority: 'alta',
+        phaseIndex: 0,
+        dueOffsetDays: 7,
+        checklist: [
+          'Armar guion de entrevista',
+          'Agendar 5 conversaciones',
+          'Sintetizar aprendizajes en #producto',
+        ],
+      },
+      {
         title: 'Armar MVP mínimo',
         description: 'Alcance del primer entregable usable.',
         status: 'todo',
         priority: 'alta',
+        phaseIndex: 1,
+        dueOffsetDays: 14,
         checklist: [
           'Listar features must-have',
           'Descartar nice-to-haves',
@@ -104,24 +187,67 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplateId, ProjectTemplate> = {
       },
       {
         title: 'Configurar métricas base',
+        description: 'Elegir la métrica norte y el ritual de seguimiento.',
         status: 'todo',
         priority: 'media',
+        phaseIndex: 1,
+        dueOffsetDays: 10,
         checklist: [
           'Elegir 1 métrica norte',
+          'Definir cómo se calcula',
           'Definir check-in semanal de métricas',
+        ],
+      },
+      {
+        title: 'Preparar landing / waitlist',
+        description: 'Canal para capturar interés antes o durante el launch.',
+        status: 'todo',
+        priority: 'media',
+        phaseIndex: 2,
+        dueOffsetDays: 21,
+        checklist: [
+          'Definir mensaje principal',
+          'Publicar CTA de captura',
+          'Conectar notificación al equipo',
+        ],
+      },
+      {
+        title: 'Plan de launch (semana 1)',
+        description: 'Acciones concretas para los primeros días en mercado.',
+        status: 'todo',
+        priority: 'alta',
+        phaseIndex: 2,
+        dueOffsetDays: 28,
+        checklist: [
+          'Lista de early adopters a contactar',
+          'Post de anuncio listo',
+          'Canal de soporte definido',
+        ],
+      },
+      {
+        title: 'Correr primer experimento de growth',
+        description: 'Un experimento acotado con hipótesis y métrica.',
+        status: 'todo',
+        priority: 'media',
+        phaseIndex: 3,
+        dueOffsetDays: 42,
+        checklist: [
+          'Escribir hipótesis',
+          'Definir métrica de éxito',
+          'Compartir resultado en #growth',
         ],
       },
     ],
     memberOnboarding: {
       title: ONBOARDING_TASK_TITLE,
       items: [
-        'Presentarte en el canal general',
-        'Revisar la descripción del proyecto',
+        'Presentarte en #general y #standup',
+        'Leer la descripción del proyecto (objetivos y canales)',
         'Completar tu primer check-in',
-        'Revisar el tablero Kanban y comentar dudas',
-        'Actualizar tu disponibilidad / calendario',
-        'Elegir o pedir tus tags de rol',
-        'Agendar sync con tu buddy o lead',
+        'Revisar el roadmap (fase Validación / MVP) y el Kanban',
+        'Comentar en la tarea de propuesta de valor o métricas',
+        'Pedir tus tags de rol (Crecimiento / Ingeniería) a un admin',
+        'Agendar sync corto con tu lead',
       ],
     },
   },
@@ -129,7 +255,20 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplateId, ProjectTemplate> = {
     id: 'agency',
     name: 'Agencia',
     description:
-      'Estructura para clientes: briefing, creativos, entregas y revisión.',
+      'Brief → concepto → producción → entrega: estructura para cuentas y deadlines de cliente.',
+    suggestedDescription: [
+      '## Objetivo',
+      'Entregar el trabajo del cliente a tiempo, con feedback claro y handoffs ordenados.',
+      '',
+      '## Cómo usamos los canales',
+      '- **#clientes** — comunicación y estado por cuenta',
+      '- **#creativos** — feedback de diseño y piezas',
+      '- **#entregas** — deadlines y handoffs a cliente',
+      '',
+      '## Rituales',
+      '- Kickoff y revisiones con fechas acordadas',
+      '- Cliente como Viewer en entregas clave',
+    ].join('\n'),
     channels: [
       {
         name: 'clientes',
@@ -153,12 +292,12 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplateId, ProjectTemplate> = {
       {
         label: 'Creativo',
         color: '#EC4899',
-        assignToRoles: ['Collaborator'],
+        assignToRoles: [],
       },
       {
         label: 'Producción',
         color: '#22C55E',
-        assignToRoles: ['Collaborator'],
+        assignToRoles: [],
       },
       {
         label: 'Cliente',
@@ -166,12 +305,41 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplateId, ProjectTemplate> = {
         assignToRoles: ['Viewer'],
       },
     ],
+    phases: [
+      {
+        name: 'Brief',
+        description: 'Alcance, tonos y stakeholders',
+        startOffsetDays: 0,
+        endOffsetDays: 5,
+      },
+      {
+        name: 'Concepto',
+        description: 'Dirección creativa y validación',
+        startOffsetDays: 5,
+        endOffsetDays: 14,
+      },
+      {
+        name: 'Producción',
+        description: 'Ejecución de piezas y entregables',
+        startOffsetDays: 14,
+        endOffsetDays: 28,
+      },
+      {
+        name: 'Entrega',
+        description: 'Revisión final y handoff al cliente',
+        startOffsetDays: 28,
+        endOffsetDays: 35,
+      },
+    ],
     seedTasks: [
       {
         title: 'Kickoff con cliente',
         description: 'Alinear alcance, tonos y entregables.',
-        status: 'todo',
+        status: 'in-progress',
         priority: 'alta',
+        phaseIndex: 0,
+        dueOffsetDays: 3,
+        assignToActor: true,
         checklist: [
           'Confirmar brief',
           'Definir stakeholders',
@@ -179,35 +347,94 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplateId, ProjectTemplate> = {
         ],
       },
       {
-        title: 'Moodboard / dirección creativa',
+        title: 'Documentar brief del cliente',
+        description: 'Dejar alcance, tonos y entregables claros para el equipo.',
         status: 'todo',
         priority: 'alta',
+        phaseIndex: 0,
+        dueOffsetDays: 5,
+        checklist: [
+          'Escribir objetivos y audiencia',
+          'Listar entregables acordados',
+          'Compartir resumen en #clientes',
+        ],
+      },
+      {
+        title: 'Moodboard / dirección creativa',
+        description: 'Referencias y tono visual/verbal.',
+        status: 'todo',
+        priority: 'alta',
+        phaseIndex: 1,
+        dueOffsetDays: 10,
         checklist: [
           'Recopilar referencias',
-          'Validar dirección con account',
+          'Validar dirección con Account',
+          'Publicar síntesis en #creativos',
         ],
       },
       {
         title: 'Calendario de entregas',
+        description: 'Hitos visibles en roadmap y Kanban.',
         status: 'todo',
         priority: 'media',
+        phaseIndex: 1,
+        dueOffsetDays: 12,
         checklist: [
-          'Listar hitos',
-          'Asignar responsables',
-          'Compartir con el cliente (viewer)',
+          'Revisar fechas de cada fase del roadmap',
+          'Asignar responsables por entrega',
+          'Avisar deadlines en #entregas',
+        ],
+      },
+      {
+        title: 'Producción de piezas v1',
+        description: 'Primer set de entregables para revisión interna.',
+        status: 'todo',
+        priority: 'alta',
+        phaseIndex: 2,
+        dueOffsetDays: 21,
+        checklist: [
+          'Listar piezas del paquete',
+          'Revisión interna Account + Creativo',
+          'Adjuntar o linkear borradores en la tarea',
+        ],
+      },
+      {
+        title: 'Ronda de feedback con cliente',
+        description: 'Consolidar comentarios y próximos cambios.',
+        status: 'todo',
+        priority: 'media',
+        phaseIndex: 2,
+        dueOffsetDays: 25,
+        checklist: [
+          'Enviar v1 al cliente',
+          'Recoger feedback en un solo hilo',
+          'Priorizar cambios must-have',
+        ],
+      },
+      {
+        title: 'Entrega final y handoff',
+        description: 'Cierre, archivos finales y follow-up.',
+        status: 'todo',
+        priority: 'alta',
+        phaseIndex: 3,
+        dueOffsetDays: 35,
+        checklist: [
+          'Empaquetar entregables finales',
+          'Confirmar recepción con el cliente',
+          'Retro corta del equipo en #entregas',
         ],
       },
     ],
     memberOnboarding: {
       title: ONBOARDING_TASK_TITLE,
       items: [
-        'Presentarte en el canal del equipo',
-        'Leer el brief del proyecto / cliente',
-        'Revisar canales de clientes y entregas',
+        'Presentarte en #general y en #clientes',
+        'Leer la descripción y el brief del proyecto',
+        'Revisar canales #creativos y #entregas',
         'Completar tu primer check-in',
-        'Confirmar rol y tags con el account',
-        'Revisar próximas entregas en el Kanban',
-        'Configurar notificaciones de deadlines',
+        'Confirmar rol/tags (Creativo o Producción) con Account',
+        'Revisar el roadmap y próximas entregas en el Kanban',
+        'Activar notificaciones de deadlines del proyecto',
       ],
     },
   },
@@ -215,7 +442,20 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplateId, ProjectTemplate> = {
     id: 'product',
     name: 'Producto',
     description:
-      'Flujo producto–engineering: discovery, delivery, QA y soporte.',
+      'Discovery → build → QA → release: flujo producto–engineering con DoD y soporte.',
+    suggestedDescription: [
+      '## Objetivo',
+      'Descubrir, construir y releasear valor con criterios de done claros.',
+      '',
+      '## Cómo usamos los canales',
+      '- **#discovery** — investigación, feedback y oportunidades',
+      '- **#engineering** — implementación y dudas técnicas',
+      '- **#qa** — bugs, regresiones y criterios de aceptación',
+      '',
+      '## Rituales',
+      '- Ciclo / sprint con objetivo explícito',
+      '- Revisión contra Definition of Done antes de release',
+    ].join('\n'),
     channels: [
       {
         name: 'discovery',
@@ -237,19 +477,19 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplateId, ProjectTemplate> = {
         assignToRoles: ['Owner', 'Admin'],
       },
       {
-        label: 'Design',
+        label: 'Diseño',
         color: '#EC4899',
-        assignToRoles: ['Collaborator'],
+        assignToRoles: [],
       },
       {
         label: 'Dev',
         color: '#22C55E',
-        assignToRoles: ['Collaborator'],
+        assignToRoles: [],
       },
       {
         label: 'QA',
         color: '#0EA5E9',
-        assignToRoles: ['Collaborator'],
+        assignToRoles: [],
       },
       {
         label: 'Stakeholder',
@@ -257,20 +497,67 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplateId, ProjectTemplate> = {
         assignToRoles: ['Viewer'],
       },
     ],
+    phases: [
+      {
+        name: 'Discovery',
+        description: 'Problemas, journey y oportunidades',
+        startOffsetDays: 0,
+        endOffsetDays: 10,
+      },
+      {
+        name: 'Build',
+        description: 'Implementación del ciclo actual',
+        startOffsetDays: 10,
+        endOffsetDays: 24,
+      },
+      {
+        name: 'QA',
+        description: 'Validación, bugs y aceptación',
+        startOffsetDays: 24,
+        endOffsetDays: 31,
+      },
+      {
+        name: 'Release',
+        description: 'Salida a producción y seguimiento',
+        startOffsetDays: 31,
+        endOffsetDays: 38,
+      },
+    ],
     seedTasks: [
       {
         title: 'Mapear journey del usuario',
-        status: 'todo',
+        description: 'Pasos críticos y fricciones conocidas.',
+        status: 'in-progress',
         priority: 'alta',
+        phaseIndex: 0,
+        dueOffsetDays: 5,
+        assignToActor: true,
         checklist: [
           'Identificar pasos críticos',
           'Marcar fricciones conocidas',
+          'Compartir hallazgos en #discovery',
+        ],
+      },
+      {
+        title: 'Priorizar oportunidades del ciclo',
+        description: 'Elegir qué entra al backlog inmediato.',
+        status: 'todo',
+        priority: 'alta',
+        phaseIndex: 0,
+        dueOffsetDays: 8,
+        checklist: [
+          'Listar oportunidades top 10',
+          'Elegir top 5 del ciclo',
+          'Alinear con stakeholders (Viewer)',
         ],
       },
       {
         title: 'Definir sprint / ciclo actual',
+        description: 'Objetivo del ciclo, owners y alcance.',
         status: 'todo',
         priority: 'alta',
+        phaseIndex: 1,
+        dueOffsetDays: 12,
         checklist: [
           'Elegir objetivo del ciclo',
           'Priorizar backlog top 5',
@@ -279,23 +566,66 @@ export const PROJECT_TEMPLATES: Record<ProjectTemplateId, ProjectTemplate> = {
       },
       {
         title: 'Criterios de done y QA',
+        description: 'Definition of Done y flujo de revisión.',
         status: 'todo',
         priority: 'media',
+        phaseIndex: 1,
+        dueOffsetDays: 14,
         checklist: [
-          'Documentar Definition of Done',
+          'Documentar Definition of Done en la descripción de la tarea',
           'Definir flujo de revisión',
+          'Publicar resumen en #qa',
+        ],
+      },
+      {
+        title: 'Implementar historias del ciclo',
+        description: 'Trabajo de engineering del alcance acordado.',
+        status: 'todo',
+        priority: 'alta',
+        phaseIndex: 1,
+        dueOffsetDays: 24,
+        checklist: [
+          'Crear tareas hijas / subtareas si hace falta',
+          'Actualizar estado en el Kanban',
+          'Documentar dudas en #engineering',
+        ],
+      },
+      {
+        title: 'Pasada de QA y regresiones',
+        description: 'Validar aceptación antes del release.',
+        status: 'todo',
+        priority: 'alta',
+        phaseIndex: 2,
+        dueOffsetDays: 28,
+        checklist: [
+          'Ejecutar checklist de aceptación',
+          'Registrar bugs en #qa',
+          'Confirmar DoD cumplido',
+        ],
+      },
+      {
+        title: 'Release y notas de versión',
+        description: 'Salida a producción y comunicación.',
+        status: 'todo',
+        priority: 'media',
+        phaseIndex: 3,
+        dueOffsetDays: 35,
+        checklist: [
+          'Checklist de release',
+          'Notas de versión para stakeholders',
+          'Plan de monitoreo post-release',
         ],
       },
     ],
     memberOnboarding: {
       title: ONBOARDING_TASK_TITLE,
       items: [
-        'Presentarte en general y en tu canal de área',
+        'Presentarte en #general y en tu canal de área (#discovery, #engineering o #qa)',
         'Leer la descripción y objetivos del producto',
-        'Revisar el Kanban y el ciclo actual',
+        'Revisar el roadmap (ciclo actual) y el Kanban',
         'Completar tu primer check-in',
-        'Confirmar tags (PM / Design / Dev / QA)',
-        'Revisar Definition of Done',
+        'Pedir tus tags (Diseño / Dev / QA) a un admin',
+        'Revisar la tarea de Definition of Done',
         'Agendar 1:1 corto con tu lead',
       ],
     },
@@ -327,8 +657,8 @@ export const GENERIC_MEMBER_ONBOARDING = {
     'Presentarte en el canal general',
     'Revisar la descripción del proyecto',
     'Completar tu primer check-in',
-    'Explorar el tablero Kanban',
-    'Revisar recursos compartidos',
+    'Explorar el tablero Kanban y el roadmap (si existe)',
+    'Revisar las tareas iniciales del proyecto',
     'Confirmar tu rol y tags con un admin',
     'Configurar notificaciones del proyecto',
   ],
@@ -346,6 +676,18 @@ export function getProjectTemplate(
   id: ProjectTemplateId,
 ): ProjectTemplate | null {
   return PROJECT_TEMPLATES[id] ?? null;
+}
+
+export function getTemplatePreviewStats(
+  template: ProjectTemplate,
+): TemplatePreviewStats {
+  return {
+    channels: template.channels.length,
+    tags: template.roleTags.length,
+    tasks: template.seedTasks.length,
+    phases: template.phases.length,
+    onboardingDays: ONBOARDING_WINDOW_DAYS,
+  };
 }
 
 /** Detect which template was applied from its distinctive channel names. */
@@ -377,11 +719,21 @@ export function addDaysIso(from: Date, days: number): string {
   return d.toISOString();
 }
 
+export function addDaysDateOnly(from: Date, days: number): string {
+  const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  d.setDate(d.getDate() + days);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 type ApplyTemplateResult = {
   templateId: ProjectTemplateId;
   channelsCreated: number;
   tagsCreated: number;
   tasksCreated: number;
+  phasesCreated: number;
 };
 
 export async function applyProjectTemplate(
@@ -398,6 +750,8 @@ export async function applyProjectTemplate(
   }
 
   await ensureProjectHasNoTemplate(supabase, params.projectId);
+
+  const appliedAt = new Date();
 
   const { data: existingChannels } = await supabase
     .from('channels')
@@ -454,6 +808,12 @@ export async function applyProjectTemplate(
     tagsCreated += 1;
   }
 
+  const phaseIdsByIndex = await ensureTemplateRoadmapPhases(supabase, {
+    projectId: params.projectId,
+    phases: template.phases,
+    appliedAt,
+  });
+
   const { data: existingTasks } = await supabase
     .from('tasks')
     .select('title')
@@ -469,6 +829,9 @@ export async function applyProjectTemplate(
   for (const seed of template.seedTasks) {
     if (existingTaskTitles.has(seed.title.toLowerCase())) continue;
 
+    const phaseId =
+      seed.phaseIndex !== undefined ? phaseIdsByIndex.get(seed.phaseIndex) ?? null : null;
+
     const { data: task, error: taskError } = await supabase
       .from('tasks')
       .insert({
@@ -479,6 +842,11 @@ export async function applyProjectTemplate(
         priority: seed.priority,
         position,
         created_by: params.actorUserId,
+        phase_roadmap_id: phaseId,
+        done_estimated_at:
+          seed.dueOffsetDays !== undefined
+            ? addDaysIso(appliedAt, seed.dueOffsetDays)
+            : null,
       })
       .select('id')
       .single();
@@ -501,6 +869,14 @@ export async function applyProjectTemplate(
         );
       if (checklistError) throw checklistError;
     }
+
+    if (seed.assignToActor) {
+      const { error: assignError } = await supabase.from('task_assignments').insert({
+        task_id: task.id,
+        user_id: params.actorUserId,
+      });
+      if (assignError) throw assignError;
+    }
   }
 
   // Auto-tag existing members by role (including Owner)
@@ -519,12 +895,114 @@ export async function applyProjectTemplate(
     });
   }
 
+  const { error: templateIdError } = await supabase
+    .from('projects')
+    .update({ template_id: params.templateId })
+    .eq('id', params.projectId);
+  if (templateIdError) {
+    // Allow apply to succeed before the template_id migration is pushed;
+    // detection still works via channels + audit metadata.
+    const message = templateIdError.message || '';
+    if (!/template_id|schema cache|column/i.test(message)) {
+      throw templateIdError;
+    }
+  }
+
+  // Prefill empty project description with the template suggestion
+  const { data: projectRow } = await supabase
+    .from('projects')
+    .select('description')
+    .eq('id', params.projectId)
+    .maybeSingle();
+
+  const currentDescription = String(projectRow?.description ?? '').trim();
+  if (!currentDescription && template.suggestedDescription) {
+    const { error: descriptionError } = await supabase
+      .from('projects')
+      .update({ description: template.suggestedDescription })
+      .eq('id', params.projectId);
+    if (descriptionError) throw descriptionError;
+  }
+
   return {
     templateId: params.templateId,
     channelsCreated: channelsToInsert.length,
     tagsCreated,
     tasksCreated,
+    phasesCreated: phaseIdsByIndex.size,
   };
+}
+
+async function ensureTemplateRoadmapPhases(
+  supabase: SupabaseClient,
+  params: {
+    projectId: string;
+    phases: TemplateSeedPhase[];
+    appliedAt: Date;
+  },
+): Promise<Map<number, number>> {
+  const phaseIdsByIndex = new Map<number, number>();
+  if (params.phases.length === 0) return phaseIdsByIndex;
+
+  let roadmapId: number | null = null;
+
+  const { data: existingRoadmap, error: roadmapLookupError } = await supabase
+    .from('roadmap')
+    .select('id')
+    .eq('project_id', params.projectId)
+    .maybeSingle();
+
+  if (roadmapLookupError) throw roadmapLookupError;
+
+  if (existingRoadmap?.id) {
+    roadmapId = existingRoadmap.id as number;
+  } else {
+    const { data: createdRoadmap, error: roadmapError } = await supabase
+      .from('roadmap')
+      .insert({ project_id: params.projectId })
+      .select('id')
+      .single();
+    if (roadmapError) throw roadmapError;
+    roadmapId = createdRoadmap.id as number;
+  }
+
+  const { data: existingPhases, error: phasesLookupError } = await supabase
+    .from('phase_roadmap')
+    .select('id, name')
+    .eq('roadmap_id', roadmapId);
+
+  if (phasesLookupError) throw phasesLookupError;
+
+  const phasesByName = new Map(
+    (existingPhases ?? []).map((p) => [String(p.name).toLowerCase(), p.id as number]),
+  );
+
+  for (let index = 0; index < params.phases.length; index += 1) {
+    const phase = params.phases[index];
+    const existingId = phasesByName.get(phase.name.toLowerCase());
+    if (existingId) {
+      phaseIdsByIndex.set(index, existingId);
+      continue;
+    }
+
+    const { data: created, error } = await supabase
+      .from('phase_roadmap')
+      .insert({
+        roadmap_id: roadmapId,
+        name: phase.name,
+        description: phase.description ?? null,
+        init_at: addDaysDateOnly(params.appliedAt, phase.startOffsetDays),
+        end_at: addDaysDateOnly(params.appliedAt, phase.endOffsetDays),
+      })
+      .select('id')
+      .single();
+
+    if (error) throw error;
+    phaseIdsByIndex.set(index, created.id as number);
+    phasesByName.set(phase.name.toLowerCase(), created.id as number);
+  }
+
+  return phaseIdsByIndex;
 }
 
 async function ensureRoleTagsExist(
@@ -603,6 +1081,18 @@ export async function detectProjectTemplateId(
   supabase: SupabaseClient,
   projectId: string,
 ): Promise<ProjectTemplateId | null> {
+  const { data: project, error: projectError } = await supabase
+    .from('projects')
+    .select('template_id')
+    .eq('id', projectId)
+    .maybeSingle();
+
+  // If the column exists and is set, trust it. Ignore lookup errors so older DBs
+  // without the migration still fall back to channels / audit.
+  if (!projectError && isProjectTemplateId(project?.template_id)) {
+    return project.template_id;
+  }
+
   const { data: channels } = await supabase
     .from('channels')
     .select('name')

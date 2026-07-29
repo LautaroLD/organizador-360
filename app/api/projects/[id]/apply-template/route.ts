@@ -137,6 +137,7 @@ export async function POST(
         channels_created: result.channelsCreated,
         tags_created: result.tagsCreated,
         tasks_created: result.tasksCreated,
+        phases_created: result.phasesCreated,
       },
     });
 

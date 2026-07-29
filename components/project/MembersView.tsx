@@ -16,15 +16,20 @@ import { MemberTagsModal } from '@/components/members/MemberTagsModal';
 import { ProjectTagsModal } from '@/components/members/ProjectTagsModal';
 import { AuditLogPanel } from '@/components/project/AuditLogPanel';
 import { Modal } from '@/components/ui/Modal';
-import type { TagFormData, Member, ProjectTag, ProjectTemplateId, MemberOnboardingSummary } from '@/models';
+import type {
+  TagFormData,
+  Member,
+  ProjectTag,
+  ProjectTemplateId,
+  MemberOnboardingSummary,
+} from '@/models';
 import { PostgrestSingleResponse } from '@supabase/supabase-js';
 import { useProjectPermissions } from '@/hooks/useProjectPermissions';
 import {
   ONBOARDING_TASK_TITLE,
   computeOnboardingProgress,
-  listProjectTemplates,
 } from '@/lib/projectTemplates';
-import clsx from 'clsx';
+import { TemplatePicker } from '@/components/dashboard/TemplatePicker';
 
 type InvitationValidationResponse = {
   canAdd: boolean;
@@ -247,7 +252,8 @@ export const MembersView: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['project-template-applied'] });
       queryClient.invalidateQueries({ queryKey: ['project-audit'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['channels'] });
+  queryClient.invalidateQueries({ queryKey: ['channels'] });
+      queryClient.invalidateQueries({ queryKey: ['roadmap-phases'] });
       toast.success('Plantilla aplicada al proyecto');
       setIsTemplateModalOpen(false);
       setSelectedTemplateId(null);
@@ -729,32 +735,12 @@ export const MembersView: React.FC = () => {
         size='lg'
       >
         <div className='space-y-4'>
-          <p className='text-sm text-[var(--text-secondary)]'>
-            Agrega canales, tags de rol y tareas iniciales según el tipo de equipo.
-            Los miembros existentes reciben tags según su rol.
-          </p>
-          <div className='grid gap-2 sm:grid-cols-3'>
-            { listProjectTemplates().map((template) => (
-              <button
-                key={ template.id }
-                type='button'
-                onClick={ () => setSelectedTemplateId(template.id) }
-                className={ clsx(
-                  'rounded-xl border p-3 text-left transition-colors',
-                  selectedTemplateId === template.id
-                    ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10'
-                    : 'border-[var(--text-secondary)]/20 hover:border-[var(--accent-primary)]/40',
-                ) }
-              >
-                <p className='text-sm font-medium text-[var(--text-primary)]'>
-                  { template.name }
-                </p>
-                <p className='text-xs text-[var(--text-secondary)] mt-1 line-clamp-3'>
-                  { template.description }
-                </p>
-              </button>
-            )) }
-          </div>
+          <TemplatePicker
+            selectedTemplateId={selectedTemplateId}
+            onSelect={setSelectedTemplateId}
+            canUseTemplates
+            showBlankOption={false}
+          />
           <div className='flex justify-end gap-2 pt-2'>
             <Button
               variant='secondary'

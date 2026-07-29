@@ -5,6 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { FileText, Link2, ExternalLink, Trash2, ImageIcon, Video, File, Sparkles, Lock } from 'lucide-react';
 import type { Resource, ResourceCardProps } from '@/models';
 import { formatBytes } from '@/lib/subscriptionUtils';
+import {
+  isFileTooLargeForAIAnalysis,
+  RESOURCE_ANALYZE_MAX_MB,
+} from '@/lib/aiGeneration';
 
 const getFileCategory = (fileName: string): string => {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
@@ -45,6 +49,9 @@ const getResourceIcon = (resource: Resource) => {
 };
 
 export const ResourceCard: React.FC<ResourceCardProps> = ({ resource, onDelete, onAnalyze, isPremium = false, canManage = true, selected, onSelect, selectionMode }) => {
+  const tooLargeForAI = isFileTooLargeForAIAnalysis(resource.size);
+  const canAnalyzeWithAI = isPremium && !tooLargeForAI;
+
   return (
     <Card
       className={ `hover:shadow-lg transition-all hover:scale-[1.02] bg-[var(--bg-secondary)] border ${selected ? 'border-[var(--accent-primary)] ring-2 ring-[var(--accent-primary)]/20' : 'border-[var(--text-secondary)]/20'}` }
@@ -74,22 +81,32 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({ resource, onDelete, 
                   <button
                     onClick={ (e) => {
                       e.stopPropagation();
-                      if (isPremium) {
+                      if (canAnalyzeWithAI) {
                         onAnalyze(resource);
                       }
                     } }
-                    disabled={ !isPremium }
-                    className={ `p-1.5 rounded-lg transition-colors ${isPremium
+                    disabled={ !canAnalyzeWithAI }
+                    className={ `p-1.5 rounded-lg transition-colors ${canAnalyzeWithAI
                       ? 'hover:bg-indigo-100 dark:hover:bg-indigo-900/20 text-indigo-500'
                       : 'text-gray-400 cursor-not-allowed'
                       }` }
-                    title={ !isPremium ? 'Función disponible solo en Plan Pro' : 'Analizar con IA' }
+                    title={
+                      !isPremium
+                        ? 'Función disponible solo en Plan Pro'
+                        : tooLargeForAI
+                          ? `Máximo ${RESOURCE_ANALYZE_MAX_MB} MB para análisis con IA`
+                          : 'Analizar con IA'
+                    }
                   >
-                    { isPremium ? <Sparkles className='h-4 w-4' /> : <Lock className='h-4 w-4' /> }
+                    { canAnalyzeWithAI ? <Sparkles className='h-4 w-4' /> : <Lock className='h-4 w-4' /> }
                   </button>
-                  { !isPremium && (
+                  { (!isPremium || tooLargeForAI) && (
                     <div className="absolute hidden group-hover:block z-10 w-48 p-2 mt-1 right-0 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-md shadow-lg text-xs text-[var(--text-secondary)]">
-                      <p>Función disponible solo en Plan Pro</p>
+                      <p>
+                        { !isPremium
+                          ? 'Función disponible solo en Plan Pro'
+                          : `El archivo supera ${RESOURCE_ANALYZE_MAX_MB} MB (límite de análisis IA)` }
+                      </p>
                     </div>
                   ) }
                 </div>

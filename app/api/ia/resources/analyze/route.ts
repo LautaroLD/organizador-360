@@ -3,6 +3,14 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 import { AICreditError, consumeAICredits } from '@/lib/aiCredits';
+import {
+  AI_MODEL,
+  aiOutputConfig,
+  isFileTooLargeForAIAnalysis,
+  resourceAnalyzeSizeLimitMessage,
+  RESOURCE_ANALYZE_MAX_BYTES,
+  RESOURCE_ANALYZE_MAX_MB,
+} from '@/lib/aiGeneration';
 
 export async function POST(req: NextRequest) {
   try {
@@ -56,6 +64,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Rechazar antes de cobrar créditos si el tamaño conocido supera el límite.
+    if (isFileTooLargeForAIAnalysis(resource.size)) {
+      return NextResponse.json(
+        {
+          error: resourceAnalyzeSizeLimitMessage(),
+          code: 'FILE_TOO_LARGE',
+          maxBytes: RESOURCE_ANALYZE_MAX_BYTES,
+          maxMb: RESOURCE_ANALYZE_MAX_MB,
+        },
+        { status: 413 },
+      );
+    }
+
     // Obtener datos del proyecto al que pertenece el recurso
     const { data: project } = resource.project_id
       ? await supabase
@@ -65,7 +86,48 @@ export async function POST(req: NextRequest) {
           .single()
       : { data: null };
 
-    // Nivel 2: análisis de documento/recurso
+    // 2. Descargar el archivo (validar tamaño antes de cargar en memoria)
+    const fileResponse = await fetch(resource.url);
+    if (!fileResponse.ok) {
+      return NextResponse.json(
+        { error: 'Failed to download file' },
+        { status: 500 },
+      );
+    }
+
+    const contentLengthHeader = fileResponse.headers.get('content-length');
+    const contentLength = contentLengthHeader
+      ? Number(contentLengthHeader)
+      : NaN;
+    if (isFileTooLargeForAIAnalysis(contentLength)) {
+      await fileResponse.body?.cancel().catch(() => undefined);
+      return NextResponse.json(
+        {
+          error: resourceAnalyzeSizeLimitMessage(),
+          code: 'FILE_TOO_LARGE',
+          maxBytes: RESOURCE_ANALYZE_MAX_BYTES,
+          maxMb: RESOURCE_ANALYZE_MAX_MB,
+        },
+        { status: 413 },
+      );
+    }
+
+    const arrayBuffer = await fileResponse.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    if (isFileTooLargeForAIAnalysis(buffer.length)) {
+      return NextResponse.json(
+        {
+          error: resourceAnalyzeSizeLimitMessage(),
+          code: 'FILE_TOO_LARGE',
+          maxBytes: RESOURCE_ANALYZE_MAX_BYTES,
+          maxMb: RESOURCE_ANALYZE_MAX_MB,
+        },
+        { status: 413 },
+      );
+    }
+
+    // Nivel 2: análisis de documento/recurso (después de validar tamaño)
     await consumeAICredits(supabase, {
       userId: user.id,
       action: 'resource_analyze',
@@ -77,34 +139,31 @@ export async function POST(req: NextRequest) {
       metadata: {
         endpoint: '/api/ia/resources/analyze',
         resourceId,
+        fileSize: buffer.length,
       },
     });
 
-    // 2. Descargar el archivo
-    // Asumimos que la URL es accesible (publicUrl). Si no, usaríamos supabase.storage.download
-    const fileResponse = await fetch(resource.url);
-    if (!fileResponse.ok) {
-      return NextResponse.json(
-        { error: 'Failed to download file' },
-        { status: 500 },
-      );
-    }
-
-    const arrayBuffer = await fileResponse.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
     const base64Data = buffer.toString('base64');
     const mimeType =
       fileResponse.headers.get('content-type') || 'application/pdf'; // Fallback común
 
     // 3. Enviar a Gemini
     const projectContext = project
-      ? `El archivo pertenece al proyecto "${project.name}"${project.description ? ` (${project.description})` : ''}.`
+      ? `El archivo pertenece al proyecto "${project.name}"${project.description ? ` (${project.description})` : ''}. Usa ese contexto solo para interpretar términos o referencias; no inventes vínculo con el proyecto si el documento no lo menciona.`
       : '';
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite',
+      model: AI_MODEL,
       config: {
-        systemInstruction: `Eres un analista experto en documentación de equipos de trabajo. Tu tarea es leer el archivo adjunto y generar un resumen conciso, claro y útil para los miembros del equipo. ${projectContext} Adapta el nivel técnico del resumen al tipo de documento: si es técnico, mantén los términos; si es de negocio, enfócate en decisiones e impacto.`,
+        ...aiOutputConfig('resource_analyze'),
+        systemInstruction: `Eres un asistente que explica el contenido de archivos a miembros de un equipo de trabajo.
+Tu objetivo principal es ayudar a entender qué dice y qué contiene el documento adjunto, de forma clara y fiel.
+${projectContext}
+Reglas:
+- Basa la explicación solo en lo que realmente aparece en el archivo. Si no puedes leerlo o falta información, dilo explícitamente.
+- No inventes datos, secciones ni conclusiones que no estén en el documento.
+- Adapta el nivel técnico al tipo de archivo (técnico, negocio, diseño, etc.).
+- Sé conciso y directo. Responde siempre en español.`,
       },
       contents: [
         {
@@ -117,14 +176,14 @@ export async function POST(req: NextRequest) {
               },
             },
             {
-              text: `Analiza este archivo: "${resource.title}".
-              
-              Genera una respuesta en Markdown con la siguiente estructura:
-              1. **Resumen Ejecutivo:** (2-3 frases)
-              2. **Puntos Clave:** (Lista de bullets)
-              3. **Conclusión/Acciones Sugeridas:** (Pasos concretos que el equipo podría tomar en el contexto del proyecto)
-              
-              Mantén el tono profesional y responde en español.`,
+              text: `Explica el contenido de este archivo: "${resource.title}".
+
+Genera una respuesta en Markdown con esta estructura:
+1. **Qué es:** tipo de documento y de qué trata (2-3 frases).
+2. **Contenido principal:** explicación clara de lo que dice o muestra el archivo (secciones, temas, datos o ideas relevantes).
+3. **Puntos clave:** lista breve de los hallazgos o ideas más importantes del documento.
+
+No agregues recomendaciones ni plan de acciones salvo que el propio archivo las incluya de forma explícita.`,
             },
           ],
         },

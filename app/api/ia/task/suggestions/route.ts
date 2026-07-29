@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 import { AICreditError, consumeAICredits } from '@/lib/aiCredits';
+import { AI_MODEL, aiOutputConfig } from '@/lib/aiGeneration';
 
 type TaskStatus = 'todo' | 'in-progress' | 'done';
 type TaskPriority = 'alta' | 'media' | 'baja' | null;
@@ -408,9 +409,10 @@ export async function POST(req: NextRequest) {
       }
 
       return ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite',
+        model: AI_MODEL,
         contents,
         config: {
+          ...aiOutputConfig('task_suggestions'),
           systemInstruction,
         },
       });

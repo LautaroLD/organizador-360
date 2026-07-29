@@ -3,11 +3,13 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { canUseAIFeatures } from '@/lib/subscriptionUtils';
 import { AICreditError, consumeAICredits } from '@/lib/aiCredits';
-
-type AgentHistoryMessage = {
-  role: 'assistant' | 'user';
-  content: string;
-};
+import {
+  AI_MODEL,
+  aiOutputConfig,
+  clampAgentHistory,
+  clampAgentUserMessage,
+  truncateForAI,
+} from '@/lib/aiGeneration';
 
 type MemberTag = {
   tag?:
@@ -247,10 +249,19 @@ function serializeTask(
 export async function POST(req: NextRequest) {
   try {
     const { message, history, projectId, requestId } = await req.json();
+    const userMessage = clampAgentUserMessage(message);
+    const conversationHistory = clampAgentHistory(history);
 
     if (!projectId) {
       return NextResponse.json(
         { error: 'Project ID is required' },
+        { status: 400 },
+      );
+    }
+
+    if (!userMessage) {
+      return NextResponse.json(
+        { error: 'Message is required' },
         { status: 400 },
       );
     }
@@ -357,7 +368,7 @@ export async function POST(req: NextRequest) {
             .select('content, user_id, created_at, users:user_id(email)')
             .in('channel_id', channelIds)
             .order('created_at', { ascending: false })
-            .limit(50)
+            .limit(20)
         : { data: [] },
 
       // Miembros del equipo
@@ -497,7 +508,11 @@ export async function POST(req: NextRequest) {
     ${events
       .map(
         (e: EventItem) =>
-          `- [${e.start_date ? new Date(e.start_date).toLocaleString() : 'Sin fecha'} - ${e.end_date ? new Date(e.end_date).toLocaleTimeString() : 'Sin hora'}] ${e.title}: ${e.description || 'Sin descripción'}`,
+          `- [${e.start_date ? new Date(e.start_date).toLocaleString() : 'Sin fecha'} - ${e.end_date ? new Date(e.end_date).toLocaleTimeString() : 'Sin hora'}] ${e.title}: ${
+            e.description
+              ? truncateForAI(e.description, 120)
+              : 'Sin descripción'
+          }`,
       )
       .join('\n')}
 
@@ -511,30 +526,32 @@ export async function POST(req: NextRequest) {
       .reverse()
       .map((m: ChatMessage) => {
         const user = Array.isArray(m.users) ? m.users[0] : m.users;
-        return `[${m.created_at}] ${user?.email || 'Usuario'}: ${m.content}`;
+        return `[${m.created_at}] ${user?.email || 'Usuario'}: ${truncateForAI(
+          m.content || '',
+          180,
+        )}`;
       })
       .join('\n')}
     `;
 
     // 5. Llamada a Gemini
-    // Construimos el historial de conversación para Gemini
-    const conversationHistory =
-      history?.map((msg: AgentHistoryMessage) => ({
-        role: msg.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: msg.content }],
-      })) || [];
+    const geminiHistory = conversationHistory.map((msg) => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }],
+    }));
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite',
+      model: AI_MODEL,
       contents: [
         { role: 'user', parts: [{ text: contextText }] },
-        ...conversationHistory,
+        ...geminiHistory,
         {
           role: 'user',
-          parts: [{ text: `Pregunta actual del usuario: ${message}` }],
+          parts: [{ text: `Pregunta actual del usuario: ${userMessage}` }],
         },
       ],
       config: {
+        ...aiOutputConfig('agent_message'),
         systemInstruction: `Eres el Asistente de IA oficial del proyecto "${project.name}".
         La fecha actual es ${new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
 
@@ -543,7 +560,7 @@ export async function POST(req: NextRequest) {
 
         INSTRUCCIONES:
         1. Usa el contexto del proyecto provisto en la conversación para responder. Si la información no está disponible, indícalo claramente.
-        2. Sé conciso y directo. Usa listas o tablas cuando la respuesta tenga múltiples elementos.
+        2. Sé conciso y directo. Prioriza hechos útiles: idealmente una respuesta corta (pocas oraciones) o una lista/tabla breve. No repitas el contexto ni rellenes con introducciones largas.
         3. No propongas acciones que no puedas ejecutar tú mismo (por ejemplo: "creo la tarea", "notifico a X", "asigno a Y", "marco como hecha", "pido revisión"). En su lugar, responde con hechos, prioridades o hallazgos basados en los datos.
         4. Si el usuario pide explícitamente ideas de tareas o un plan, puedes listar sugerencias de texto como ideas (no como acciones que vas a realizar) y aclara que debe crearlas o aplicarlas manualmente en la app.
         5. Puedes analizar el sentimiento del equipo basado en el historial de chat.
