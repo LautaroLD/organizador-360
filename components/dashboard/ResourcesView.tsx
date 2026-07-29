@@ -15,6 +15,10 @@ import { UploadFileModal } from '@/components/resources/UploadFileModal';
 import { AnalyzeResourceModal } from '@/components/resources/AnalyzeResourceModal';
 import type { LinkFormData, ResourceTab, Resource } from '@/models';
 import { checkStorageLimit, getUserPlanTier } from '@/lib/subscriptionUtils';
+import {
+  isFileTooLargeForAIAnalysis,
+  resourceAnalyzeSizeLimitMessage,
+} from '@/lib/aiGeneration';
 import { StorageIndicator } from './StorageIndicator';
 import { useProjectPermissions } from '@/hooks/useProjectPermissions';
 
@@ -78,7 +82,7 @@ export const ResourcesView: React.FC = () => {
 
   const canUseAI = userPlanTier === 'pro';
 
-  const { data: storagePolicy } = useQuery({
+  const { data: storagePolicy, isPending: isStoragePolicyPending } = useQuery({
     queryKey: ['resource-storage-policy', currentProject?.id, currentProject?.storage_used],
     queryFn: async (): Promise<StoragePolicyResponse> => {
       const response = await fetch('/api/resources/storage-policy', {
@@ -440,6 +444,12 @@ export const ResourcesView: React.FC = () => {
       toast.error('Proyecto bloqueado por sobrecupo. Solo puedes descargar o eliminar recursos.');
       return;
     }
+
+    if (isFileTooLargeForAIAnalysis(resource.size)) {
+      toast.error(resourceAnalyzeSizeLimitMessage());
+      return;
+    }
+
     setAnalyzingResource(resource);
     setIsAnalyzeModalOpen(true);
     setAnalysisSummary(null);
@@ -458,6 +468,10 @@ export const ResourcesView: React.FC = () => {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 413 || data.code === 'FILE_TOO_LARGE') {
+          throw new Error(data.error || resourceAnalyzeSizeLimitMessage());
+        }
+
         if (response.status === 402) {
           throw new Error('No tienes créditos suficientes para analizar este archivo.');
         }
@@ -568,9 +582,10 @@ export const ResourcesView: React.FC = () => {
             <div>
               <StorageIndicator
                 used={ currentProject.storage_used || 0 }
-                limit={ storagePolicy?.limit ?? 100 * 1024 * 1024 }
+                limit={ storagePolicy?.limit ?? null }
+                isLoading={ isStoragePolicyPending }
               />
-              { isResourceWriteLocked && (
+              { !isStoragePolicyPending && isResourceWriteLocked && (
                 <div className='mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200'>
                   <p className='font-semibold'>Proyecto excedido de almacenamiento</p>
                   <p className='mt-1'>

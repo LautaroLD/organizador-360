@@ -12,6 +12,26 @@ export const AI_MAX_OUTPUT_TOKENS: Record<AICreditAction, number> = {
   project_insights: 1280,
 };
 
+/**
+ * Tamaño máximo de archivo para análisis IA (inline a Gemini).
+ * Más bajo que el upload (50 MB) para limitar memoria del servidor y costo.
+ */
+export const RESOURCE_ANALYZE_MAX_BYTES = 15 * 1024 * 1024;
+export const RESOURCE_ANALYZE_MAX_MB = 15;
+
+export function isFileTooLargeForAIAnalysis(
+  sizeBytes: number | null | undefined,
+): boolean {
+  if (sizeBytes == null || !Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+    return false;
+  }
+  return sizeBytes > RESOURCE_ANALYZE_MAX_BYTES;
+}
+
+export function resourceAnalyzeSizeLimitMessage(): string {
+  return `El archivo supera el límite de ${RESOURCE_ANALYZE_MAX_MB} MB para análisis con IA. Subí una versión más liviana o un extracto del documento.`;
+}
+
 /** Últimos turnos de conversación enviados al modelo (user + assistant). */
 export const AGENT_HISTORY_MAX_MESSAGES = 12;
 

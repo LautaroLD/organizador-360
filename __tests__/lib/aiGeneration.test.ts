@@ -4,6 +4,10 @@ import {
   aiOutputConfig,
   clampAgentHistory,
   clampAgentUserMessage,
+  isFileTooLargeForAIAnalysis,
+  resourceAnalyzeSizeLimitMessage,
+  RESOURCE_ANALYZE_MAX_BYTES,
+  RESOURCE_ANALYZE_MAX_MB,
   truncateForAI,
 } from '@/lib/aiGeneration';
 
@@ -13,6 +17,18 @@ describe('aiGeneration helpers', () => {
       maxOutputTokens: AI_MAX_OUTPUT_TOKENS.agent_message,
     });
     expect(AI_MAX_OUTPUT_TOKENS.agent_message).toBe(1024);
+  });
+
+  it('detecta archivos demasiado grandes para análisis IA', () => {
+    expect(isFileTooLargeForAIAnalysis(undefined)).toBe(false);
+    expect(isFileTooLargeForAIAnalysis(0)).toBe(false);
+    expect(isFileTooLargeForAIAnalysis(RESOURCE_ANALYZE_MAX_BYTES)).toBe(false);
+    expect(isFileTooLargeForAIAnalysis(RESOURCE_ANALYZE_MAX_BYTES + 1)).toBe(
+      true,
+    );
+    expect(resourceAnalyzeSizeLimitMessage()).toContain(
+      `${RESOURCE_ANALYZE_MAX_MB} MB`,
+    );
   });
 
   it('trunca texto largo', () => {
