@@ -44,15 +44,10 @@ const SidebarContent = ({ handleBackToDashboard, currentProject, menuItems, path
       <div className="bg-[var(--bg-primary)] p-3 rounded-lg">
         <div className="flex items-center gap-2 mb-1">
           <Hash className="h-4 w-4 text-[var(--accent-primary)]" />
-          <h2 className="text-lg font-bold text-[var(--text-primary)] truncate">
+          <h2 className="text-md font-bold text-[var(--text-primary)] truncate">
             {currentProject?.name || 'Proyecto'}
           </h2>
         </div>
-        {currentProject?.description && (
-          <div className="text-xs text-[var(--text-secondary)] line-clamp-2">
-            <MessageContent content={currentProject.description} />
-          </div>
-        )}
         {currentProject?.userRole && (
           <span className="inline-block mt-2 text-xs px-2 py-1 rounded-full bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] font-medium">
             {currentProject.userRole}
