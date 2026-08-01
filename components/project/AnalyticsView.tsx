@@ -20,7 +20,7 @@ import {
   Users,
 } from 'lucide-react';
 import { MessageContent } from '@/components/ui/MessageContent';
-import { formatLocalDate, parseDateValue } from '@/lib/utils';
+import { cn, formatLocalDate, parseDateValue } from '@/lib/utils';
 import {
   addDaysLocal,
   buildTeamHealthSnapshot,
@@ -157,14 +157,113 @@ const downloadBlob = (blob: Blob, filename: string) => {
   URL.revokeObjectURL(url);
 };
 
+type AnalyticsSectionKey =
+  | 'alerts'
+  | 'workload'
+  | 'throughputMember'
+  | 'throughputTag'
+  | 'phases'
+  | 'estimateCompare'
+  | 'tasksByMember'
+  | 'aiInsights';
+
+const DEFAULT_OPEN_SECTIONS: Record<AnalyticsSectionKey, boolean> = {
+  alerts: true,
+  workload: true,
+  throughputMember: true,
+  throughputTag: true,
+  phases: true,
+  estimateCompare: false,
+  tasksByMember: false,
+  aiInsights: true,
+};
+
+const AnalyticsScrollBody: React.FC<{
+  children: React.ReactNode;
+  className?: string;
+}> = ({ children, className }) => (
+  <div
+    className={cn(
+      'max-h-64 overflow-y-auto overscroll-contain pr-1 sm:max-h-72',
+      className,
+    )}
+  >
+    { children }
+  </div>
+);
+
+const CollapsibleAnalyticsCard: React.FC<{
+  open: boolean;
+  onToggle: () => void;
+  title: React.ReactNode;
+  description?: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+  /** When false, children render without max-height scroll (caller wraps). */
+  scroll?: boolean;
+  scrollClassName?: string;
+}> = ({
+  open,
+  onToggle,
+  title,
+  description,
+  icon,
+  children,
+  scroll = true,
+  scrollClassName,
+}) => (
+  <Card>
+    <CardHeader
+      className="cursor-pointer select-none hover:bg-[var(--bg-secondary)]/50 transition-colors"
+      onClick={ onToggle }
+      role="button"
+      tabIndex={ 0 }
+      aria-expanded={ open }
+      onKeyDown={ (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onToggle();
+        }
+      } }
+    >
+      <CardTitle className="text-base flex items-center justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-2">
+          { icon }
+          <span className="truncate">{ title }</span>
+        </span>
+        { open ? (
+          <ChevronUp className="h-4 w-4 shrink-0 text-[var(--text-secondary)]" />
+        ) : (
+          <ChevronDown className="h-4 w-4 shrink-0 text-[var(--text-secondary)]" />
+        ) }
+      </CardTitle>
+      { description ? <CardDescription>{ description }</CardDescription> : null }
+    </CardHeader>
+    { open && (
+      <CardContent>
+        { scroll ? (
+          <AnalyticsScrollBody className={ scrollClassName }>{ children }</AnalyticsScrollBody>
+        ) : (
+          children
+        ) }
+      </CardContent>
+    ) }
+  </Card>
+);
+
 export const AnalyticsView: React.FC = () => {
   const supabase = createClient();
   const { currentProject } = useProjectStore();
   const [memberTaskFilter, setMemberTaskFilter] = useState<'all' | 'todo' | 'in-progress' | 'done' | 'overdue'>('all');
   const [memberTaskSort, setMemberTaskSort] = useState<'estimated' | 'status' | 'title'>('estimated');
   const [showExplanation, setShowExplanation] = useState(false);
+  const [openSections, setOpenSections] = useState(DEFAULT_OPEN_SECTIONS);
   const [exporting, setExporting] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+
+  const toggleSection = (key: AnalyticsSectionKey) => {
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const normalizedRole = currentProject?.userRole?.toLowerCase();
   const canManage = normalizedRole === 'owner' || normalizedRole === 'admin';
@@ -688,7 +787,7 @@ export const AnalyticsView: React.FC = () => {
                   ? 'Sin datos'
                   : `${teamHealth.checkinCompliance.complianceTodayRate}%` }
               </p>
-              <p className="text-xs text-[var(--text-secondary)]">
+              <p className="text-xs text-[var(--text-secondary)] max-h-16 overflow-y-auto">
                 { teamHealth.checkinCompliance.missedToday.length === 0
                   ? 'Todos los miembros activos completaron el check-in'
                   : `Faltan: ${teamHealth.checkinCompliance.missedToday.map((m) => m.name).join(', ')}` }
@@ -707,7 +806,7 @@ export const AnalyticsView: React.FC = () => {
                   ? 'Sin datos'
                   : `${teamHealth.checkinCompliance.complianceWeekRate}%` }
               </p>
-              <p className="text-xs text-[var(--text-secondary)]">
+              <p className="text-xs text-[var(--text-secondary)] max-h-16 overflow-y-auto">
                 { teamHealth.checkinCompliance.missedThisWeek.length === 0
                   ? 'Nadie quedó sin check-in esta semana'
                   : `Sin check-in: ${teamHealth.checkinCompliance.missedThisWeek.map((m) => m.name).join(', ')}` }
@@ -745,131 +844,131 @@ export const AnalyticsView: React.FC = () => {
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Alertas del equipo</CardTitle>
-            <CardDescription>Blockers recurrentes, sobrecarga y riesgos de entrega</CardDescription>
-          </CardHeader>
-          <CardContent>
-            { teamHealth.alerts.length === 0 ? (
-              <p className="text-sm text-[var(--text-secondary)]">No hay alertas activas. El equipo se ve estable.</p>
+        <CollapsibleAnalyticsCard
+          open={ openSections.alerts }
+          onToggle={ () => toggleSection('alerts') }
+          icon={ <AlertTriangle className="h-4 w-4" /> }
+          title="Alertas del equipo"
+          description="Blockers recurrentes, sobrecarga y riesgos de entrega"
+        >
+          { teamHealth.alerts.length === 0 ? (
+            <p className="text-sm text-[var(--text-secondary)]">No hay alertas activas. El equipo se ve estable.</p>
+          ) : (
+            <div className="space-y-2">
+              { teamHealth.alerts.map((alert) => (
+                <div
+                  key={ alert.id }
+                  className="rounded-lg border p-3"
+                  style={ getToneStyles(alert.severity === 'info' ? 'neutral' : alert.severity) }
+                >
+                  <p className="text-sm font-semibold">{ alert.title }</p>
+                  <p className="text-xs mt-1 opacity-90">{ alert.detail }</p>
+                </div>
+              )) }
+            </div>
+          ) }
+        </CollapsibleAnalyticsCard>
+
+        <CollapsibleAnalyticsCard
+          open={ openSections.workload }
+          onToggle={ () => toggleSection('workload') }
+          icon={ <Users className="h-4 w-4" /> }
+          title="Carga de trabajo por miembro"
+          description="Abiertas, en progreso y vencidas"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            { teamHealth.workload.map((row) => (
+              <div key={ row.userId } className="bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[var(--text-primary)] truncate">{ row.name }</p>
+                    <p className="text-xs text-[var(--text-secondary)]">{ row.role }</p>
+                  </div>
+                  <span className="text-sm font-semibold text-[var(--accent-primary)] shrink-0">{ row.total }</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs text-[var(--text-secondary)]">
+                  <div>
+                    Abiertas
+                    <p className="text-[var(--text-primary)] font-semibold">{ row.open }</p>
+                  </div>
+                  <div>
+                    En progreso
+                    <p className="text-[var(--text-primary)] font-semibold">{ row.inProgress }</p>
+                  </div>
+                  <div>
+                    Vencidas
+                    <p className="font-semibold" style={ { color: row.overdue > 0 ? 'var(--accent-danger)' : 'var(--text-primary)' } }>
+                      { row.overdue }
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )) }
+          </div>
+        </CollapsibleAnalyticsCard>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <CollapsibleAnalyticsCard
+            open={ openSections.throughputMember }
+            onToggle={ () => toggleSection('throughputMember') }
+            icon={ <BarChart3 className="h-4 w-4" /> }
+            title="Throughput por persona"
+            description="Cierres y % en plazo"
+          >
+            { teamHealth.throughputByMember.length === 0 ? (
+              <p className="text-sm text-[var(--text-secondary)]">Aún no hay tareas cerradas asignadas.</p>
             ) : (
               <div className="space-y-2">
-                { teamHealth.alerts.map((alert) => (
-                  <div
-                    key={ alert.id }
-                    className="rounded-lg border p-3"
-                    style={ getToneStyles(alert.severity === 'info' ? 'neutral' : alert.severity) }
-                  >
-                    <p className="text-sm font-semibold">{ alert.title }</p>
-                    <p className="text-xs mt-1 opacity-90">{ alert.detail }</p>
+                { teamHealth.throughputByMember.map((point) => (
+                  <div key={ point.key } className="flex items-center justify-between gap-3 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-[var(--text-primary)] truncate">{ point.label }</p>
+                      <p className="text-xs text-[var(--text-secondary)]">
+                        { point.doneCount } cerradas · { point.onTimeCount } en plazo · { point.lateCount } tarde
+                      </p>
+                    </div>
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full border shrink-0"
+                      style={ getToneStyles(getOnTimeTone(point.onTimeRate)) }
+                    >
+                      { point.onTimeRate === null ? 'Sin est.' : `${point.onTimeRate}%` }
+                    </span>
                   </div>
                 )) }
               </div>
             ) }
-          </CardContent>
-        </Card>
+          </CollapsibleAnalyticsCard>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Users className="h-4 w-4" /> Carga de trabajo por miembro</CardTitle>
-            <CardDescription>Abiertas, en progreso y vencidas</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              { teamHealth.workload.map((row) => (
-                <div key={ row.userId } className="bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <p className="text-sm font-medium text-[var(--text-primary)]">{ row.name }</p>
-                      <p className="text-xs text-[var(--text-secondary)]">{ row.role }</p>
-                    </div>
-                    <span className="text-sm font-semibold text-[var(--accent-primary)]">{ row.total }</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-xs text-[var(--text-secondary)]">
-                    <div>
-                      Abiertas
-                      <p className="text-[var(--text-primary)] font-semibold">{ row.open }</p>
-                    </div>
-                    <div>
-                      En progreso
-                      <p className="text-[var(--text-primary)] font-semibold">{ row.inProgress }</p>
-                    </div>
-                    <div>
-                      Vencidas
-                      <p className="font-semibold" style={ { color: row.overdue > 0 ? 'var(--accent-danger)' : 'var(--text-primary)' } }>
-                        { row.overdue }
+          <CollapsibleAnalyticsCard
+            open={ openSections.throughputTag }
+            onToggle={ () => toggleSection('throughputTag') }
+            icon={ <BarChart3 className="h-4 w-4" /> }
+            title="Throughput por tag"
+            description="Rendimiento por etiqueta de tarea"
+          >
+            { teamHealth.throughputByTag.length === 0 ? (
+              <p className="text-sm text-[var(--text-secondary)]">No hay tags en tareas cerradas.</p>
+            ) : (
+              <div className="space-y-2">
+                { teamHealth.throughputByTag.map((point) => (
+                  <div key={ point.key } className="flex items-center justify-between gap-3 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-[var(--text-primary)] truncate">{ point.label }</p>
+                      <p className="text-xs text-[var(--text-secondary)]">
+                        { point.doneCount } cerradas · { point.onTimeCount } en plazo · { point.lateCount } tarde
                       </p>
                     </div>
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full border shrink-0"
+                      style={ getToneStyles(getOnTimeTone(point.onTimeRate)) }
+                    >
+                      { point.onTimeRate === null ? 'Sin est.' : `${point.onTimeRate}%` }
+                    </span>
                   </div>
-                </div>
-              )) }
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Throughput por persona</CardTitle>
-              <CardDescription>Cierres y % en plazo</CardDescription>
-            </CardHeader>
-            <CardContent>
-              { teamHealth.throughputByMember.length === 0 ? (
-                <p className="text-sm text-[var(--text-secondary)]">Aún no hay tareas cerradas asignadas.</p>
-              ) : (
-                <div className="space-y-2">
-                  { teamHealth.throughputByMember.map((point) => (
-                    <div key={ point.key } className="flex items-center justify-between gap-3 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
-                      <div>
-                        <p className="text-sm font-medium text-[var(--text-primary)]">{ point.label }</p>
-                        <p className="text-xs text-[var(--text-secondary)]">
-                          { point.doneCount } cerradas · { point.onTimeCount } en plazo · { point.lateCount } tarde
-                        </p>
-                      </div>
-                      <span
-                        className="text-xs font-semibold px-2 py-0.5 rounded-full border"
-                        style={ getToneStyles(getOnTimeTone(point.onTimeRate)) }
-                      >
-                        { point.onTimeRate === null ? 'Sin est.' : `${point.onTimeRate}%` }
-                      </span>
-                    </div>
-                  )) }
-                </div>
-              ) }
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Throughput por tag</CardTitle>
-              <CardDescription>Rendimiento por etiqueta de tarea</CardDescription>
-            </CardHeader>
-            <CardContent>
-              { teamHealth.throughputByTag.length === 0 ? (
-                <p className="text-sm text-[var(--text-secondary)]">No hay tags en tareas cerradas.</p>
-              ) : (
-                <div className="space-y-2">
-                  { teamHealth.throughputByTag.map((point) => (
-                    <div key={ point.key } className="flex items-center justify-between gap-3 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
-                      <div>
-                        <p className="text-sm font-medium text-[var(--text-primary)]">{ point.label }</p>
-                        <p className="text-xs text-[var(--text-secondary)]">
-                          { point.doneCount } cerradas · { point.onTimeCount } en plazo · { point.lateCount } tarde
-                        </p>
-                      </div>
-                      <span
-                        className="text-xs font-semibold px-2 py-0.5 rounded-full border"
-                        style={ getToneStyles(getOnTimeTone(point.onTimeRate)) }
-                      >
-                        { point.onTimeRate === null ? 'Sin est.' : `${point.onTimeRate}%` }
-                      </span>
-                    </div>
-                  )) }
-                </div>
-              ) }
-            </CardContent>
-          </Card>
+                )) }
+              </div>
+            ) }
+          </CollapsibleAnalyticsCard>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -945,118 +1044,121 @@ export const AnalyticsView: React.FC = () => {
         </div>
 
         { analytics.phaseBreakdown.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Estado por fase</CardTitle>
-              <CardDescription>Detalle de avance por etapa del roadmap</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                { analytics.phaseBreakdown.map((phase) => (
-                  <div key={ phase.id } className="bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium text-[var(--text-primary)]">{ phase.name }</p>
-                      <span className="text-xs text-[var(--text-secondary)]">{ phase.progress }%</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-[var(--bg-primary)] overflow-hidden">
-                      <div
-                        className="h-full bg-[var(--accent-primary)] transition-all"
-                        style={ { width: `${phase.progress}%` } }
-                      />
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
-                      <span>Hechas: { phase.done }</span>
-                      <span>En progreso: { phase.inProgress }</span>
-                      <span>Pendientes: { phase.todo }</span>
-                    </div>
+          <CollapsibleAnalyticsCard
+            open={ openSections.phases }
+            onToggle={ () => toggleSection('phases') }
+            icon={ <BarChart3 className="h-4 w-4" /> }
+            title="Estado por fase"
+            description="Detalle de avance por etapa del roadmap"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              { analytics.phaseBreakdown.map((phase) => (
+                <div key={ phase.id } className="bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-medium text-[var(--text-primary)] truncate">{ phase.name }</p>
+                    <span className="text-xs text-[var(--text-secondary)] shrink-0">{ phase.progress }%</span>
                   </div>
-                )) }
-              </div>
-              { analytics.phaseUnassigned > 0 && (
-                <p className="mt-3 text-xs text-[var(--text-secondary)]">
-                  Tareas sin fase: { analytics.phaseUnassigned }
-                </p>
-              ) }
-            </CardContent>
-          </Card>
+                  <div className="h-2 rounded-full bg-[var(--bg-primary)] overflow-hidden">
+                    <div
+                      className="h-full bg-[var(--accent-primary)] transition-all"
+                      style={ { width: `${phase.progress}%` } }
+                    />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
+                    <span>Hechas: { phase.done }</span>
+                    <span>En progreso: { phase.inProgress }</span>
+                    <span>Pendientes: { phase.todo }</span>
+                  </div>
+                </div>
+              )) }
+            </div>
+            { analytics.phaseUnassigned > 0 && (
+              <p className="mt-3 text-xs text-[var(--text-secondary)]">
+                Tareas sin fase: { analytics.phaseUnassigned }
+              </p>
+            ) }
+          </CollapsibleAnalyticsCard>
         ) }
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Clock className="h-4 w-4" /> Cierre estimado vs real</CardTitle>
-            <CardDescription>Comparacion para tareas completadas</CardDescription>
-          </CardHeader>
-          <CardContent>
-            { analytics.estimateComparisons.length === 0 ? (
-              <p className="text-sm text-[var(--text-secondary)]">Sin datos para comparar.</p>
-            ) : (
-              <div className="space-y-2">
-                { analytics.estimateComparisons.map((task) => {
-                  const estimatedAt = formatLocalDate(task.done_estimated_at);
-                  const doneAt = formatLocalDate(task.done_at);
-                  const estimatedAtDate = parseDateValue(task.done_estimated_at);
-                  const doneAtDate = parseDateValue(task.done_at);
-                  const deltaMs = estimatedAtDate && doneAtDate
-                    ? getCalendarDayDeltaMs(estimatedAtDate, doneAtDate)
-                    : 0;
-                  const isLate = deltaMs > 0;
-                  return (
-                    <div key={ task.id } className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
-                      <div>
-                        <p className="text-sm font-medium text-[var(--text-primary)]">{ task.title }</p>
-                        <p className="text-xs text-[var(--text-secondary)]">Estimado: { estimatedAt } | Real: { doneAt }</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
-                          style={ getToneStyles(isLate ? 'danger' : 'success') }
-                        >
-                          { isLate ? 'Retraso' : 'En plazo' }
-                        </span>
-                        <span className="text-xs font-semibold text-[var(--accent-primary)]">Delta: { formatDelta(deltaMs) }</span>
-                      </div>
+        <CollapsibleAnalyticsCard
+          open={ openSections.estimateCompare }
+          onToggle={ () => toggleSection('estimateCompare') }
+          icon={ <Clock className="h-4 w-4" /> }
+          title="Cierre estimado vs real"
+          description="Comparacion para tareas completadas"
+        >
+          { analytics.estimateComparisons.length === 0 ? (
+            <p className="text-sm text-[var(--text-secondary)]">Sin datos para comparar.</p>
+          ) : (
+            <div className="space-y-2">
+              { analytics.estimateComparisons.map((task) => {
+                const estimatedAt = formatLocalDate(task.done_estimated_at);
+                const doneAt = formatLocalDate(task.done_at);
+                const estimatedAtDate = parseDateValue(task.done_estimated_at);
+                const doneAtDate = parseDateValue(task.done_at);
+                const deltaMs = estimatedAtDate && doneAtDate
+                  ? getCalendarDayDeltaMs(estimatedAtDate, doneAtDate)
+                  : 0;
+                const isLate = deltaMs > 0;
+                return (
+                  <div key={ task.id } className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-[var(--text-primary)] truncate">{ task.title }</p>
+                      <p className="text-xs text-[var(--text-secondary)]">Estimado: { estimatedAt } | Real: { doneAt }</p>
                     </div>
-                  );
-                }) }
-              </div>
-            ) }
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Users className="h-4 w-4" /> Tareas por miembro</CardTitle>
-            <CardDescription>Asignaciones actuales del equipo</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-[var(--text-secondary)]">Filtro</label>
-                <select
-                  className="text-xs bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-md px-2 py-1 text-[var(--text-primary)]"
-                  value={ memberTaskFilter }
-                  onChange={ (event) => setMemberTaskFilter(event.target.value as typeof memberTaskFilter) }
-                >
-                  <option value="all">Todas</option>
-                  <option value="todo">Por hacer</option>
-                  <option value="in-progress">En progreso</option>
-                  <option value="done">Completadas</option>
-                  <option value="overdue">Vencidas</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-[var(--text-secondary)]">Orden</label>
-                <select
-                  className="text-xs bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-md px-2 py-1 text-[var(--text-primary)]"
-                  value={ memberTaskSort }
-                  onChange={ (event) => setMemberTaskSort(event.target.value as typeof memberTaskSort) }
-                >
-                  <option value="estimated">Fecha estimada</option>
-                  <option value="status">Estado</option>
-                  <option value="title">Titulo</option>
-                </select>
-              </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+                        style={ getToneStyles(isLate ? 'danger' : 'success') }
+                      >
+                        { isLate ? 'Retraso' : 'En plazo' }
+                      </span>
+                      <span className="text-xs font-semibold text-[var(--accent-primary)]">Delta: { formatDelta(deltaMs) }</span>
+                    </div>
+                  </div>
+                );
+              }) }
             </div>
+          ) }
+        </CollapsibleAnalyticsCard>
+
+        <CollapsibleAnalyticsCard
+          open={ openSections.tasksByMember }
+          onToggle={ () => toggleSection('tasksByMember') }
+          icon={ <Users className="h-4 w-4" /> }
+          title="Tareas por miembro"
+          description="Asignaciones actuales del equipo"
+          scroll={ false }
+        >
+          <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-[var(--text-secondary)]">Filtro</label>
+              <select
+                className="text-xs bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-md px-2 py-1 text-[var(--text-primary)]"
+                value={ memberTaskFilter }
+                onChange={ (event) => setMemberTaskFilter(event.target.value as typeof memberTaskFilter) }
+              >
+                <option value="all">Todas</option>
+                <option value="todo">Por hacer</option>
+                <option value="in-progress">En progreso</option>
+                <option value="done">Completadas</option>
+                <option value="overdue">Vencidas</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-[var(--text-secondary)]">Orden</label>
+              <select
+                className="text-xs bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-md px-2 py-1 text-[var(--text-primary)]"
+                value={ memberTaskSort }
+                onChange={ (event) => setMemberTaskSort(event.target.value as typeof memberTaskSort) }
+              >
+                <option value="estimated">Fecha estimada</option>
+                <option value="status">Estado</option>
+                <option value="title">Titulo</option>
+              </select>
+            </div>
+          </div>
+          <AnalyticsScrollBody className="max-h-80 sm:max-h-96">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               { members.map((m) => {
                 const memberUser = m.user;
@@ -1077,15 +1179,15 @@ export const AnalyticsView: React.FC = () => {
                   return getSortDateValue(a) - getSortDateValue(b);
                 });
                 return (
-                  <div key={ m.user_id } className="bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3">
+                  <div key={ m.user_id } className="bg-[var(--bg-secondary)] border border-[var(--text-secondary)]/20 rounded-lg p-3 flex flex-col min-h-0">
                     <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-[var(--text-primary)]">{ name }</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-[var(--text-primary)] truncate">{ name }</p>
                         <p className="text-xs text-[var(--text-secondary)]">{ m.role }</p>
                       </div>
-                      <span className="text-sm font-semibold text-[var(--accent-primary)]">{ count }</span>
+                      <span className="text-sm font-semibold text-[var(--accent-primary)] shrink-0">{ count }</span>
                     </div>
-                    <div className="mt-2 space-y-2">
+                    <div className="mt-2 max-h-40 space-y-2 overflow-y-auto overscroll-contain pr-1">
                       { sortedTasks.length === 0 ? (
                         <p className="text-xs text-[var(--text-secondary)]">Sin tareas asignadas.</p>
                       ) : (
@@ -1099,7 +1201,7 @@ export const AnalyticsView: React.FC = () => {
                           const overdue = isOverdue(task);
                           return (
                             <div key={ task.id } className="text-xs text-[var(--text-secondary)] border-t border-[var(--text-secondary)]/10 pt-2">
-                              <p className="text-sm text-[var(--text-primary)]">{ task.title }</p>
+                              <p className="text-sm text-[var(--text-primary)] line-clamp-2">{ task.title }</p>
                               <p>
                                 Estado: { task.status }
                                 { overdue && (
@@ -1123,22 +1225,25 @@ export const AnalyticsView: React.FC = () => {
                 );
               }) }
             </div>
-          </CardContent>
-        </Card>
+          </AnalyticsScrollBody>
+        </CollapsibleAnalyticsCard>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Sparkles className="h-4 w-4" /> Insights de IA</CardTitle>
-            <CardDescription>Estado actual y recomendaciones</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2 mb-3">
-              <Button variant="secondary" onClick={ () => refetchInsights() } disabled={ aiLoading }>
-                { aiLoading
-                  ? 'Generando...'
-                  : (aiInsights?.summary ? 'Actualizar insights' : 'Generar insights') }
-              </Button>
-            </div>
+        <CollapsibleAnalyticsCard
+          open={ openSections.aiInsights }
+          onToggle={ () => toggleSection('aiInsights') }
+          icon={ <Sparkles className="h-4 w-4" /> }
+          title="Insights de IA"
+          description="Estado actual y recomendaciones"
+          scroll={ false }
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Button variant="secondary" onClick={ () => refetchInsights() } disabled={ aiLoading }>
+              { aiLoading
+                ? 'Generando...'
+                : (aiInsights?.summary ? 'Actualizar insights' : 'Generar insights') }
+            </Button>
+          </div>
+          <AnalyticsScrollBody>
             <div className="text-sm text-[var(--text-secondary)]">
               { aiInsights?.summary ? (
                 <MessageContent content={ aiInsights.summary } />
@@ -1146,8 +1251,8 @@ export const AnalyticsView: React.FC = () => {
                 'Genera un resumen para ver recomendaciones.'
               ) }
             </div>
-          </CardContent>
-        </Card>
+          </AnalyticsScrollBody>
+        </CollapsibleAnalyticsCard>
       </div>
     </main>
   );
